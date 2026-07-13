@@ -12,6 +12,6 @@ if [[ -n "${ODOO_DB_NAME:-}" ]]; then
   set -- --database="$ODOO_DB_NAME" "$@"
 fi
 if [[ "${ODOO_INIT:-0}" == "1" ]]; then
-  set -- --init=geotherm_chatbot --without-demo "$@"
+  set -- --init="${ODOO_INIT_MODULES:-geotherm_chatbot,geotherm_drive}" --without-demo "$@"
 fi
 exec /entrypoint.sh odoo -c "$runtime_config" "$@"

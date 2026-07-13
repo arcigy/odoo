@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_geotherm_drive" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.geotherm.drive</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app string="Google Drive" name="geotherm_drive">
+                    <block title="Google Drive">
+                        <setting string="OAuth Client ID"><field name="geotherm_drive_client_id"/></setting>
+                        <setting string="Root folder name"><field name="geotherm_drive_root_folder_name"/></setting>
+                        <setting string="Root folder ID"><field name="geotherm_drive_root_folder_id"/></setting>
+                        <setting string="Redirect URI"><field name="geotherm_drive_redirect_uri"/></setting>
+                        <setting string="Connected at"><field name="geotherm_drive_connected_at" readonly="1"/></setting>
+                        <a href="/geotherm/drive/oauth/start" class="btn btn-primary" role="button">Connect Google Drive</a>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+    <record id="action_drive_settings" model="ir.actions.act_url">
+        <field name="name">Google Drive settings</field>
+        <field name="url">/web#action=base_setup.action_general_configuration</field>
+        <field name="target">self</field>
+    </record>
+</odoo>

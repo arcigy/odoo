@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="crm_lead_view_form_geotherm_drive" model="ir.ui.view">
+        <field name="name">crm.lead.form.geotherm.drive</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_geotherm_drive_sync" type="object" string="Sync to Drive" class="oe_highlight" groups="base.group_system"/>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Google Drive" name="geotherm_drive">
+                    <group>
+                        <field name="geotherm_drive_state" readonly="1"/>
+                        <field name="geotherm_drive_folder_url" widget="url" readonly="1"/>
+                        <field name="geotherm_drive_error" readonly="1" invisible="not geotherm_drive_error"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
