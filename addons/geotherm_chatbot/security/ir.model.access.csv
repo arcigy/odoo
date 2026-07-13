@@ -1,0 +1,11 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_geotherm_pricebook_catalog_user,geotherm.pricebook.catalog user,model_geotherm_pricebook_catalog,base.group_user,1,1,1,0
+access_geotherm_pricebook_area_user,geotherm.pricebook.area user,model_geotherm_pricebook_area,base.group_user,1,1,1,1
+access_geotherm_pricebook_question_user,geotherm.pricebook.question user,model_geotherm_pricebook_question,base.group_user,1,1,1,1
+access_geotherm_pricebook_product_user,geotherm.pricebook.product user,model_geotherm_pricebook_product,base.group_user,1,1,1,1
+access_geotherm_pricebook_addon_user,geotherm.pricebook.addon user,model_geotherm_pricebook_addon,base.group_user,1,1,1,1
+access_geotherm_pricebook_import_user,geotherm.pricebook.import user,model_geotherm_pricebook_import,base.group_user,1,0,0,0
+access_geotherm_pricebook_import_wizard_user,geotherm.pricebook.import.wizard user,model_geotherm_pricebook_import_wizard,base.group_user,1,1,1,1
+access_geotherm_chatbot_session_user,geotherm.chatbot.session user,model_geotherm_chatbot_session,base.group_user,1,0,0,0
+access_geotherm_chatbot_event_user,geotherm.chatbot.event user,model_geotherm_chatbot_event,base.group_user,1,0,0,0
+

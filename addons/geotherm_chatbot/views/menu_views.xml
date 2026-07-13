@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_geotherm_chatbot_root" name="Geotherm Chatbot" action="action_geotherm_chatbot_dashboard" sequence="35"/>
+    <menuitem id="menu_geotherm_chatbot_dashboard" name="Dashboard" parent="menu_geotherm_chatbot_root" action="action_geotherm_chatbot_dashboard" sequence="10"/>
+    <menuitem id="menu_geotherm_chatbot_leads" name="Leady" parent="menu_geotherm_chatbot_root" action="action_geotherm_crm_leads" sequence="20"/>
+    <menuitem id="menu_geotherm_chatbot_pricebook" name="Cenník" parent="menu_geotherm_chatbot_root" sequence="30"/>
+    <menuitem id="menu_geotherm_chatbot_import" name="Nahrať Excel" parent="menu_geotherm_chatbot_pricebook" action="action_geotherm_pricebook_import_wizard" sequence="10"/>
+    <menuitem id="menu_geotherm_chatbot_products" name="Produkty a balíky" parent="menu_geotherm_chatbot_pricebook" action="action_geotherm_pricebook_products" sequence="20"/>
+    <menuitem id="menu_geotherm_chatbot_questions" name="Otázky" parent="menu_geotherm_chatbot_pricebook" action="action_geotherm_pricebook_questions" sequence="30"/>
+    <menuitem id="menu_geotherm_chatbot_addons" name="Doplnky" parent="menu_geotherm_chatbot_pricebook" action="action_geotherm_pricebook_addons" sequence="40"/>
+    <menuitem id="menu_geotherm_chatbot_areas" name="Oblasti služieb" parent="menu_geotherm_chatbot_pricebook" action="action_geotherm_pricebook_areas" sequence="50"/>
+    <menuitem id="menu_geotherm_chatbot_imports" name="História importov" parent="menu_geotherm_chatbot_pricebook" action="action_geotherm_pricebook_imports" sequence="60"/>
+    <menuitem id="menu_geotherm_chatbot_analytics" name="Analytika" parent="menu_geotherm_chatbot_root" action="action_geotherm_chatbot_events" sequence="40"/>
+</odoo>

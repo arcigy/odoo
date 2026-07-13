@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_geotherm_chatbot_session_list" model="ir.ui.view">
+        <field name="name">geotherm.chatbot.session.list</field><field name="model">geotherm.chatbot.session</field>
+        <field name="arch" type="xml"><list create="false" edit="false" delete="false"><field name="last_seen_at"/><field name="conversation_id"/><field name="service_type"/><field name="service_intent"/><field name="turn_count"/><field name="lead_captured"/></list></field>
+    </record>
+    <record id="view_geotherm_chatbot_session_graph" model="ir.ui.view">
+        <field name="name">geotherm.chatbot.session.graph</field><field name="model">geotherm.chatbot.session</field>
+        <field name="arch" type="xml"><graph string="Dopyty podľa služby" type="bar"><field name="service_type"/><field name="conversation_count" type="measure"/><field name="lead_count" type="measure"/></graph></field>
+    </record>
+    <record id="view_geotherm_chatbot_session_pivot" model="ir.ui.view">
+        <field name="name">geotherm.chatbot.session.pivot</field><field name="model">geotherm.chatbot.session</field>
+        <field name="arch" type="xml"><pivot string="Chatbot dashboard"><field name="service_type" type="row"/><field name="last_seen_at" interval="month" type="col"/><field name="conversation_count" type="measure"/><field name="turn_count" type="measure"/><field name="lead_count" type="measure"/></pivot></field>
+    </record>
+    <record id="action_geotherm_chatbot_dashboard" model="ir.actions.act_window">
+        <field name="name">Dashboard chatbota</field><field name="res_model">geotherm.chatbot.session</field><field name="view_mode">graph,pivot,list</field>
+    </record>
+
+    <record id="view_geotherm_chatbot_event_list" model="ir.ui.view">
+        <field name="name">geotherm.chatbot.event.list</field><field name="model">geotherm.chatbot.event</field>
+        <field name="arch" type="xml"><list create="false" edit="false" delete="false"><field name="event_at"/><field name="event_type"/><field name="conversation_id"/><field name="service_type"/><field name="service_intent"/><field name="answer_mode"/><field name="lead_captured"/></list></field>
+    </record>
+    <record id="action_geotherm_chatbot_events" model="ir.actions.act_window">
+        <field name="name">Analytické udalosti</field><field name="res_model">geotherm.chatbot.event</field><field name="view_mode">list,pivot,graph</field>
+    </record>
+</odoo>
+

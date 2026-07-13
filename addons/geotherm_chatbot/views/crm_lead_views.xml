@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="crm_lead_view_form_geotherm" model="ir.ui.view">
+        <field name="name">crm.lead.form.geotherm.chatbot</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Chatbot" name="geotherm_chatbot" invisible="not geotherm_external_lead_id">
+                    <group>
+                        <group>
+                            <field name="geotherm_external_lead_id" readonly="1"/>
+                            <field name="geotherm_conversation_id" readonly="1"/>
+                            <field name="geotherm_site_id" readonly="1"/>
+                            <field name="geotherm_service_type"/>
+                            <field name="geotherm_service_intent"/>
+                            <field name="geotherm_project_type"/>
+                            <field name="geotherm_area_m2"/>
+                        </group>
+                        <group>
+                            <field name="geotherm_lead_score"/>
+                            <field name="geotherm_lead_temperature"/>
+                            <field name="geotherm_heating_distribution"/>
+                            <field name="geotherm_current_heat_source"/>
+                            <field name="geotherm_wants_cooling"/>
+                            <field name="geotherm_wants_hot_water"/>
+                            <field name="geotherm_source_url" widget="url"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="geotherm_chatbot_summary"/>
+                        <field name="geotherm_transcript_json" widget="text"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_geotherm_crm_leads" model="ir.actions.act_window">
+        <field name="name">Leady z chatbota</field>
+        <field name="res_model">crm.lead</field>
+        <field name="view_mode">kanban,list,form,calendar,pivot,graph,activity</field>
+        <field name="domain">[('geotherm_external_lead_id', '!=', False)]</field>
+        <field name="context">{'default_type': 'lead'}</field>
+    </record>
+</odoo>
+

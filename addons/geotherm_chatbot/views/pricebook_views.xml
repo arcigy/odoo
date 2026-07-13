@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_geotherm_pricebook_product_list" model="ir.ui.view">
+        <field name="name">geotherm.pricebook.product.list</field>
+        <field name="model">geotherm.pricebook.product</field>
+        <field name="arch" type="xml">
+            <list editable="bottom" decoration-muted="not active">
+                <field name="active"/>
+                <field name="area_id"/>
+                <field name="name"/>
+                <field name="brand_model"/>
+                <field name="price_eur_with_vat"/>
+                <field name="price_type"/>
+                <field name="installation_included"/>
+                <field name="valid_from"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_geotherm_pricebook_product_form" model="ir.ui.view">
+        <field name="name">geotherm.pricebook.product.form</field>
+        <field name="model">geotherm.pricebook.product</field>
+        <field name="arch" type="xml">
+            <form string="Produkt cenníka">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="active"/>
+                            <field name="area_id"/>
+                            <field name="name"/>
+                            <field name="brand_model"/>
+                            <field name="series"/>
+                            <field name="external_key" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="price_eur_with_vat"/>
+                            <field name="price_type"/>
+                            <field name="installation_included"/>
+                            <field name="valid_from"/>
+                            <field name="price_confidence"/>
+                            <field name="source_url" widget="url"/>
+                        </group>
+                    </group>
+                    <group string="Výber produktu">
+                        <field name="fit"/>
+                        <field name="area_from_m2"/>
+                        <field name="area_to_m2"/>
+                        <field name="occupants_from"/>
+                        <field name="occupants_to"/>
+                        <field name="custom_filters"/>
+                    </group>
+                    <group string="Obsah pre chatbot">
+                        <field name="included_text"/>
+                        <field name="do_not_recommend_when"/>
+                        <field name="chatbot_note"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_geotherm_pricebook_products" model="ir.actions.act_window">
+        <field name="name">Produkty a balíky</field>
+        <field name="res_model">geotherm.pricebook.product</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_geotherm_pricebook_question_list" model="ir.ui.view">
+        <field name="name">geotherm.pricebook.question.list</field>
+        <field name="model">geotherm.pricebook.question</field>
+        <field name="arch" type="xml">
+            <list editable="bottom" decoration-muted="not active">
+                <field name="active"/>
+                <field name="area_id"/>
+                <field name="sequence" widget="handle"/>
+                <field name="filter_key"/>
+                <field name="question"/>
+                <field name="answer_type"/>
+                <field name="required_before_price"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_geotherm_pricebook_question_form" model="ir.ui.view">
+        <field name="name">geotherm.pricebook.question.form</field>
+        <field name="model">geotherm.pricebook.question</field>
+        <field name="arch" type="xml">
+            <form string="Otázka chatbota"><sheet><group>
+                <field name="active"/><field name="area_id"/><field name="filter_key"/><field name="label"/>
+                <field name="question"/><field name="answer_type"/><field name="allowed_answers"/>
+                <field name="ask_when"/><field name="required_before_price"/><field name="sequence"/>
+                <field name="examples"/><field name="external_key" readonly="1"/>
+            </group></sheet></form>
+        </field>
+    </record>
+    <record id="action_geotherm_pricebook_questions" model="ir.actions.act_window">
+        <field name="name">Otázky chatbota</field>
+        <field name="res_model">geotherm.pricebook.question</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_geotherm_pricebook_area_list" model="ir.ui.view">
+        <field name="name">geotherm.pricebook.area.list</field>
+        <field name="model">geotherm.pricebook.area</field>
+        <field name="arch" type="xml"><list editable="bottom"><field name="active"/><field name="name"/><field name="note"/><field name="external_key" readonly="1"/></list></field>
+    </record>
+    <record id="action_geotherm_pricebook_areas" model="ir.actions.act_window">
+        <field name="name">Oblasti služieb</field><field name="res_model">geotherm.pricebook.area</field><field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_geotherm_pricebook_addon_list" model="ir.ui.view">
+        <field name="name">geotherm.pricebook.addon.list</field><field name="model">geotherm.pricebook.addon</field>
+        <field name="arch" type="xml"><list editable="bottom"><field name="active"/><field name="area_id"/><field name="name"/><field name="price_eur_with_vat"/><field name="price_type"/><field name="offer_when"/></list></field>
+    </record>
+    <record id="action_geotherm_pricebook_addons" model="ir.actions.act_window">
+        <field name="name">Doplnky</field><field name="res_model">geotherm.pricebook.addon</field><field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_geotherm_pricebook_import_list" model="ir.ui.view">
+        <field name="name">geotherm.pricebook.import.list</field><field name="model">geotherm.pricebook.import</field>
+        <field name="arch" type="xml"><list create="false" delete="false"><field name="create_date"/><field name="name"/><field name="mode"/><field name="state"/><field name="result_summary"/></list></field>
+    </record>
+    <record id="action_geotherm_pricebook_imports" model="ir.actions.act_window">
+        <field name="name">História importov</field><field name="res_model">geotherm.pricebook.import</field><field name="view_mode">list,form</field>
+    </record>
+</odoo>

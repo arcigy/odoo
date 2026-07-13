@@ -1,0 +1,23 @@
+name: Deploy Odoo to CapRover
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: geotherm-odoo-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Create deployment archive
+        shell: bash
+        run: tar --exclude='./.git' --exclude='./.github' -cf deploy.tar .
+      - name: Deploy to CapRover
+        run: npx --yes caprover deploy --caproverUrl "${{ secrets.CAPROVER_URL }}" --caproverPassword "${{ secrets.CAPROVER_PASSWORD }}" --appName "${{ secrets.CAPROVER_APP_NAME }}" --tarFile ./deploy.tar

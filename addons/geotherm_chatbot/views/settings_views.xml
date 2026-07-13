@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_geotherm" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.geotherm</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app string="Geotherm Chatbot" name="geotherm_chatbot">
+                    <block title="API a leady">
+                        <setting string="API kľúč" help="Bearer token pre chatbot API."><field name="geotherm_api_key" password="True"/></setting>
+                        <setting string="Webhook secret" help="HMAC secret pre lead a analytické webhooky."><field name="geotherm_webhook_secret" password="True"/></setting>
+                        <setting string="Obchodník" help="Používateľ, ktorému sa vytvorí aktivita Zavolať."><field name="geotherm_salesperson_id"/></setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>
+

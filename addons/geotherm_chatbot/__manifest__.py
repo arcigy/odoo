@@ -1,0 +1,22 @@
+{
+    "name": "Geotherm Chatbot ERP",
+    "version": "19.0.1.0.0",
+    "summary": "CRM leads, chatbot pricebook and analytics for Geotherm",
+    "category": "Sales/CRM",
+    "license": "LGPL-3",
+    "author": "Arcigy",
+    "depends": ["base", "mail", "crm"],
+    "external_dependencies": {"python": ["openpyxl"]},
+    "data": [
+        "security/ir.model.access.csv",
+        "views/crm_lead_views.xml",
+        "views/pricebook_views.xml",
+        "views/analytics_views.xml",
+        "views/settings_views.xml",
+        "wizard/pricebook_import_wizard_views.xml",
+        "views/menu_views.xml",
+    ],
+    "application": True,
+    "installable": True,
+    "post_init_hook": "post_init_hook",
+}

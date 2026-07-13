@@ -1,0 +1,52 @@
+name: geotherm-odoo
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${ODOO_DB_USER:-odoo}
+      POSTGRES_PASSWORD: ${ODOO_DB_PASSWORD:-odoo-test-password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - geotherm-odoo-db:/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ODOO_DB_USER:-odoo} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  odoo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${ODOO_PORT:-8069}:8069"
+    environment:
+      HOST: db
+      PORT: 5432
+      USER: ${ODOO_DB_USER:-odoo}
+      PASSWORD: ${ODOO_DB_PASSWORD:-odoo-test-password}
+      GEOTHERM_API_KEY: ${ODOO_API_KEY:-local-geotherm-api-key}
+      GEOTHERM_WEBHOOK_SECRET: ${ODOO_WEBHOOK_SECRET:-local-geotherm-webhook-secret}
+      ODOO_MASTER_PASSWORD: ${ODOO_MASTER_PASSWORD:-local-master-password}
+    command:
+      - odoo
+      - --database=${ODOO_DB_NAME:-geotherm_erp}
+      - --init=geotherm_chatbot
+      - --update=geotherm_chatbot
+      - --without-demo
+      - --db-filter=^${ODOO_DB_NAME:-geotherm_erp}$
+    volumes:
+      - geotherm-odoo-data:/var/lib/odoo
+      - ./config:/etc/odoo:ro
+      - ./addons:/mnt/extra-addons:ro
+
+volumes:
+  geotherm-odoo-db:
+  geotherm-odoo-data:
