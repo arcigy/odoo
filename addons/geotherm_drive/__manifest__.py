@@ -6,9 +6,6 @@
     "license": "LGPL-3",
     "author": "Arcigy",
     "depends": ["geotherm_chatbot", "crm", "mail"],
-    "external_dependencies": {
-        "python": ["googleapiclient", "google_auth_oauthlib", "google.oauth2"],
-    },
     "data": [
         "security/ir.model.access.csv",
         "views/crm_lead_views.xml",
