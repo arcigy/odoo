@@ -99,6 +99,19 @@ node integrations/saas_operational_sync.mjs `
 
 Ostrý beh vyžaduje `ARCIGY_ODOO_API_KEY` zo schváleného secret store. Reálny artifact držte mimo repozitára alebo ako `integrations/*.local.json` (gitignored). Najprv sa overuje Develop, potom Main; príkladový evidence súbor nikdy nepoužívajte ako reálny dôkaz.
 
+### GitHub CI/CD a security
+
+`integrations/saas_github_sync.mjs` číta iba agregovateľné metadata z GitHub Actions, Dependabot a Secret Scanning. Do Odoo neposiela kód, mená vývojárov, raw alerty ani literalne secrets (`hide_secret=true`). Develop a Main sú viazané na samostatné branche a repository-wide security stav sa smie priradiť iba jednému prostrediu.
+
+```powershell
+$env:ARCIGY_GITHUB_READ_TOKEN = '<read-only secret-store reference>'
+node integrations/saas_github_sync.mjs `
+  --config=integrations/saas_github_sync.example.json `
+  --dry-run
+```
+
+Fine-grained GitHub token potrebuje iba repository permissions `Actions: read`, `Dependabot alerts: read` a `Secret scanning alerts: read`; nepotrebuje Contents write ani administračné mutácie. Adapter pravdivo počíta build success, deployment frequency, lead time a otvorené critical/secret-scan nálezy. `change_failure_rate` ani `release_rollback_rate` neodhaduje z failed workflow; vyžadujú dôkaz incidentu alebo rollbacku. Ostrý zápis navyše vyžaduje `ARCIGY_ODOO_API_KEY`.
+
 ## CapRover nasadenie
 
 Canonical repo teraz obsahuje aj zachovaný `geotherm_drive`, CapRover `captain-definition`, produkčné Python dependencies a riadené `ODOO_INIT_MODULES`/`ODOO_UPDATE_MODULES`. Presný backup, smoke a rollback postup je v `docs/SAAS_CONTROL_CENTER_DEPLOY_RUNBOOK.md`.

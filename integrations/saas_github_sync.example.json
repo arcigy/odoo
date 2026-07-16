@@ -1,0 +1,27 @@
+{
+  "odoo": {
+    "url": "https://geotherm-odoo.178.104.175.242.sslip.io",
+    "database": "geotherm_erp",
+    "apiKeyEnv": "ARCIGY_ODOO_API_KEY"
+  },
+  "github": {
+    "tokenEnv": "ARCIGY_GITHUB_READ_TOKEN",
+    "windowDays": 30
+  },
+  "sources": {
+    "develop": {
+      "repository": "arcigy/kitchen_app",
+      "branch": "develop",
+      "buildWorkflow": "ci.yml",
+      "deploymentWorkflow": "deploy-caprover.yml",
+      "includeSecurity": false
+    },
+    "main": {
+      "repository": "arcigy/kitchen_app",
+      "branch": "main",
+      "buildWorkflow": "ci.yml",
+      "deploymentWorkflow": "deploy-caprover.yml",
+      "includeSecurity": true
+    }
+  }
+}
