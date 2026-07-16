@@ -25,11 +25,15 @@ jobs:
             --exclude='__pycache__' \
             --exclude='*.pyc' \
             -cf deploy.tar .
-          tar -tf deploy.tar | grep -q '^./captain-definition$'
-          tar -tf deploy.tar | grep -q '^./addons/geotherm_chatbot/__manifest__.py$'
-          tar -tf deploy.tar | grep -q '^./addons/geotherm_drive/__manifest__.py$'
-          tar -tf deploy.tar | grep -q '^./addons/arcigy_saas_control_center/__manifest__.py$'
-          ! tar -tf deploy.tar | grep -E '(^|/)(\.env|[^/]*\.env)$'
+          tar -tf deploy.tar > deploy-files.txt
+          grep -Fxq './captain-definition' deploy-files.txt
+          grep -Fxq './addons/geotherm_chatbot/__manifest__.py' deploy-files.txt
+          grep -Fxq './addons/geotherm_drive/__manifest__.py' deploy-files.txt
+          grep -Fxq './addons/arcigy_saas_control_center/__manifest__.py' deploy-files.txt
+          if grep -Eq '(^|/)(\.env|[^/]*\.env)$' deploy-files.txt; then
+            echo 'Deployment archive contains an environment file.' >&2
+            exit 1
+          fi
       - name: Deploy to CapRover
         shell: bash
         env:
