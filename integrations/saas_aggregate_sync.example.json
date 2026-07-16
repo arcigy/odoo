@@ -1,0 +1,7 @@
+{
+  "odoo": {
+    "url": "https://geotherm-odoo.178.104.175.242.sslip.io",
+    "database": "geotherm_erp",
+    "apiKeyEnv": "ARCIGY_ODOO_API_KEY"
+  }
+}

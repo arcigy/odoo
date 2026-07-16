@@ -99,6 +99,19 @@ node integrations/saas_operational_sync.mjs `
 
 Ostrý beh vyžaduje `ARCIGY_ODOO_API_KEY` zo schváleného secret store. Reálny artifact držte mimo repozitára alebo ako `integrations/*.local.json` (gitignored). Najprv sa overuje Develop, potom Main; príkladový evidence súbor nikdy nepoužívajte ako reálny dôkaz.
 
+### Doménové hodinové a denné agregáty
+
+`integrations/saas_aggregate_sync.mjs` validuje a odosiela iba agregované riadky pre všetkých desať doménových modelov: tenant, endpoint, database, cache, queue, dependency, cost, product, security a capacity. Každý riadok musí mať presne hodinové alebo denné UTC okno, environment-prefixed `external_key`, povolené skalárne polia a konzistentné počty.
+
+```powershell
+node integrations/saas_aggregate_sync.mjs `
+  --config=integrations/saas_aggregate_sync.example.json `
+  --evidence=integrations/saas_aggregate_evidence.example.json `
+  --dry-run
+```
+
+Reálne artifacts držte mimo repozitára alebo ako `integrations/*.local.json`. Dry-run nečíta API key a nerobí sieťovú požiadavku. Ostrý zápis povoľte až po source reconciliation a iba cez integration bot API key.
+
 ### GitHub CI/CD a security
 
 `integrations/saas_github_sync.mjs` číta iba agregovateľné metadata z GitHub Actions, Dependabot a Secret Scanning. Do Odoo neposiela kód, mená vývojárov, raw alerty ani literalne secrets (`hide_secret=true`). Develop a Main sú viazané na samostatné branche a repository-wide security stav sa smie priradiť iba jednému prostrediu.
