@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_geotherm_monthly_cost_tree" model="ir.ui.view">
+        <field name="name">geotherm.monthly.cost.tree</field>
+        <field name="model">geotherm.monthly.cost</field>
+        <field name="arch" type="xml">
+            <list string="Mesačné náklady">
+                <field name="name"/>
+                <field name="amount" sum="Spolu"/>
+                <field name="currency_id"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_geotherm_monthly_cost_form" model="ir.ui.view">
+        <field name="name">geotherm.monthly.cost.form</field>
+        <field name="model">geotherm.monthly.cost</field>
+        <field name="arch" type="xml">
+            <form string="Mesačný náklad">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="amount"/>
+                        <field name="currency_id"/>
+                        <field name="active"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_geotherm_monthly_costs" model="ir.actions.act_window">
+        <field name="name">Náklady</field>
+        <field name="res_model">geotherm.monthly.cost</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('active', '=', True)]</field>
+    </record>
+</odoo>

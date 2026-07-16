@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_saas_metric_definition_list" model="ir.ui.view">
+        <field name="name">saas.metric.definition.list</field>
+        <field name="model">saas.metric.definition</field>
+        <field name="arch" type="xml">
+            <list string="Metric definitions" default_order="sequence,code">
+                <field name="sequence" widget="handle"/>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="dashboard_ids" widget="many2many_tags"/>
+                <field name="metric_type"/>
+                <field name="unit"/>
+                <field name="granularity"/>
+                <field name="audience"/>
+                <field name="owner"/>
+                <field name="freshness_seconds"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_saas_metric_definition_form" model="ir.ui.view">
+        <field name="name">saas.metric.definition.form</field>
+        <field name="model">saas.metric.definition</field>
+        <field name="arch" type="xml">
+            <form string="Metric definition">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                            <field name="dashboard_ids" widget="many2many_tags"/>
+                            <field name="metric_type"/>
+                            <field name="unit"/>
+                            <field name="audience"/>
+                        </group>
+                        <group>
+                            <field name="source"/>
+                            <field name="dimensions"/>
+                            <field name="granularity"/>
+                            <field name="owner"/>
+                            <field name="owner_id"/>
+                            <field name="direction"/>
+                            <field name="formula_version"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <group string="Contract">
+                        <field name="description"/>
+                        <field name="formula"/>
+                        <field name="numerator_name"/>
+                        <field name="denominator_name"/>
+                    </group>
+                    <group string="Thresholds">
+                        <field name="target_value"/>
+                        <field name="warning_value"/>
+                        <field name="critical_value"/>
+                        <field name="warning_alert_severity"/>
+                        <field name="critical_alert_severity"/>
+                        <field name="freshness_seconds"/>
+                        <field name="retention_days"/>
+                    </group>
+                    <group string="Response">
+                        <field name="runbook"/>
+                        <field name="drilldown_url" widget="url"/>
+                        <field name="runbook_url" widget="url"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_saas_metric_current_list" model="ir.ui.view">
+        <field name="name">saas.metric.current.list</field>
+        <field name="model">saas.metric.current</field>
+        <field name="arch" type="xml">
+            <list string="Current metrics" default_order="metric_id,environment_id"
+                  decoration-success="status == 'healthy'"
+                  decoration-warning="status == 'warning'"
+                  decoration-danger="status == 'critical'"
+                  decoration-muted="freshness_status == 'stale'">
+                <field name="metric_id"/>
+                <field name="environment_id"/>
+                <field name="scope_key"/>
+                <field name="service_id" optional="hide"/>
+                <field name="region_id" optional="hide"/>
+                <field name="tenant_id" optional="hide"/>
+                <field name="plan_id" optional="hide"/>
+                <field name="feature_id" optional="hide"/>
+                <field name="integration_id" optional="hide"/>
+                <field name="endpoint_group" optional="hide"/>
+                <field name="job_type" optional="hide"/>
+                <field name="current_value"/>
+                <field name="target_value" optional="hide"/>
+                <field name="warning_value" optional="hide"/>
+                <field name="critical_value" optional="hide"/>
+                <field name="status" widget="badge"/>
+                <field name="freshness_status" widget="badge"/>
+                <field name="measured_at"/>
+                <field name="release_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_saas_metric_current_search" model="ir.ui.view">
+        <field name="name">saas.metric.current.search</field>
+        <field name="model">saas.metric.current</field>
+        <field name="arch" type="xml">
+            <search string="Current metrics">
+                <field name="metric_id"/>
+                <field name="environment_id"/>
+                <field name="service_id"/>
+                <field name="tenant_id"/>
+                <field name="plan_id"/>
+                <field name="region_id"/>
+                <field name="release_id"/>
+                <field name="feature_id"/>
+                <field name="integration_id"/>
+                <field name="country_id"/>
+                <field name="scope_key"/>
+                <filter name="critical" string="Critical" domain="[('status','=','critical')]"/>
+                <filter name="stale" string="Stale" domain="[('fresh_until','&lt;',context_today())]"/>
+                <group name="group_by">
+                    <filter name="group_environment" string="Environment" context="{'group_by':'environment_id'}"/>
+                    <filter name="group_metric" string="Metric" context="{'group_by':'metric_id'}"/>
+                    <filter name="group_status" string="Status" context="{'group_by':'status'}"/>
+                    <filter name="group_service" string="Service" context="{'group_by':'service_id'}"/>
+                    <filter name="group_region" string="Region" context="{'group_by':'region_id'}"/>
+                    <filter name="group_tenant" string="Tenant" context="{'group_by':'tenant_id'}"/>
+                    <filter name="group_release" string="Release" context="{'group_by':'release_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_saas_metric_timeseries_list" model="ir.ui.view">
+        <field name="name">saas.metric.timeseries.list</field>
+        <field name="model">saas.metric.timeseries</field>
+        <field name="arch" type="xml">
+            <list string="Metric history" default_order="period_start desc">
+                <field name="period_start"/>
+                <field name="period_end"/>
+                <field name="granularity"/>
+                <field name="metric_id"/>
+                <field name="environment_id"/>
+                <field name="scope_key"/>
+                <field name="service_id" optional="hide"/>
+                <field name="region_id" optional="hide"/>
+                <field name="tenant_id" optional="hide"/>
+                <field name="plan_id" optional="hide"/>
+                <field name="release_id" optional="hide"/>
+                <field name="feature_id" optional="hide"/>
+                <field name="integration_id" optional="hide"/>
+                <field name="endpoint_group" optional="hide"/>
+                <field name="job_type" optional="hide"/>
+                <field name="value"/>
+                <field name="numerator" optional="hide"/>
+                <field name="denominator" optional="hide"/>
+                <field name="sample_count"/>
+                <field name="p95" optional="hide"/>
+                <field name="p99" optional="hide"/>
+                <field name="status" widget="badge"/>
+                <field name="data_quality_status" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_saas_metric_timeseries_pivot" model="ir.ui.view">
+        <field name="name">saas.metric.timeseries.pivot</field>
+        <field name="model">saas.metric.timeseries</field>
+        <field name="arch" type="xml">
+            <pivot string="Metric history" disable_linking="0">
+                <field name="metric_id" type="row"/>
+                <field name="environment_id" type="col"/>
+                <field name="period_start" type="col" interval="day"/>
+                <field name="value" type="measure"/>
+                <field name="numerator" type="measure"/>
+                <field name="denominator" type="measure"/>
+                <field name="sample_count" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_saas_metric_timeseries_graph" model="ir.ui.view">
+        <field name="name">saas.metric.timeseries.graph</field>
+        <field name="model">saas.metric.timeseries</field>
+        <field name="arch" type="xml">
+            <graph string="Metric trend" type="line">
+                <field name="period_start" interval="day"/>
+                <field name="environment_id"/>
+                <field name="value" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="action_saas_metric_definitions" model="ir.actions.act_window">
+        <field name="name">Metric definitions</field>
+        <field name="res_model">saas.metric.definition</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <record id="action_saas_metric_current" model="ir.actions.act_window">
+        <field name="name">Current metrics</field>
+        <field name="res_model">saas.metric.current</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_saas_metric_current_search"/>
+    </record>
+    <record id="action_saas_metric_timeseries" model="ir.actions.act_window">
+        <field name="name">Metric history</field>
+        <field name="res_model">saas.metric.timeseries</field>
+        <field name="view_mode">list,pivot,graph,form</field>
+    </record>
+    <record id="action_saas_control_center_dashboard" model="ir.actions.client">
+        <field name="name">Arcigy SaaS Control Center</field>
+        <field name="tag">arcigy_saas_control_center.dashboard</field>
+    </record>
+</odoo>

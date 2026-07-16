@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- These views expose bounded aggregates only. Raw requests, traces and payloads stay in observability storage. -->
+    <record id="view_saas_tenant_daily_list" model="ir.ui.view">
+        <field name="name">saas.tenant.daily.list</field>
+        <field name="model">saas.tenant.daily</field>
+        <field name="arch" type="xml">
+            <list default_order="period_start desc" create="false" edit="false" delete="false">
+                <field name="period_start"/><field name="environment_id"/><field name="tenant_id"/>
+                <field name="plan_id"/><field name="active_users"/><field name="core_actions"/>
+                <field name="error_rate"/><field name="p95_seconds"/><field name="mrr"/>
+                <field name="operational_cost"/><field name="health_score"/><field name="health_status"/>
+                <field name="data_quality_status"/><field name="source_updated_at"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_saas_tenant_daily" model="ir.actions.act_window">
+        <field name="name">Tenant health</field><field name="res_model">saas.tenant.daily</field>
+        <field name="view_mode">list,pivot,graph</field>
+    </record>
+
+    <record id="view_saas_endpoint_hourly_list" model="ir.ui.view">
+        <field name="name">saas.endpoint.hourly.list</field><field name="model">saas.endpoint.hourly</field>
+        <field name="arch" type="xml">
+            <list default_order="period_start desc" create="false" edit="false" delete="false">
+                <field name="period_start"/><field name="environment_id"/><field name="service_id"/>
+                <field name="method"/><field name="endpoint_group"/><field name="slo_class"/>
+                <field name="request_count"/><field name="success_count"/><field name="error_count"/>
+                <field name="timeout_count"/><field name="rate_limited_count"/><field name="p95_seconds"/>
+                <field name="p99_seconds"/><field name="status"/><field name="data_quality_status"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_saas_endpoint_hourly" model="ir.actions.act_window">
+        <field name="name">API endpoints</field><field name="res_model">saas.endpoint.hourly</field>
+        <field name="view_mode">list,pivot,graph</field>
+    </record>
+
+    <record id="view_saas_database_hourly_list" model="ir.ui.view">
+        <field name="name">saas.database.hourly.list</field><field name="model">saas.database.hourly</field>
+        <field name="arch" type="xml">
+            <list default_order="period_start desc" create="false" edit="false" delete="false">
+                <field name="period_start"/><field name="environment_id"/><field name="service_id"/>
+                <field name="open_connections"/><field name="active_connections"/><field name="waiting_connections"/>
+                <field name="pool_utilization"/><field name="pool_wait_p95_seconds"/><field name="query_p95_seconds"/>
+                <field name="slow_query_count"/><field name="deadlock_count"/><field name="storage_bytes"/>
+                <field name="replication_lag_seconds"/><field name="status"/><field name="data_quality_status"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_saas_database_hourly" model="ir.actions.act_window">
+        <field name="name">Database</field><field name="res_model">saas.database.hourly</field>
+        <field name="view_mode">list,pivot,graph</field>
+    </record>
+
+    <record id="view_saas_cache_hourly_list" model="ir.ui.view">
+        <field name="name">saas.cache.hourly.list</field><field name="model">saas.cache.hourly</field>
+        <field name="arch" type="xml">
+            <list default_order="period_start desc" create="false" edit="false" delete="false">
+                <field name="period_start"/><field name="environment_id"/><field name="service_id"/>
+                <field name="namespace"/><field name="request_count"/><field name="hit_ratio"/>
+                <field name="timeout_count"/><field name="error_count"/><field name="get_p95_seconds"/>
+                <field name="evicted_keys"/><field name="stale_served_count"/><field name="status"/>
+                <field name="data_quality_status"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_saas_cache_hourly" model="ir.actions.act_window">
+        <field name="name">Cache</field><field name="res_model">saas.cache.hourly</field>
+        <field name="view_mode">list,pivot,graph</field>
+    </record>
+
+    <record id="view_saas_queue_hourly_list" model="ir.ui.view">
+        <field name="name">saas.queue.hourly.list</field><field name="model">saas.queue.hourly</field>
+        <field name="arch" type="xml">
+            <list default_order="period_start desc" create="false" edit="false" delete="false">
+                <field name="period_start"/><field name="environment_id"/><field name="service_id"/>
+                <field name="queue_name"/><field name="job_type"/><field name="queue_depth"/>
+                <field name="oldest_age_seconds"/><field name="processing_rate"/><field name="drain_time_seconds"/>
+                <field name="failed_count"/><field name="retry_count"/><field name="dlq_size"/>
+                <field name="worker_count"/><field name="status"/><field name="data_quality_status"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_saas_queue_hourly" model="ir.actions.act_window">
+        <field name="name">Queues</field><field name="res_model">saas.queue.hourly</field>
+        <field name="view_mode">list,pivot,graph</field>
+    </record>
+
+    <record id="view_saas_dependency_hourly_list" model="ir.ui.view">
+        <field name="name">saas.dependency.hourly.list</field><field name="model">saas.dependency.hourly</field>
+        <field name="arch" type="xml">
+            <list default_order="period_start desc" create="false" edit="false" delete="false">
+                <field name="period_start"/><field name="environment_id"/><field name="service_id"/>
+                <field name="integration_id"/><field name="request_count"/><field name="success_count"/>
+                <field name="timeout_count"/><field name="retry_count"/><field name="p95_seconds"/>
+                <field name="quota_utilization"/><field name="cost"/><field name="status"/>
+                <field name="data_quality_status"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_saas_dependency_hourly" model="ir.actions.act_window">
+        <field name="name">Dependencies</field><field name="res_model">saas.dependency.hourly</field>
+        <field name="view_mode">list,pivot,graph</field>
+    </record>
+
+    <record id="view_saas_cost_daily_list" model="ir.ui.view">
+        <field name="name">saas.cost.daily.list</field><field name="model">saas.cost.daily</field>
+        <field name="arch" type="xml">
+            <list default_order="period_start desc" create="false" edit="false" delete="false">
+                <field name="period_start"/><field name="environment_id"/><field name="tenant_id"/>
+                <field name="provider"/><field name="category"/><field name="amount"/>
+                <field name="active_users"/><field name="active_tenants"/><field name="core_actions"/>
+                <field name="cost_per_active_user"/><field name="cost_per_active_tenant"/>
+                <field name="cost_per_core_action"/><field name="status"/><field name="data_quality_status"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_saas_cost_daily" model="ir.actions.act_window">
+        <field name="name">Costs</field><field name="res_model">saas.cost.daily</field>
+        <field name="view_mode">list,pivot,graph</field>
+    </record>
+
+    <record id="view_saas_product_daily_list" model="ir.ui.view">
+        <field name="name">saas.product.daily.list</field><field name="model">saas.product.daily</field>
+        <field name="arch" type="xml">
+            <list default_order="period_start desc" create="false" edit="false" delete="false">
+                <field name="period_start"/><field name="environment_id"/><field name="tenant_id"/>
+                <field name="feature_id"/><field name="active_users"/><field name="active_tenants"/>
+                <field name="core_actions"/><field name="signup_count"/><field name="activation_rate"/>
+                <field name="retention_rate"/><field name="feature_adoption_rate"/>
+                <field name="time_to_value_p50_seconds"/><field name="status"/><field name="data_quality_status"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_saas_product_daily" model="ir.actions.act_window">
+        <field name="name">Product usage</field><field name="res_model">saas.product.daily</field>
+        <field name="view_mode">list,pivot,graph</field>
+    </record>
+
+    <record id="view_saas_security_daily_list" model="ir.ui.view">
+        <field name="name">saas.security.daily.list</field><field name="model">saas.security.daily</field>
+        <field name="arch" type="xml">
+            <list default_order="period_start desc" create="false" edit="false" delete="false">
+                <field name="period_start"/><field name="environment_id"/><field name="service_id"/>
+                <field name="login_attempts"/><field name="login_failures"/><field name="rate_limit_events"/>
+                <field name="suspicious_login_count"/><field name="cross_tenant_denied_count"/>
+                <field name="confirmed_cross_tenant_exposure_count"/><field name="privileged_action_count"/>
+                <field name="critical_vulnerability_count"/><field name="secret_finding_count"/>
+                <field name="status"/><field name="data_quality_status"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_saas_security_daily" model="ir.actions.act_window">
+        <field name="name">Security</field><field name="res_model">saas.security.daily</field>
+        <field name="view_mode">list,pivot,graph</field>
+    </record>
+
+    <record id="view_saas_capacity_daily_list" model="ir.ui.view">
+        <field name="name">saas.capacity.daily.list</field><field name="model">saas.capacity.daily</field>
+        <field name="arch" type="xml">
+            <list default_order="period_start desc" create="false" edit="false" delete="false">
+                <field name="period_start"/><field name="environment_id"/><field name="service_id"/>
+                <field name="peak_rps"/><field name="tested_safe_rps"/><field name="capacity_headroom"/>
+                <field name="current_concurrent_users"/><field name="tested_concurrent_users"/>
+                <field name="db_connection_headroom"/><field name="cpu_headroom"/><field name="memory_headroom"/>
+                <field name="storage_days_to_full"/><field name="readiness"/><field name="data_quality_status"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_saas_capacity_daily" model="ir.actions.act_window">
+        <field name="name">Capacity</field><field name="res_model">saas.capacity.daily</field>
+        <field name="view_mode">list,pivot,graph</field>
+    </record>
+
+    <record id="view_saas_data_quality_run_list" model="ir.ui.view">
+        <field name="name">saas.data.quality.run.list</field><field name="model">saas.data.quality.run</field>
+        <field name="arch" type="xml">
+            <list default_order="started_at desc" create="false" edit="false" delete="false">
+                <field name="started_at"/><field name="finished_at"/><field name="environment_id"/>
+                <field name="name"/><field name="status"/><field name="events_sent"/>
+                <field name="events_received"/><field name="events_processed"/><field name="events_rejected"/>
+                <field name="duplicate_count"/><field name="schema_failure_count"/><field name="missing_field_count"/>
+                <field name="late_event_count"/><field name="unknown_tenant_count"/>
+                <field name="reconciliation_difference"/><field name="oldest_unsynced_at"/>
+                <field name="source_updated_at"/><field name="external_key" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_saas_data_quality_run" model="ir.actions.act_window">
+        <field name="name">Data quality</field><field name="res_model">saas.data.quality.run</field>
+        <field name="view_mode">list,pivot,graph</field>
+    </record>
+</odoo>

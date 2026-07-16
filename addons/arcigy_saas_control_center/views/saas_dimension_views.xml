@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_saas_service_list" model="ir.ui.view"><field name="name">saas.service.list</field><field name="model">saas.service</field><field name="arch" type="xml"><list><field name="name"/><field name="code"/><field name="owner"/><field name="active"/></list></field></record>
+    <record id="action_saas_services" model="ir.actions.act_window"><field name="name">Services</field><field name="res_model">saas.service</field><field name="view_mode">list,form</field></record>
+
+    <record id="view_saas_region_list" model="ir.ui.view"><field name="name">saas.region.list</field><field name="model">saas.region</field><field name="arch" type="xml"><list><field name="name"/><field name="code"/><field name="provider"/><field name="active"/></list></field></record>
+    <record id="action_saas_regions" model="ir.actions.act_window"><field name="name">Regions</field><field name="res_model">saas.region</field><field name="view_mode">list,form</field></record>
+
+    <record id="view_saas_plan_list" model="ir.ui.view"><field name="name">saas.plan.list</field><field name="model">saas.plan</field><field name="arch" type="xml"><list><field name="name"/><field name="code"/><field name="active"/></list></field></record>
+    <record id="action_saas_plans" model="ir.actions.act_window"><field name="name">Plans</field><field name="res_model">saas.plan</field><field name="view_mode">list,form</field></record>
+
+    <record id="view_saas_tenant_list" model="ir.ui.view"><field name="name">saas.tenant.list</field><field name="model">saas.tenant</field><field name="arch" type="xml"><list><field name="name"/><field name="external_id"/><field name="partner_id"/><field name="plan_id"/><field name="size_band"/><field name="country_id"/><field name="status"/><field name="owner_id"/><field name="active"/></list></field></record>
+    <record id="action_saas_tenants" model="ir.actions.act_window"><field name="name">Tenants</field><field name="res_model">saas.tenant</field><field name="view_mode">list,form</field></record>
+
+    <record id="view_saas_feature_list" model="ir.ui.view"><field name="name">saas.feature.list</field><field name="model">saas.feature</field><field name="arch" type="xml"><list><field name="name"/><field name="code"/><field name="owner"/><field name="active"/></list></field></record>
+    <record id="action_saas_features" model="ir.actions.act_window"><field name="name">Features</field><field name="res_model">saas.feature</field><field name="view_mode">list,form</field></record>
+
+    <record id="view_saas_integration_list" model="ir.ui.view"><field name="name">saas.integration.list</field><field name="model">saas.integration</field><field name="arch" type="xml"><list><field name="name"/><field name="code"/><field name="provider"/><field name="owner"/><field name="active"/></list></field></record>
+    <record id="action_saas_integrations" model="ir.actions.act_window"><field name="name">Integrations</field><field name="res_model">saas.integration</field><field name="view_mode">list,form</field></record>
+
+    <record id="view_saas_release_list" model="ir.ui.view"><field name="name">saas.release.list</field><field name="model">saas.release</field><field name="arch" type="xml"><list default_order="released_at desc"><field name="released_at"/><field name="environment_id"/><field name="version"/><field name="commit_sha"/><field name="status"/><field name="change_source"/></list></field></record>
+    <record id="action_saas_releases" model="ir.actions.act_window"><field name="name">Releases</field><field name="res_model">saas.release</field><field name="view_mode">list,form</field></record>
+</odoo>

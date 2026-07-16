@@ -1,0 +1,126 @@
+.o_arcigy_saas_dashboard {
+    height: 100%;
+    min-height: 100%;
+    overflow-y: auto;
+    padding: 24px;
+    background: #f4f6f8;
+    color: #17202a;
+}
+
+.o_arcigy_saas_header {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 12px;
+
+    h1 { margin: 0 0 4px; font-size: 28px; }
+    p { margin: 0; color: #5d6d7e; }
+}
+
+.o_arcigy_saas_controls {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    max-width: 480px;
+    min-width: 0;
+}
+
+.o_arcigy_saas_freshness {
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: #5d6d7e;
+}
+
+.o_arcigy_saas_filters {
+    margin-bottom: 20px;
+    padding: 14px 16px;
+    border: 1px solid #dfe6e9;
+    border-radius: 10px;
+    background: #fff;
+
+    summary { cursor: pointer; font-weight: 700; }
+}
+
+.o_arcigy_saas_filter_grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+
+    label { display: flex; flex-direction: column; gap: 4px; color: #495057; font-size: 12px; font-weight: 600; }
+    .o_arcigy_saas_checkbox { flex-direction: row; align-items: center; padding-top: 26px; }
+}
+
+.o_arcigy_saas_filter_actions { display: flex; gap: 8px; margin-top: 14px; }
+
+.o_arcigy_saas_kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+    padding: 16px 20px;
+    background: #f8fafb;
+}
+
+.o_arcigy_saas_kpi {
+    padding: 14px;
+    border: 1px solid #e3e8ec;
+    border-radius: 9px;
+    background: #fff;
+
+    h3 { min-height: 34px; margin: 0 0 10px; font-size: 14px; }
+    div { display: flex; justify-content: space-between; gap: 8px; }
+    div + div { margin-top: 5px; }
+    span, small { color: #6c757d; font-size: 11px; }
+    small { display: block; margin-top: 8px; }
+    svg { width: 100%; height: 30px; margin-top: 4px; }
+    polyline { fill: none; stroke: #6f42c1; stroke-width: 2; vector-effect: non-scaling-stroke; }
+}
+
+.o_arcigy_saas_section {
+    margin-bottom: 24px;
+    border: 1px solid #dfe6e9;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(23, 32, 42, 0.05);
+    overflow: hidden;
+}
+
+.o_arcigy_saas_section_title {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 18px 20px 12px;
+    border-bottom: 1px solid #eef1f3;
+
+    > div { display: flex; align-items: center; gap: 10px; }
+    h2 { margin: 0; font-size: 19px; }
+    p { margin: 0; color: #6c757d; text-align: right; }
+}
+
+.o_arcigy_saas_table { margin: 0; }
+.o_arcigy_saas_table th,
+.o_arcigy_saas_table td { width: 36%; padding: 14px 20px; }
+.o_arcigy_saas_table th:first-child,
+.o_arcigy_saas_table td:first-child { width: 28%; }
+.o_arcigy_saas_env { text-transform: uppercase; letter-spacing: .08em; font-size: 12px; }
+.o_arcigy_saas_env--develop { color: #a85d00; }
+.o_arcigy_saas_env--main { color: #006b49; }
+.o_arcigy_saas_metric { vertical-align: top; }
+.o_arcigy_saas_metric small,
+.o_arcigy_saas_point small { display: block; margin-top: 4px; color: #6c757d; font-size: 12px; }
+.o_arcigy_saas_point { border-left: 4px solid #adb5bd; padding-left: 12px; }
+.o_arcigy_saas_point--healthy { border-left-color: #198754; }
+.o_arcigy_saas_point--warning { border-left-color: #fd7e14; }
+.o_arcigy_saas_point--critical { border-left-color: #dc3545; }
+.o_arcigy_saas_point--unknown,
+.o_arcigy_saas_point--missing { border-left-color: #adb5bd; color: #6c757d; }
+
+@media (max-width: 900px) {
+    .o_arcigy_saas_header,
+    .o_arcigy_saas_section_title { flex-direction: column; align-items: stretch; }
+    .o_arcigy_saas_section_title p { text-align: left; }
+    .o_arcigy_saas_controls { min-width: 0; }
+    .o_arcigy_saas_table_wrap { overflow-x: auto; }
+    .o_arcigy_saas_table { min-width: 760px; }
+}

@@ -1,0 +1,37 @@
+{
+  "odoo": {
+    "url": "https://odoo.example.com",
+    "database": "replace-with-database-name",
+    "apiKeyEnv": "ARCIGY_ODOO_API_KEY"
+  },
+  "sources": {
+    "develop": {
+      "prometheusUrl": "https://prometheus.example.com",
+      "scopeMode": "label_filtered",
+      "requiredQueryMarker": "environment=\"develop\"",
+      "tokenEnv": "ARCIGY_PROM_DEVELOP_TOKEN"
+    },
+    "main": {
+      "prometheusUrl": "https://prometheus.example.com",
+      "scopeMode": "label_filtered",
+      "requiredQueryMarker": "environment=\"main\"",
+      "tokenEnv": "ARCIGY_PROM_MAIN_TOKEN"
+    }
+  },
+  "queries": [
+    { "code": "db_operation_p95_seconds", "promql": "histogram_quantile(0.95, sum by (le) (rate(arcigy_db_operation_duration_seconds_bucket{environment=\"{{environment}}\"}[5m])))", "direction": "lower", "warning": 0.25, "critical": 1, "freshnessSeconds": 300 },
+    { "code": "db_pool_utilization", "promql": "100 * arcigy_db_pool_in_use{environment=\"{{environment}}\"} / clamp_min(arcigy_db_pool_max{environment=\"{{environment}}\"}, 1)", "direction": "lower", "warning": 80, "critical": 90, "freshnessSeconds": 300 },
+    { "code": "db_pool_wait_p95_seconds", "promql": "histogram_quantile(0.95, sum by (le) (rate(arcigy_db_pool_wait_seconds_bucket{environment=\"{{environment}}\"}[5m])))", "direction": "lower", "warning": 0.1, "critical": 0.5, "freshnessSeconds": 300 },
+    { "code": "db_pool_timeout_count", "promql": "sum(increase(arcigy_db_pool_timeouts_total{environment=\"{{environment}}\"}[5m]))", "direction": "lower", "warning": 1, "critical": 5, "freshnessSeconds": 300 },
+    { "code": "db_storage_bytes", "promql": "sum(pg_database_size_bytes{environment=\"{{environment}}\"})", "direction": "neutral", "freshnessSeconds": 3600 },
+    { "code": "queue_depth", "promql": "sum(arcigy_queue_depth{environment=\"{{environment}}\"})", "direction": "lower", "warning": 100, "critical": 1000, "freshnessSeconds": 300 },
+    { "code": "queue_oldest_age_seconds", "promql": "max(arcigy_queue_oldest_age_seconds{environment=\"{{environment}}\"})", "direction": "lower", "warning": 60, "critical": 300, "freshnessSeconds": 300 },
+    { "code": "job_failure_rate", "promql": "100 * sum(rate(arcigy_jobs_total{environment=\"{{environment}}\",outcome=\"failed\"}[5m])) / clamp_min(sum(rate(arcigy_jobs_total{environment=\"{{environment}}\"}[5m])), 0.000001)", "direction": "lower", "warning": 1, "critical": 5, "freshnessSeconds": 300 },
+    { "code": "cache_hit_ratio", "promql": "100 * sum(rate(arcigy_cache_operations_total{environment=\"{{environment}}\",outcome=\"hit\"}[5m])) / clamp_min(sum(rate(arcigy_cache_operations_total{environment=\"{{environment}}\"}[5m])), 0.000001)", "direction": "higher", "warning": 75, "critical": 50, "freshnessSeconds": 300 },
+    { "code": "cache_timeout_rate", "promql": "100 * sum(rate(arcigy_cache_operations_total{environment=\"{{environment}}\",outcome=\"timeout\"}[5m])) / clamp_min(sum(rate(arcigy_cache_operations_total{environment=\"{{environment}}\"}[5m])), 0.000001)", "direction": "lower", "warning": 0.5, "critical": 2, "freshnessSeconds": 300 },
+    { "code": "dependency_success_rate", "promql": "100 * sum(rate(arcigy_dependency_requests_total{environment=\"{{environment}}\",outcome=\"success\"}[5m])) / clamp_min(sum(rate(arcigy_dependency_requests_total{environment=\"{{environment}}\"}[5m])), 0.000001)", "direction": "higher", "warning": 99, "critical": 95, "freshnessSeconds": 300 },
+    { "code": "dependency_p95_seconds", "promql": "histogram_quantile(0.95, sum by (le) (rate(arcigy_dependency_duration_seconds_bucket{environment=\"{{environment}}\"}[5m])))", "direction": "lower", "warning": 3, "critical": 10, "freshnessSeconds": 300 },
+    { "code": "cpu_saturation", "promql": "100 * avg(rate(process_cpu_seconds_total{environment=\"{{environment}}\"}[5m]))", "direction": "lower", "warning": 80, "critical": 90, "freshnessSeconds": 300 },
+    { "code": "memory_saturation", "promql": "100 * sum(process_resident_memory_bytes{environment=\"{{environment}}\"}) / clamp_min(sum(arcigy_memory_limit_bytes{environment=\"{{environment}}\"}), 1)", "direction": "lower", "warning": 80, "critical": 90, "freshnessSeconds": 300 }
+  ]
+}

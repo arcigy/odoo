@@ -12,6 +12,9 @@ if [[ -n "${ODOO_DB_NAME:-}" ]]; then
   set -- --database="$ODOO_DB_NAME" "$@"
 fi
 if [[ "${ODOO_INIT:-0}" == "1" ]]; then
-  set -- --init="${ODOO_INIT_MODULES:-geotherm_chatbot,geotherm_drive}" --without-demo "$@"
+  set -- --init="${ODOO_INIT_MODULES:-geotherm_chatbot,geotherm_drive,arcigy_saas_control_center}" --without-demo "$@"
+fi
+if [[ -n "${ODOO_UPDATE_MODULES:-}" ]]; then
+  set -- --update="$ODOO_UPDATE_MODULES" "$@"
 fi
 exec /entrypoint.sh odoo -c "$runtime_config" "$@"

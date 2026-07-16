@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="environment_develop" model="saas.environment">
+        <field name="name">Develop</field>
+        <field name="code">develop</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="environment_main" model="saas.environment">
+        <field name="name">Main</field>
+        <field name="code">main</field>
+        <field name="sequence">20</field>
+    </record>
+</odoo>

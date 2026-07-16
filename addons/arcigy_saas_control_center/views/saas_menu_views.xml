@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_saas_control_center_root" name="Arcigy SaaS" action="action_saas_control_center_dashboard" sequence="20" groups="group_saas_executive,group_saas_finance,group_saas_customer_success,group_saas_support,group_saas_engineering,group_saas_security,group_saas_administrator"/>
+    <menuitem id="menu_saas_dashboard" name="Develop | Main" parent="menu_saas_control_center_root" action="action_saas_control_center_dashboard" sequence="10"/>
+    <menuitem id="menu_saas_operations" name="Operations" parent="menu_saas_control_center_root" sequence="20"/>
+    <menuitem id="menu_saas_alerts" name="Alerts" parent="menu_saas_operations" action="action_saas_alerts" sequence="10"/>
+    <menuitem id="menu_saas_incidents" name="Incidents" parent="menu_saas_operations" action="action_saas_incidents" sequence="20"/>
+    <menuitem id="menu_saas_backup_runs" name="Backups" parent="menu_saas_operations" action="action_saas_backup_runs" sequence="30"/>
+    <menuitem id="menu_saas_restore_tests" name="Restore tests" parent="menu_saas_operations" action="action_saas_restore_tests" sequence="40"/>
+    <menuitem id="menu_saas_load_tests" name="Load tests" parent="menu_saas_operations" action="action_saas_load_tests" sequence="50"/>
+    <menuitem id="menu_saas_sync_runs" name="Odoo sync" parent="menu_saas_operations" action="action_saas_sync_runs" sequence="60"/>
+    <menuitem id="menu_saas_metrics" name="Metrics" parent="menu_saas_control_center_root" sequence="30"/>
+    <menuitem id="menu_saas_metric_current" name="Current" parent="menu_saas_metrics" action="action_saas_metric_current" sequence="10"/>
+    <menuitem id="menu_saas_metric_timeseries" name="History" parent="menu_saas_metrics" action="action_saas_metric_timeseries" sequence="20"/>
+    <menuitem id="menu_saas_aggregates" name="Aggregates" parent="menu_saas_control_center_root" sequence="40"/>
+    <menuitem id="menu_saas_tenant_daily" name="Tenant health" parent="menu_saas_aggregates" action="action_saas_tenant_daily" sequence="10" groups="group_saas_executive,group_saas_customer_success,group_saas_support,group_saas_engineering,group_saas_administrator"/>
+    <menuitem id="menu_saas_endpoint_hourly" name="API endpoints" parent="menu_saas_aggregates" action="action_saas_endpoint_hourly" sequence="20" groups="group_saas_engineering,group_saas_support,group_saas_administrator"/>
+    <menuitem id="menu_saas_database_hourly" name="Database" parent="menu_saas_aggregates" action="action_saas_database_hourly" sequence="30" groups="group_saas_engineering,group_saas_administrator"/>
+    <menuitem id="menu_saas_cache_hourly" name="Cache" parent="menu_saas_aggregates" action="action_saas_cache_hourly" sequence="40" groups="group_saas_engineering,group_saas_administrator"/>
+    <menuitem id="menu_saas_queue_hourly" name="Queues" parent="menu_saas_aggregates" action="action_saas_queue_hourly" sequence="50" groups="group_saas_engineering,group_saas_support,group_saas_administrator"/>
+    <menuitem id="menu_saas_dependency_hourly" name="Dependencies" parent="menu_saas_aggregates" action="action_saas_dependency_hourly" sequence="60" groups="group_saas_engineering,group_saas_finance,group_saas_administrator"/>
+    <menuitem id="menu_saas_cost_daily" name="Costs" parent="menu_saas_aggregates" action="action_saas_cost_daily" sequence="70" groups="group_saas_executive,group_saas_finance,group_saas_administrator"/>
+    <menuitem id="menu_saas_product_daily" name="Product usage" parent="menu_saas_aggregates" action="action_saas_product_daily" sequence="80" groups="group_saas_executive,group_saas_customer_success,group_saas_administrator"/>
+    <menuitem id="menu_saas_security_daily" name="Security" parent="menu_saas_aggregates" action="action_saas_security_daily" sequence="90" groups="group_saas_security,group_saas_engineering,group_saas_administrator"/>
+    <menuitem id="menu_saas_capacity_daily" name="Capacity" parent="menu_saas_aggregates" action="action_saas_capacity_daily" sequence="100" groups="group_saas_engineering,group_saas_executive,group_saas_administrator"/>
+    <menuitem id="menu_saas_data_quality_run" name="Data quality" parent="menu_saas_aggregates" action="action_saas_data_quality_run" sequence="110" groups="group_saas_engineering,group_saas_administrator"/>
+    <menuitem id="menu_saas_configuration" name="Configuration" parent="menu_saas_control_center_root" sequence="90" groups="group_saas_administrator"/>
+    <menuitem id="menu_saas_metric_definitions" name="Metric definitions" parent="menu_saas_configuration" action="action_saas_metric_definitions" sequence="10"/>
+    <menuitem id="menu_saas_services" name="Services" parent="menu_saas_configuration" action="action_saas_services" sequence="20"/>
+    <menuitem id="menu_saas_regions" name="Regions" parent="menu_saas_configuration" action="action_saas_regions" sequence="30"/>
+    <menuitem id="menu_saas_plans" name="Plans" parent="menu_saas_configuration" action="action_saas_plans" sequence="40"/>
+    <menuitem id="menu_saas_tenants" name="Tenants" parent="menu_saas_configuration" action="action_saas_tenants" sequence="50"/>
+    <menuitem id="menu_saas_features" name="Features" parent="menu_saas_configuration" action="action_saas_features" sequence="60"/>
+    <menuitem id="menu_saas_integrations" name="Integrations" parent="menu_saas_configuration" action="action_saas_integrations" sequence="70"/>
+    <menuitem id="menu_saas_releases" name="Releases" parent="menu_saas_configuration" action="action_saas_releases" sequence="80"/>
+</odoo>

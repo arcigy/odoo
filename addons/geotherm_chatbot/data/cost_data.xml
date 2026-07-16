@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="cost_smartleads" model="geotherm.monthly.cost">
+        <field name="name">Smartlead</field>
+        <field name="amount">34.29</field>
+        <field name="currency_id" ref="base.EUR"/>
+    </record>
+    <record id="cost_hetzner" model="geotherm.monthly.cost">
+        <field name="name">Hetzner</field>
+        <field name="amount">10.00</field>
+        <field name="currency_id" ref="base.EUR"/>
+    </record>
+    <record id="cost_google_workspace" model="geotherm.monthly.cost">
+        <field name="name">Google Workspace</field>
+        <field name="amount">17.00</field>
+        <field name="currency_id" ref="base.EUR"/>
+    </record>
+    <record id="cost_openai" model="geotherm.monthly.cost">
+        <field name="name">OpenAI</field>
+        <field name="amount">88.25</field>
+        <field name="currency_id" ref="base.EUR"/>
+    </record>
+    <record id="cost_google_cloud" model="geotherm.monthly.cost">
+        <field name="name">Google Cloud</field>
+        <field name="amount">15.00</field>
+        <field name="currency_id" ref="base.EUR"/>
+    </record>
+</odoo>

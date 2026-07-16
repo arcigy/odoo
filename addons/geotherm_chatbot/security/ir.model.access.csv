@@ -8,4 +8,4 @@ access_geotherm_pricebook_import_user,geotherm.pricebook.import user,model_geoth
 access_geotherm_pricebook_import_wizard_user,geotherm.pricebook.import.wizard user,model_geotherm_pricebook_import_wizard,base.group_user,1,1,1,1
 access_geotherm_chatbot_session_user,geotherm.chatbot.session user,model_geotherm_chatbot_session,base.group_user,1,0,0,0
 access_geotherm_chatbot_event_user,geotherm.chatbot.event user,model_geotherm_chatbot_event,base.group_user,1,0,0,0
-
+access_geotherm_monthly_cost_user,geotherm.monthly.cost user,model_geotherm_monthly_cost,base.group_user,1,1,1,1

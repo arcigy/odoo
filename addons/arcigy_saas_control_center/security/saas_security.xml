@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="module_category_saas_control_center" model="ir.module.category">
+            <field name="name">Arcigy SaaS Control Center</field>
+            <field name="sequence">35</field>
+        </record>
+        <record id="privilege_saas_control_center" model="res.groups.privilege">
+            <field name="name">Arcigy SaaS Control Center</field>
+            <field name="category_id" ref="module_category_saas_control_center"/>
+            <field name="sequence">35</field>
+        </record>
+
+        <record id="group_saas_executive" model="res.groups">
+            <field name="name">SaaS Executive</field>
+            <field name="privilege_id" ref="privilege_saas_control_center"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+        <record id="group_saas_finance" model="res.groups">
+            <field name="name">SaaS Finance</field>
+            <field name="privilege_id" ref="privilege_saas_control_center"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+        <record id="group_saas_customer_success" model="res.groups">
+            <field name="name">SaaS Customer Success</field>
+            <field name="privilege_id" ref="privilege_saas_control_center"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+        <record id="group_saas_support" model="res.groups">
+            <field name="name">SaaS Support</field>
+            <field name="privilege_id" ref="privilege_saas_control_center"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+        <record id="group_saas_engineering" model="res.groups">
+            <field name="name">SaaS Engineering</field>
+            <field name="privilege_id" ref="privilege_saas_control_center"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+        <record id="group_saas_security" model="res.groups">
+            <field name="name">SaaS Security</field>
+            <field name="privilege_id" ref="privilege_saas_control_center"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+        <record id="group_saas_administrator" model="res.groups">
+            <field name="name">SaaS Administrator</field>
+            <field name="privilege_id" ref="privilege_saas_control_center"/>
+            <field name="implied_ids" eval="[
+                (4, ref('group_saas_executive')),
+                (4, ref('group_saas_finance')),
+                (4, ref('group_saas_customer_success')),
+                (4, ref('group_saas_support')),
+                (4, ref('group_saas_engineering')),
+                (4, ref('group_saas_security'))
+            ]"/>
+        </record>
+        <record id="group_saas_integration_bot" model="res.groups">
+            <field name="name">SaaS Integration Bot</field>
+            <field name="privilege_id" ref="privilege_saas_control_center"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+
+        <record id="rule_metric_definition_executive" model="ir.rule">
+            <field name="name">Executive sees all metric definitions</field>
+            <field name="model_id" ref="model_saas_metric_definition"/>
+            <field name="groups" eval="[(4, ref('group_saas_executive'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_metric_current_executive" model="ir.rule">
+            <field name="name">Executive sees all current metrics</field>
+            <field name="model_id" ref="model_saas_metric_current"/>
+            <field name="groups" eval="[(4, ref('group_saas_executive'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_metric_timeseries_executive" model="ir.rule">
+            <field name="name">Executive sees all historical metrics</field>
+            <field name="model_id" ref="model_saas_metric_timeseries"/>
+            <field name="groups" eval="[(4, ref('group_saas_executive'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <record id="rule_metric_definition_engineering" model="ir.rule">
+            <field name="name">Engineering metric definitions</field>
+            <field name="model_id" ref="model_saas_metric_definition"/>
+            <field name="groups" eval="[(4, ref('group_saas_engineering'))]"/>
+            <field name="domain_force">[('audience', 'in', ['general', 'engineering'])]</field>
+        </record>
+        <record id="rule_metric_current_engineering" model="ir.rule">
+            <field name="name">Engineering current metrics</field>
+            <field name="model_id" ref="model_saas_metric_current"/>
+            <field name="groups" eval="[(4, ref('group_saas_engineering'))]"/>
+            <field name="domain_force">[('metric_id.audience', 'in', ['general', 'engineering'])]</field>
+        </record>
+        <record id="rule_metric_timeseries_engineering" model="ir.rule">
+            <field name="name">Engineering historical metrics</field>
+            <field name="model_id" ref="model_saas_metric_timeseries"/>
+            <field name="groups" eval="[(4, ref('group_saas_engineering'))]"/>
+            <field name="domain_force">[('metric_id.audience', 'in', ['general', 'engineering'])]</field>
+        </record>
+
+        <record id="rule_metric_definition_finance" model="ir.rule">
+            <field name="name">Finance metric definitions</field>
+            <field name="model_id" ref="model_saas_metric_definition"/>
+            <field name="groups" eval="[(4, ref('group_saas_finance'))]"/>
+            <field name="domain_force">[('audience', 'in', ['general', 'finance'])]</field>
+        </record>
+        <record id="rule_metric_current_finance" model="ir.rule">
+            <field name="name">Finance current metrics</field>
+            <field name="model_id" ref="model_saas_metric_current"/>
+            <field name="groups" eval="[(4, ref('group_saas_finance'))]"/>
+            <field name="domain_force">[('metric_id.audience', 'in', ['general', 'finance'])]</field>
+        </record>
+        <record id="rule_metric_timeseries_finance" model="ir.rule">
+            <field name="name">Finance historical metrics</field>
+            <field name="model_id" ref="model_saas_metric_timeseries"/>
+            <field name="groups" eval="[(4, ref('group_saas_finance'))]"/>
+            <field name="domain_force">[('metric_id.audience', 'in', ['general', 'finance'])]</field>
+        </record>
+
+        <record id="rule_metric_definition_customer_success" model="ir.rule">
+            <field name="name">Customer success metric definitions</field>
+            <field name="model_id" ref="model_saas_metric_definition"/>
+            <field name="groups" eval="[(4, ref('group_saas_customer_success'))]"/>
+            <field name="domain_force">[('audience', 'in', ['general', 'customer_success'])]</field>
+        </record>
+        <record id="rule_metric_current_customer_success" model="ir.rule">
+            <field name="name">Customer success current metrics</field>
+            <field name="model_id" ref="model_saas_metric_current"/>
+            <field name="groups" eval="[(4, ref('group_saas_customer_success'))]"/>
+            <field name="domain_force">[('metric_id.audience', 'in', ['general', 'customer_success'])]</field>
+        </record>
+        <record id="rule_metric_timeseries_customer_success" model="ir.rule">
+            <field name="name">Customer success historical metrics</field>
+            <field name="model_id" ref="model_saas_metric_timeseries"/>
+            <field name="groups" eval="[(4, ref('group_saas_customer_success'))]"/>
+            <field name="domain_force">[('metric_id.audience', 'in', ['general', 'customer_success'])]</field>
+        </record>
+
+        <record id="rule_metric_definition_support" model="ir.rule">
+            <field name="name">Support metric definitions</field>
+            <field name="model_id" ref="model_saas_metric_definition"/>
+            <field name="groups" eval="[(4, ref('group_saas_support'))]"/>
+            <field name="domain_force">[('audience', 'in', ['general', 'support'])]</field>
+        </record>
+        <record id="rule_metric_current_support" model="ir.rule">
+            <field name="name">Support current metrics</field>
+            <field name="model_id" ref="model_saas_metric_current"/>
+            <field name="groups" eval="[(4, ref('group_saas_support'))]"/>
+            <field name="domain_force">[('metric_id.audience', 'in', ['general', 'support'])]</field>
+        </record>
+        <record id="rule_metric_timeseries_support" model="ir.rule">
+            <field name="name">Support historical metrics</field>
+            <field name="model_id" ref="model_saas_metric_timeseries"/>
+            <field name="groups" eval="[(4, ref('group_saas_support'))]"/>
+            <field name="domain_force">[('metric_id.audience', 'in', ['general', 'support'])]</field>
+        </record>
+
+        <record id="rule_metric_definition_security" model="ir.rule">
+            <field name="name">Security metric definitions</field>
+            <field name="model_id" ref="model_saas_metric_definition"/>
+            <field name="groups" eval="[(4, ref('group_saas_security'))]"/>
+            <field name="domain_force">[('audience', 'in', ['general', 'security'])]</field>
+        </record>
+        <record id="rule_metric_current_security" model="ir.rule">
+            <field name="name">Security current metrics</field>
+            <field name="model_id" ref="model_saas_metric_current"/>
+            <field name="groups" eval="[(4, ref('group_saas_security'))]"/>
+            <field name="domain_force">[('metric_id.audience', 'in', ['general', 'security'])]</field>
+        </record>
+        <record id="rule_metric_timeseries_security" model="ir.rule">
+            <field name="name">Security historical metrics</field>
+            <field name="model_id" ref="model_saas_metric_timeseries"/>
+            <field name="groups" eval="[(4, ref('group_saas_security'))]"/>
+            <field name="domain_force">[('metric_id.audience', 'in', ['general', 'security'])]</field>
+        </record>
+
+        <record id="rule_metric_definition_bot" model="ir.rule">
+            <field name="name">Integration bot metric definitions</field>
+            <field name="model_id" ref="model_saas_metric_definition"/>
+            <field name="groups" eval="[(4, ref('group_saas_integration_bot'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_metric_current_bot" model="ir.rule">
+            <field name="name">Integration bot current metrics</field>
+            <field name="model_id" ref="model_saas_metric_current"/>
+            <field name="groups" eval="[(4, ref('group_saas_integration_bot'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_metric_timeseries_bot" model="ir.rule">
+            <field name="name">Integration bot historical metrics</field>
+            <field name="model_id" ref="model_saas_metric_timeseries"/>
+            <field name="groups" eval="[(4, ref('group_saas_integration_bot'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+    </data>
+</odoo>

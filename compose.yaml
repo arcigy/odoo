@@ -38,8 +38,8 @@ services:
     command:
       - odoo
       - --database=${ODOO_DB_NAME:-geotherm_erp}
-      - --init=geotherm_chatbot
-      - --update=geotherm_chatbot
+      - --init=geotherm_chatbot,geotherm_drive,arcigy_saas_control_center
+      - --update=geotherm_chatbot,geotherm_drive,arcigy_saas_control_center
       - --without-demo
       - --db-filter=^${ODOO_DB_NAME:-geotherm_erp}$
     volumes:

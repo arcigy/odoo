@@ -1,0 +1,30 @@
+{
+    "name": "Arcigy SaaS Control Center",
+    "version": "19.0.1.0.0",
+    "summary": "Develop/Main SaaS health, reliability, cost and recovery cockpit",
+    "category": "Administration",
+    "license": "LGPL-3",
+    "author": "Arcigy",
+    "depends": ["base", "contacts", "mail", "web"],
+    "data": [
+        "security/saas_security.xml",
+        "security/ir.model.access.csv",
+        "data/saas_environment_data.xml",
+        "data/saas_dashboard_data.xml",
+        "data/saas.metric.definition.csv",
+        "views/saas_metric_views.xml",
+        "views/saas_operations_views.xml",
+        "views/saas_aggregate_views.xml",
+        "views/saas_dimension_views.xml",
+        "views/saas_menu_views.xml",
+    ],
+    "assets": {
+        "web.assets_backend": [
+            "arcigy_saas_control_center/static/src/js/saas_dashboard.js",
+            "arcigy_saas_control_center/static/src/xml/saas_dashboard.xml",
+            "arcigy_saas_control_center/static/src/scss/saas_dashboard.scss",
+        ],
+    },
+    "application": True,
+    "installable": True,
+}

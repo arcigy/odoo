@@ -1,2 +1,1 @@
-from . import analytics, crm_lead, pricebook, res_config_settings
-
+from . import analytics, cost, crm_lead, pricebook, res_config_settings

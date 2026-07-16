@@ -15,21 +15,59 @@ jobs:
       - uses: actions/checkout@v4
       - name: Create deployment archive
         shell: bash
-        run: tar --exclude='./.git' --exclude='./.github' -cf deploy.tar .
+        run: |
+          tar \
+            --exclude='./.git' \
+            --exclude='./.github' \
+            --exclude='./.env' \
+            --exclude='*.env' \
+            --exclude='*.tar' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            -cf deploy.tar .
+          tar -tf deploy.tar | grep -q '^./captain-definition$'
+          tar -tf deploy.tar | grep -q '^./addons/geotherm_chatbot/__manifest__.py$'
+          tar -tf deploy.tar | grep -q '^./addons/geotherm_drive/__manifest__.py$'
+          tar -tf deploy.tar | grep -q '^./addons/arcigy_saas_control_center/__manifest__.py$'
+          ! tar -tf deploy.tar | grep -E '(^|/)(\.env|[^/]*\.env)$'
       - name: Deploy to CapRover
         shell: bash
         env:
           CAPROVER_URL: ${{ secrets.CAPROVER_URL }}
           CAPROVER_PASSWORD: ${{ secrets.CAPROVER_PASSWORD }}
           CAPROVER_APP_NAME: ${{ secrets.CAPROVER_APP_NAME }}
+          CAPROVER_APP_URL: ${{ secrets.CAPROVER_APP_URL }}
         run: |
           set -euo pipefail
+          : "${CAPROVER_APP_URL:?CAPROVER_APP_URL secret is required}"
           login_json=$(curl -fsS -X POST "$CAPROVER_URL/api/v2/login" \
             -H 'content-type: application/json' \
             --data "$(jq -cn --arg password "$CAPROVER_PASSWORD" '{password:$password}')")
           token=$(jq -er '.data.token' <<< "$login_json")
-          curl -fsS -X POST "$CAPROVER_URL/api/v2/user/apps/appData/$CAPROVER_APP_NAME?detached=1" \
+          deploy_json=$(curl -fsS -X POST "$CAPROVER_URL/api/v2/user/apps/appData/$CAPROVER_APP_NAME?detached=1" \
             -H 'x-namespace: captain' \
             -H "x-captain-auth: $token" \
             -F 'sourceFile=@deploy.tar' \
-            -F "gitHash=$GITHUB_SHA"
+            -F "gitHash=$GITHUB_SHA")
+          jq -e '.status == 100 or .status == 101 or .status == 102' <<< "$deploy_json" > /dev/null
+
+          completed=0
+          for _ in $(seq 1 90); do
+            app_json=$(curl -fsS \
+              -H 'x-namespace: captain' \
+              -H "x-captain-auth: $token" \
+              "$CAPROVER_URL/api/v2/user/apps/appData/$CAPROVER_APP_NAME")
+            jq -e '.status == 100 or .status == 101 or .status == 102' <<< "$app_json" > /dev/null
+            if [[ "$(jq -r '.data.isBuildFailed // false' <<< "$app_json")" == "true" ]]; then
+              echo "CapRover build failed" >&2
+              exit 1
+            fi
+            if [[ "$(jq -r '.data.isAppBuilding // false' <<< "$app_json")" == "false" ]]; then
+              completed=1
+              break
+            fi
+            sleep 10
+          done
+          [[ "$completed" == "1" ]] || { echo "CapRover build timed out" >&2; exit 1; }
+          curl -fsS --retry 12 --retry-delay 5 --retry-all-errors \
+            "$CAPROVER_APP_URL/web/login" > /dev/null

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+    <t t-name="arcigy_saas_control_center.Dashboard">
+        <div class="o_arcigy_saas_dashboard">
+            <header class="o_arcigy_saas_header">
+                <div>
+                    <h1>Arcigy SaaS Control Center</h1>
+                    <p>Každá hodnota je oddelená podľa prostredia. Develop nikdy neprepisuje Main.</p>
+                </div>
+                <div class="o_arcigy_saas_controls">
+                    <select class="form-select" t-on-change="selectDashboard">
+                        <t t-foreach="state.filterOptions.dashboards" t-as="section" t-key="section.code">
+                            <option t-att-value="section.code" t-att-selected="section.code === state.selectedDashboard"><t t-esc="section.priority"/> · <t t-esc="section.name"/></option>
+                        </t>
+                    </select>
+                    <button type="button" class="btn btn-primary" t-on-click="refresh">Obnoviť</button>
+                </div>
+            </header>
+            <div class="o_arcigy_saas_freshness">
+                Dáta zobrazené k: <strong><t t-esc="state.generatedAt or '—'"/></strong> · automatický refresh každých 60 sekúnd
+            </div>
+            <details class="o_arcigy_saas_filters">
+                <summary>Globálne filtre</summary>
+                <div class="o_arcigy_saas_filter_grid">
+                    <label>Obdobie<select class="form-select" t-model="state.filters.period">
+                        <option value="current">Aktuálny stav</option><option value="24h" selected="selected">24 hodín</option>
+                        <option value="7d">7 dní</option><option value="30d">30 dní</option><option value="90d">90 dní</option>
+                    </select></label>
+                    <label class="o_arcigy_saas_checkbox"><input type="checkbox" t-model="state.filters.compare_previous"/> Porovnať s predchádzajúcim obdobím</label>
+                    <label>Service<select class="form-select" t-model="state.filters.service_id"><option value="">Všetky</option><t t-foreach="state.filterOptions.services" t-as="option" t-key="option.id"><option t-att-value="option.id"><t t-esc="option.name"/></option></t></select></label>
+                    <label>Región<select class="form-select" t-model="state.filters.region_id"><option value="">Všetky</option><t t-foreach="state.filterOptions.regions" t-as="option" t-key="option.id"><option t-att-value="option.id"><t t-esc="option.name"/></option></t></select></label>
+                    <label>Release<select class="form-select" t-model="state.filters.release_id"><option value="">Všetky</option><t t-foreach="state.filterOptions.releases" t-as="option" t-key="option.id"><option t-att-value="option.id"><t t-esc="option.name"/></option></t></select></label>
+                    <label>Tenant<select class="form-select" t-model="state.filters.tenant_id"><option value="">Všetky</option><t t-foreach="state.filterOptions.tenants" t-as="option" t-key="option.id"><option t-att-value="option.id"><t t-esc="option.name"/></option></t></select></label>
+                    <label>Plán<select class="form-select" t-model="state.filters.plan_id"><option value="">Všetky</option><t t-foreach="state.filterOptions.plans" t-as="option" t-key="option.id"><option t-att-value="option.id"><t t-esc="option.name"/></option></t></select></label>
+                    <label>Veľkosť tenantu<select class="form-select" t-model="state.filters.tenant_size_band"><option value="">Všetky</option><option value="micro">Micro</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option><option value="enterprise">Enterprise</option></select></label>
+                    <label>Feature<select class="form-select" t-model="state.filters.feature_id"><option value="">Všetky</option><t t-foreach="state.filterOptions.features" t-as="option" t-key="option.id"><option t-att-value="option.id"><t t-esc="option.name"/></option></t></select></label>
+                    <label>Integration provider<select class="form-select" t-model="state.filters.integration_id"><option value="">Všetky</option><t t-foreach="state.filterOptions.integrations" t-as="option" t-key="option.id"><option t-att-value="option.id"><t t-esc="option.name"/></option></t></select></label>
+                    <label>Krajina<select class="form-select" t-model="state.filters.country_id"><option value="">Všetky</option><t t-foreach="state.filterOptions.countries" t-as="option" t-key="option.id"><option t-att-value="option.id"><t t-esc="option.name"/></option></t></select></label>
+                    <label>Mena<select class="form-select" t-model="state.filters.currency_id"><option value="">Všetky</option><t t-foreach="state.filterOptions.currencies" t-as="option" t-key="option.id"><option t-att-value="option.id"><t t-esc="option.name"/></option></t></select></label>
+                    <label>Endpoint group<input class="form-control" maxlength="120" t-model="state.filters.endpoint_group"/></label>
+                    <label>Job type<input class="form-control" maxlength="120" t-model="state.filters.job_type"/></label>
+                    <label>Acquisition source<input class="form-control" maxlength="120" t-model="state.filters.acquisition_source"/></label>
+                    <label>Browser<input class="form-control" maxlength="120" t-model="state.filters.browser"/></label>
+                    <label>Operačný systém<input class="form-control" maxlength="120" t-model="state.filters.operating_system"/></label>
+                    <label>Zariadenie<input class="form-control" maxlength="120" t-model="state.filters.device"/></label>
+                    <label>Incident severity<select class="form-select" t-model="state.filters.incident_severity"><option value="">Všetky</option><option value="p0">P0</option><option value="p1">P1</option><option value="p2">P2</option><option value="p3">P3</option></select></label>
+                    <label>Stav metriky<select class="form-select" t-model="state.filters.status"><option value="">Všetky</option><option value="healthy">Healthy</option><option value="warning">Warning</option><option value="critical">Critical</option><option value="unknown">Unknown</option></select></label>
+                </div>
+                <div class="o_arcigy_saas_filter_actions"><button type="button" class="btn btn-primary" t-on-click="refresh">Použiť filtre</button><button type="button" class="btn btn-outline-secondary" t-on-click="resetFilters">Reset</button></div>
+            </details>
+            <div t-if="state.error" class="alert alert-danger" role="alert"><t t-esc="state.error"/></div>
+            <div t-if="state.loading" class="o_arcigy_saas_loading">Načítavam…</div>
+            <t t-foreach="visibleSections" t-as="section" t-key="section.code">
+                <section class="o_arcigy_saas_section">
+                    <div class="o_arcigy_saas_section_title">
+                        <div><span class="badge text-bg-secondary"><t t-esc="section.priority"/></span><h2><t t-esc="section.name"/></h2><small>Owner: <t t-esc="section.owner or '—'"/></small></div>
+                        <p><t t-esc="section.purpose"/></p>
+                    </div>
+                    <div class="o_arcigy_saas_kpis">
+                        <t t-foreach="kpis(section)" t-as="row" t-key="row.code">
+                            <article class="o_arcigy_saas_kpi">
+                                <h3><t t-esc="row.name"/></h3>
+                                <div><span>Develop</span><strong><t t-esc="valueFor(row, 'develop')"/></strong></div>
+                                <svg t-if="sparklinePoints(row, 'develop')" viewBox="0 0 100 30" role="img" aria-label="Develop trend"><polyline t-att-points="sparklinePoints(row, 'develop')"/></svg>
+                                <small><t t-esc="comparisonMetadata(row, 'develop')"/></small>
+                                <div><span>Main</span><strong><t t-esc="valueFor(row, 'main')"/></strong></div>
+                                <svg t-if="sparklinePoints(row, 'main')" viewBox="0 0 100 30" role="img" aria-label="Main trend"><polyline t-att-points="sparklinePoints(row, 'main')"/></svg>
+                                <small><t t-esc="comparisonMetadata(row, 'main')"/></small>
+                                <small><t t-esc="thresholdMetadata(row)"/></small>
+                            </article>
+                        </t>
+                    </div>
+                    <div class="o_arcigy_saas_table_wrap">
+                        <table class="table table-hover align-middle o_arcigy_saas_table">
+                            <thead><tr><th>Metrika</th><th class="o_arcigy_saas_env o_arcigy_saas_env--develop">Develop</th><th class="o_arcigy_saas_env o_arcigy_saas_env--main">Main</th></tr></thead>
+                            <tbody>
+                                <t t-if="!section.rows.length"><tr><td colspan="3" class="text-muted">Metriky pre túto etapu ešte nie sú aktivované.</td></tr></t>
+                                <t t-foreach="section.rows" t-as="row" t-key="row.code">
+                                    <tr>
+                                        <td class="o_arcigy_saas_metric"><strong><t t-esc="row.name"/></strong><small><t t-esc="row.description"/></small><small><t t-esc="thresholdMetadata(row)"/></small><small>Owner: <t t-esc="row.owner"/></small><a t-att-href="row.runbookUrl" target="_blank" rel="noopener noreferrer">Runbook</a><span> · </span><a t-att-href="row.definitionDrilldownUrl" target="_blank" rel="noopener noreferrer">History</a></td>
+                                        <td><div t-att-class="pointClass(row, 'develop')"><strong><t t-esc="valueFor(row, 'develop')"/></strong><small><t t-esc="metadata(row, 'develop')"/></small><a t-if="row.develop and row.develop.drilldownUrl" t-att-href="row.develop.drilldownUrl" target="_blank" rel="noopener noreferrer">Drill-down</a></div></td>
+                                        <td><div t-att-class="pointClass(row, 'main')"><strong><t t-esc="valueFor(row, 'main')"/></strong><small><t t-esc="metadata(row, 'main')"/></small><a t-if="row.main and row.main.drilldownUrl" t-att-href="row.main.drilldownUrl" target="_blank" rel="noopener noreferrer">Drill-down</a></div></td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </t>
+        </div>
+    </t>
+</templates>
