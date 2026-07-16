@@ -130,6 +130,23 @@ node integrations/saas_aggregate_sync.mjs `
 
 Raw export držte v schválenom analytics úložisku alebo mimo repozitára; do Odoo ani Gitu nepatrí. Rollup pravdivo počíta iba priamo dokázateľné denné signups, meaningful active users/tenants a successful core actions. Activation, retention, feature adoption a time-to-value zámerne nevymýšľa bez úplného cohort/eligibility vstupu.
 
+### Reconciliation zdrojov
+
+`integrations/saas_reconciliation_rollup.mjs` porovnáva iba agregované scalar totals pre sedem povinných kontrol: payment provider/Odoo invoices, app subscription/billing provider, measured/invoiced usage, app tenant/Odoo partner, active/paid seats, cloud invoice/cost import a observability/business request totals. Z rozdielu a explicitnej tolerancie vytvorí idempotentný `saas.data.quality.run` artifact so stavom `valid`, `warning` alebo `invalid`.
+
+```powershell
+node integrations/saas_reconciliation_rollup.mjs `
+  --input=integrations/saas_reconciliation.example.json `
+  > integrations/saas_reconciliation.local.json
+
+node integrations/saas_operational_sync.mjs `
+  --config=integrations/saas_operational_sync.example.json `
+  --evidence=integrations/saas_reconciliation.local.json `
+  --dry-run
+```
+
+Adapter neprijíma raw zákaznícke záznamy, credentials ani neznáme typy reconciliation. Rozdiel je `comparison_value - authoritative_value`; authoritative source a tolerancia musia byť schválené ownerom danej metriky pred ostrým použitím.
+
 ### GitHub CI/CD a security
 
 `integrations/saas_github_sync.mjs` číta iba agregovateľné metadata z GitHub Actions, Dependabot a Secret Scanning. Do Odoo neposiela kód, mená vývojárov, raw alerty ani literalne secrets (`hide_secret=true`). Develop a Main sú viazané na samostatné branche a repository-wide security stav sa smie priradiť iba jednému prostrediu.

@@ -1,0 +1,20 @@
+{
+  "environment": "develop",
+  "source_updated_at": "2026-07-16T00:05:00Z",
+  "period_start": "2026-07-15T00:00:00Z",
+  "period_end": "2026-07-16T00:00:00Z",
+  "checks": [
+    {
+      "code": "payment_provider_vs_odoo_invoices",
+      "authoritative_source": "payment-provider",
+      "comparison_source": "odoo-invoices",
+      "unit": "EUR",
+      "authoritative_value": 100,
+      "comparison_value": 100,
+      "tolerance_absolute": 0.01,
+      "tolerance_relative": 0.001,
+      "warning_multiplier": 2,
+      "drilldown_url": "https://analytics.example.test/reconciliation"
+    }
+  ]
+}
