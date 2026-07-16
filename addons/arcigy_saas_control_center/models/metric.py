@@ -41,6 +41,23 @@ def _utc_datetime(value, field_name):
     return parsed.astimezone(timezone.utc).replace(tzinfo=None)
 
 
+def _required_external_utc_datetime(value, field_name):
+    if not value:
+        raise ValidationError(f"{field_name} is required.")
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError as error:
+            raise ValidationError(f"{field_name} must be an ISO-8601 timestamp.") from error
+    if parsed.tzinfo is None:
+        raise ValidationError(f"{field_name} must explicitly use UTC.")
+    if parsed.utcoffset() != timedelta(0):
+        raise ValidationError(f"{field_name} must explicitly use UTC.")
+    return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 def _finite_number(value, field_name, required=False):
     if value is None and not required:
         return False
@@ -747,7 +764,11 @@ class SaasMetricCurrent(models.Model):
         environment = self.env["saas.environment"].search([("code", "=", environment_code)], limit=1)
         if not environment:
             raise ValidationError("Configured SaaS environment was not found.")
-        source_updated_at = _utc_datetime(payload.get("source_updated_at"), "source_updated_at")
+        source_updated_at = _required_external_utc_datetime(
+            payload.get("source_updated_at"), "source_updated_at"
+        )
+        if source_updated_at > fields.Datetime.now() + timedelta(minutes=5):
+            raise ValidationError("source_updated_at is too far in the future.")
         sync_run = self.env["saas.sync.run"].create(
             {
                 "name": f"Arcigy metric sync {environment_code} {fields.Datetime.to_string(source_updated_at)}",
@@ -795,15 +816,26 @@ class SaasMetricCurrent(models.Model):
             scope_key = str(item.get("scope_key") or "global").strip()
             if not SCOPE_KEY_PATTERN.fullmatch(scope_key):
                 raise ValidationError("Invalid scope_key.")
-            measured_at = _utc_datetime(item.get("measured_at") or source_updated_at, "measured_at")
-            freshness_seconds = int(item.get("freshness_seconds") or definition.freshness_seconds)
+            measured_at = (
+                _required_external_utc_datetime(item.get("measured_at"), "measured_at")
+                if item.get("measured_at")
+                else source_updated_at
+            )
+            if measured_at > source_updated_at + timedelta(minutes=5):
+                raise ValidationError("measured_at is newer than the source watermark.")
+            raw_freshness_seconds = item.get("freshness_seconds", definition.freshness_seconds)
+            if isinstance(raw_freshness_seconds, bool) or not isinstance(raw_freshness_seconds, int):
+                raise ValidationError("freshness_seconds must be an integer.")
+            freshness_seconds = raw_freshness_seconds
             if freshness_seconds < 1 or freshness_seconds > 604800:
                 raise ValidationError("freshness_seconds must be between 1 and 604800.")
             numerator = _finite_number(item.get("numerator"), "numerator")
             denominator = _finite_number(item.get("denominator"), "denominator")
             if denominator is not False and numerator is not False and numerator > denominator:
                 raise ValidationError("numerator cannot be greater than denominator.")
-            sample_count = int(item.get("sample_count") or 0)
+            sample_count = item.get("sample_count", 0)
+            if isinstance(sample_count, bool) or not isinstance(sample_count, int):
+                raise ValidationError("sample_count must be an integer.")
             if sample_count < 0:
                 raise ValidationError("sample_count cannot be negative.")
             status = str(item.get("status") or "unknown").lower()
@@ -891,14 +923,30 @@ class SaasMetricCurrent(models.Model):
                 opened, resolved = current._sync_status_alert()
                 alerts_opened += opened
                 alerts_resolved += resolved
+            historical_fields = {"external_key", "period_start", "period_end", "granularity"}
+            supplied_historical_fields = {
+                field_name
+                for field_name in historical_fields
+                if item.get(field_name) not in (None, "")
+            }
+            if supplied_historical_fields and supplied_historical_fields != historical_fields:
+                missing_historical_fields = historical_fields - supplied_historical_fields
+                raise ValidationError(
+                    "Historical metric fields must be supplied together; missing: "
+                    f"{', '.join(sorted(missing_historical_fields))}."
+                )
             external_key = str(item.get("external_key") or "").strip()
             if external_key:
                 if len(external_key) > 255 or not external_key.startswith(f"{environment_code}:"):
                     raise ValidationError("external_key must be environment-prefixed and at most 255 characters.")
-                period_start = _utc_datetime(item.get("period_start"), "period_start")
-                period_end = _utc_datetime(item.get("period_end"), "period_end")
+                period_start = _required_external_utc_datetime(
+                    item.get("period_start"), "period_start"
+                )
+                period_end = _required_external_utc_datetime(item.get("period_end"), "period_end")
                 if period_end <= period_start:
                     raise ValidationError("period_end must be after period_start.")
+                if period_end > source_updated_at + timedelta(minutes=5):
+                    raise ValidationError("period_end is newer than the source watermark.")
                 granularity = str(item.get("granularity") or "").strip()
                 if granularity not in {"5m", "hour", "day", "month"}:
                     raise ValidationError("Historical metric granularity is invalid.")

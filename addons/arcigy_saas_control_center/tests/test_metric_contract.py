@@ -276,6 +276,38 @@ class TestSaasMetricContract(TransactionCase):
             self.current_model.with_user(self.bot).ingest_metric_batch(payload)
         self.assertEqual(self.env["saas.sync.run"].search_count([]), before)
 
+    def test_ingest_requires_utc_watermark_and_complete_history_window(self):
+        payload = self._payload("develop", 99)
+        payload.pop("source_updated_at")
+        with self.assertRaisesRegex(ValidationError, "source_updated_at is required"):
+            self.current_model.with_user(self.bot).ingest_metric_batch(payload)
+
+        payload = self._payload("develop", 99)
+        payload["source_updated_at"] = "2026-07-16T10:00:00"
+        with self.assertRaisesRegex(ValidationError, "source_updated_at must explicitly use UTC"):
+            self.current_model.with_user(self.bot).ingest_metric_batch(payload)
+
+        payload = self._payload("develop", 99)
+        payload["metrics"][0].pop("period_end")
+        with self.assertRaisesRegex(ValidationError, "Historical metric fields must be supplied together"):
+            self.current_model.with_user(self.bot).ingest_metric_batch(payload)
+
+    def test_ingest_rejects_future_or_non_integer_measurement_metadata(self):
+        payload = self._payload("develop", 99)
+        payload["metrics"][0]["measured_at"] = "2026-07-16T10:06:00Z"
+        with self.assertRaisesRegex(ValidationError, "newer than the source watermark"):
+            self.current_model.with_user(self.bot).ingest_metric_batch(payload)
+
+        payload = self._payload("develop", 99)
+        payload["metrics"][0]["freshness_seconds"] = "300"
+        with self.assertRaisesRegex(ValidationError, "freshness_seconds must be an integer"):
+            self.current_model.with_user(self.bot).ingest_metric_batch(payload)
+
+        payload = self._payload("develop", 99)
+        payload["metrics"][0]["sample_count"] = 1.5
+        with self.assertRaisesRegex(ValidationError, "sample_count must be an integer"):
+            self.current_model.with_user(self.bot).ingest_metric_batch(payload)
+
         payload = self._payload("develop", 99)
         payload["metrics"][0]["raw_request"] = {"authorization": "forbidden"}
         with self.assertRaisesRegex(ValidationError, "Unsupported metric item fields: raw_request"):
