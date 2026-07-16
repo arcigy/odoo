@@ -218,7 +218,7 @@ Adapter neprijíma raw zákaznícke záznamy, credentials ani neznáme typy reco
 
 ### Business KPI bridge
 
-`integrations/saas_business_sync.mjs` je striktne allowlistovaný JSON-2 bridge pre 193 existujúcich KPI z produktového funnelu, engagementu, tenant health, revenue/billing, marketing/CRM, supportu, FinOps, privacy, release outcomes, AI-change risk a engineering quality. Prijíma iba agregované scalar hodnoty za uzavretý UTC deň alebo kalendárny mesiac. Každý historický kľúč musí obsahovať správny `develop`/`main` a source prefix; dimenzované hodnoty musia mať samostatný non-global scope.
+`integrations/saas_business_sync.mjs` je striktne allowlistovaný JSON-2 bridge pre 226 existujúcich KPI z produktového funnelu, engagementu, tenant health, revenue/billing, marketing/CRM, supportu, FinOps, privacy, release outcomes, AI-change risk, AI/LLM produktu a engineering quality. Prijíma iba agregované scalar hodnoty za uzavretú UTC hodinu, deň alebo kalendárny mesiac. Každý historický kľúč musí obsahovať správny `develop`/`main` a source prefix; dimenzované hodnoty musia mať samostatný non-global scope.
 
 ```powershell
 node integrations/saas_business_sync.mjs `
@@ -275,6 +275,29 @@ node integrations/saas_business_sync.mjs `
 ```
 
 Denné a mesačné kontrakty sú oddelené. Každý source musí byť explicitne kompletný a obsahovať celý svoj kontrakt. Pomer bez oprávnenej vzorky sa označí `available=false` s `no_eligible_sample`; adaptér ho vynechá namiesto vymyslenej nuly. Odoo nedostane kód, diff, názvy alebo cesty súborov, autorov, prompty, secrets ani produkčné dáta. Príklady sú syntetické a nesmú byť použité ako reálny dôkaz.
+
+### AI/LLM product evidence
+
+`integrations/saas_ai_llm_rollup.mjs` owns all 37 product AI signals from the optional
+dashboard specification. The hourly contract covers requests, latency, provider behavior,
+tool calls and safety. The daily contract covers tokens, cost, quality and complete tenant,
+feature and model allocations. Cost-per metrics are verified against exact populations and
+all three dimensional breakdowns must reconcile to the global totals.
+
+```powershell
+node integrations/saas_ai_llm_rollup.mjs `
+  --input=integrations/saas_ai_llm_hourly.example.json `
+  > integrations/saas_ai_llm_hourly.local.json
+
+node integrations/saas_ai_llm_rollup.mjs `
+  --input=integrations/saas_ai_llm_daily.example.json `
+  > integrations/saas_ai_llm_daily.local.json
+```
+
+Every source must explicitly declare completeness before a zero is trusted. Missing sample
+populations remain unavailable. Raw prompts, responses, identities and arbitrary payloads
+are outside the schema. `model_code`, tenant and feature dimensions use non-global scopes;
+the Odoo cockpit now resolves exact dimensional filters without silently forcing global rows.
 
 ### Release outcome a DORA evidence
 

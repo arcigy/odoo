@@ -16,13 +16,13 @@ const ITEM_FIELDS = new Set([
   "measured_at", "freshness_seconds", "scope_key", "service_code",
   "tenant_external_id", "plan_code", "region_code", "feature_code",
   "integration_code", "country_code", "currency_code", "tenant_size_band",
-  "acquisition_source", "incident_severity", "drilldown_url", "external_key",
+  "acquisition_source", "model_code", "incident_severity", "drilldown_url", "external_key",
   "period_start", "period_end", "granularity",
 ]);
 const DIMENSION_FIELDS = [
   "service_code", "tenant_external_id", "plan_code", "region_code", "feature_code",
   "integration_code", "country_code", "currency_code", "tenant_size_band",
-  "acquisition_source", "incident_severity",
+  "acquisition_source", "model_code", "incident_severity",
 ];
 
 const BUSINESS_METRIC_CODES = new Set([
@@ -78,6 +78,20 @@ const BUSINESS_METRIC_CODES = new Set([
   "time_to_restore_service_seconds",
   "ai_request_count", "ai_input_token_count",
   "ai_output_token_count", "ai_cost",
+  "ai_successful_request_count", "ai_failed_request_count", "ai_request_success_rate",
+  "ai_latency_p95_seconds", "ai_time_to_first_token_p95_seconds",
+  "ai_model_processing_p95_seconds", "ai_tool_call_duration_p95_seconds",
+  "ai_retry_rate", "ai_fallback_model_use_rate", "ai_provider_timeout_count",
+  "ai_provider_rate_limit_count", "ai_tool_call_success_rate",
+  "ai_moderation_block_count", "ai_prompt_injection_detection_count",
+  "ai_jailbreak_attempt_count", "ai_sensitive_data_detection_count",
+  "ai_output_policy_violation_count", "ai_tool_permission_denial_count",
+  "ai_tenant_quota_exceeded_count", "ai_cached_token_count",
+  "ai_cost_per_request", "ai_cost_per_tenant", "ai_cost_per_successful_outcome",
+  "ai_task_completion_rate", "ai_user_acceptance_rate", "ai_regenerate_rate",
+  "ai_correction_rate", "ai_thumbs_up_count", "ai_thumbs_down_count",
+  "ai_human_escalation_rate", "ai_structured_output_validation_failure_rate",
+  "ai_citation_grounding_coverage_rate", "ai_detected_hallucination_rate",
   "open_pr_count", "pr_cycle_time_p50_seconds",
   "pr_time_to_first_review_p50_seconds", "pr_approval_to_merge_p50_seconds",
   "pr_average_diff_lines", "pr_average_files_changed",
@@ -156,6 +170,13 @@ function validatePeriod(start, end, granularity, name) {
   const endMs = Date.parse(end);
   if (endMs <= startMs) throw new Error(`${name}.period_end must be after period_start.`);
   const startDate = new Date(startMs);
+  if (granularity === "hour") {
+    if (startDate.getUTCMinutes() !== 0 || startDate.getUTCSeconds() !== 0 || startDate.getUTCMilliseconds() !== 0) {
+      throw new Error(`${name}.period_start must be aligned to a UTC hour.`);
+    }
+    if (endMs - startMs !== 3_600_000) throw new Error(`${name} must cover exactly one UTC hour.`);
+    return;
+  }
   if (startDate.getUTCHours() !== 0 || startDate.getUTCMinutes() !== 0 || startDate.getUTCSeconds() !== 0 || startDate.getUTCMilliseconds() !== 0) {
     throw new Error(`${name}.period_start must be aligned to UTC midnight.`);
   }
@@ -169,7 +190,7 @@ function validatePeriod(start, end, granularity, name) {
     if (endMs !== expected) throw new Error(`${name} must cover exactly one UTC calendar month.`);
     return;
   }
-  throw new Error(`${name}.granularity must be day or month.`);
+  throw new Error(`${name}.granularity must be hour day or month.`);
 }
 
 export function validateBusinessConfig(raw) {

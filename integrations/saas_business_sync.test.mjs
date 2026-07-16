@@ -34,7 +34,7 @@ test("all allowlisted business metrics exist in the seeded Odoo metric registry"
   const csv = await readFile(new URL("../addons/arcigy_saas_control_center/data/saas.metric.definition.csv", import.meta.url), "utf8");
   const missing = businessMetricCodes().filter((code) => !csv.includes(`,${code},`));
   assert.deepEqual(missing, []);
-  assert.equal(businessMetricCodes().length, 193);
+  assert.equal(businessMetricCodes().length, 226);
 });
 
 test("validates privacy-safe daily and monthly business metric evidence", () => {
@@ -52,6 +52,23 @@ test("validates privacy-safe daily and monthly business metric evidence", () => 
     validateBusinessEvidence(monthlyInput, Date.parse("2026-08-01T00:05:00Z")).metrics[0].granularity,
     "month",
   );
+});
+
+test("validates an exact closed UTC hour and bounded AI model dimension", () => {
+  const hourly = evidence({ source_code: "ai-llm-product", source_updated_at: "2026-07-16T21:05:00Z" });
+  hourly.metrics[0] = {
+    ...hourly.metrics[0],
+    code: "ai_request_count",
+    value: 10,
+    scope_key: "model:model-v1",
+    model_code: "model-v1",
+    external_key: "develop:business:ai-llm-product:ai_request_count:model:model-v1:20260716T20",
+    period_start: "2026-07-16T20:00:00Z",
+    period_end: "2026-07-16T21:00:00Z",
+    measured_at: "2026-07-16T21:00:00Z",
+    granularity: "hour",
+  };
+  assert.equal(validateBusinessEvidence(hourly, Date.parse("2026-07-16T21:05:00Z")).metrics[0].model_code, "model-v1");
 });
 
 test("rejects raw payloads, unknown metrics and cross-environment keys", () => {

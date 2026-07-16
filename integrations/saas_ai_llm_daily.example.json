@@ -1,0 +1,66 @@
+{
+  "environment": "main",
+  "compiled_at": "2026-07-16T00:10:00Z",
+  "period_start": "2026-07-15T00:00:00Z",
+  "period_end": "2026-07-16T00:00:00Z",
+  "granularity": "day",
+  "sources": [
+    {
+      "contract": "usage_cost",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:05:00Z",
+      "drilldown_url": "https://ai.example.test/usage",
+      "populations": {
+        "request_count": 10,
+        "tenant_count": 1,
+        "successful_outcome_count": 8
+      },
+      "metrics": [
+        { "code": "ai_input_token_count", "value": 1000 },
+        { "code": "ai_output_token_count", "value": 400 },
+        { "code": "ai_cached_token_count", "value": 200 },
+        { "code": "ai_cost", "value": 4 },
+        { "code": "ai_cost_per_request", "value": 0.4, "sample_count": 10 },
+        { "code": "ai_cost_per_tenant", "value": 4, "sample_count": 1 },
+        { "code": "ai_cost_per_successful_outcome", "value": 0.5, "sample_count": 8 }
+      ],
+      "breakdowns": {
+        "tenant_complete": true,
+        "feature_complete": true,
+        "model_complete": true,
+        "items": [
+          { "code": "ai_input_token_count", "value": 1000, "tenant_external_id": "tenant-demo" },
+          { "code": "ai_output_token_count", "value": 400, "tenant_external_id": "tenant-demo" },
+          { "code": "ai_cached_token_count", "value": 200, "tenant_external_id": "tenant-demo" },
+          { "code": "ai_cost", "value": 4, "tenant_external_id": "tenant-demo" },
+          { "code": "ai_input_token_count", "value": 1000, "feature_code": "assistant" },
+          { "code": "ai_output_token_count", "value": 400, "feature_code": "assistant" },
+          { "code": "ai_cached_token_count", "value": 200, "feature_code": "assistant" },
+          { "code": "ai_cost", "value": 4, "feature_code": "assistant" },
+          { "code": "ai_input_token_count", "value": 1000, "model_code": "model-v1" },
+          { "code": "ai_output_token_count", "value": 400, "model_code": "model-v1" },
+          { "code": "ai_cached_token_count", "value": 200, "model_code": "model-v1" },
+          { "code": "ai_cost", "value": 4, "model_code": "model-v1" }
+        ]
+      }
+    },
+    {
+      "contract": "quality",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:05:00Z",
+      "drilldown_url": "https://ai.example.test/quality",
+      "metrics": [
+        { "code": "ai_task_completion_rate", "value": 80, "numerator": 8, "denominator": 10 },
+        { "code": "ai_user_acceptance_rate", "value": 70, "numerator": 7, "denominator": 10 },
+        { "code": "ai_regenerate_rate", "value": 20, "numerator": 2, "denominator": 10 },
+        { "code": "ai_correction_rate", "value": 10, "numerator": 1, "denominator": 10 },
+        { "code": "ai_thumbs_up_count", "value": 6 },
+        { "code": "ai_thumbs_down_count", "value": 1 },
+        { "code": "ai_human_escalation_rate", "value": 10, "numerator": 1, "denominator": 10 },
+        { "code": "ai_structured_output_validation_failure_rate", "value": 10, "numerator": 1, "denominator": 10 },
+        { "code": "ai_citation_grounding_coverage_rate", "value": 75, "numerator": 6, "denominator": 8 },
+        { "code": "ai_detected_hallucination_rate", "value": 20, "numerator": 1, "denominator": 5 }
+      ]
+    }
+  ]
+}

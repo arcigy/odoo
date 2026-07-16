@@ -1,0 +1,61 @@
+{
+  "environment": "develop",
+  "compiled_at": "2026-07-16T21:10:00Z",
+  "period_start": "2026-07-16T20:00:00Z",
+  "period_end": "2026-07-16T21:00:00Z",
+  "granularity": "hour",
+  "sources": [
+    {
+      "contract": "gateway",
+      "complete": true,
+      "source_updated_at": "2026-07-16T21:05:00Z",
+      "drilldown_url": "https://ai.example.test/gateway",
+      "metrics": [
+        { "code": "ai_request_count", "value": 10 },
+        { "code": "ai_successful_request_count", "value": 9 },
+        { "code": "ai_failed_request_count", "value": 1 },
+        { "code": "ai_request_success_rate", "value": 90, "numerator": 9, "denominator": 10 }
+      ]
+    },
+    {
+      "contract": "performance",
+      "complete": true,
+      "source_updated_at": "2026-07-16T21:05:00Z",
+      "drilldown_url": "https://ai.example.test/performance",
+      "metrics": [
+        { "code": "ai_latency_p95_seconds", "value": 8, "sample_count": 10 },
+        { "code": "ai_time_to_first_token_p95_seconds", "value": 1.2, "sample_count": 8 },
+        { "code": "ai_model_processing_p95_seconds", "value": 6, "sample_count": 10 },
+        { "code": "ai_tool_call_duration_p95_seconds", "value": 2, "sample_count": 4 },
+        { "code": "ai_retry_rate", "value": 20, "numerator": 2, "denominator": 10 },
+        { "code": "ai_fallback_model_use_rate", "value": 10, "numerator": 1, "denominator": 10 },
+        { "code": "ai_provider_timeout_count", "value": 1 },
+        { "code": "ai_provider_rate_limit_count", "value": 0 }
+      ]
+    },
+    {
+      "contract": "tooling",
+      "complete": true,
+      "source_updated_at": "2026-07-16T21:05:00Z",
+      "drilldown_url": "https://ai.example.test/tooling",
+      "metrics": [
+        { "code": "ai_tool_call_success_rate", "value": 75, "numerator": 3, "denominator": 4 }
+      ]
+    },
+    {
+      "contract": "safety",
+      "complete": true,
+      "source_updated_at": "2026-07-16T21:05:00Z",
+      "drilldown_url": "https://ai.example.test/safety",
+      "metrics": [
+        { "code": "ai_moderation_block_count", "value": 1 },
+        { "code": "ai_prompt_injection_detection_count", "value": 1 },
+        { "code": "ai_jailbreak_attempt_count", "value": 0 },
+        { "code": "ai_sensitive_data_detection_count", "value": 1 },
+        { "code": "ai_output_policy_violation_count", "value": 0 },
+        { "code": "ai_tool_permission_denial_count", "value": 1 },
+        { "code": "ai_tenant_quota_exceeded_count", "value": 0 }
+      ]
+    }
+  ]
+}

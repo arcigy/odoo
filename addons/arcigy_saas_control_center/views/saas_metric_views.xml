@@ -89,6 +89,7 @@
                 <field name="plan_id" optional="hide"/>
                 <field name="feature_id" optional="hide"/>
                 <field name="integration_id" optional="hide"/>
+                <field name="model_code" optional="hide"/>
                 <field name="endpoint_group" optional="hide"/>
                 <field name="job_type" optional="hide"/>
                 <field name="current_value"/>
@@ -117,6 +118,7 @@
                 <field name="release_id"/>
                 <field name="feature_id"/>
                 <field name="integration_id"/>
+                <field name="model_code"/>
                 <field name="country_id"/>
                 <field name="scope_key"/>
                 <filter name="critical" string="Critical" domain="[('status','=','critical')]"/>
@@ -129,6 +131,7 @@
                     <filter name="group_region" string="Region" context="{'group_by':'region_id'}"/>
                     <filter name="group_tenant" string="Tenant" context="{'group_by':'tenant_id'}"/>
                     <filter name="group_release" string="Release" context="{'group_by':'release_id'}"/>
+                    <filter name="group_model" string="AI model" context="{'group_by':'model_code'}"/>
                 </group>
             </search>
         </field>
@@ -152,6 +155,7 @@
                 <field name="release_id" optional="hide"/>
                 <field name="feature_id" optional="hide"/>
                 <field name="integration_id" optional="hide"/>
+                <field name="model_code" optional="hide"/>
                 <field name="endpoint_group" optional="hide"/>
                 <field name="job_type" optional="hide"/>
                 <field name="value"/>

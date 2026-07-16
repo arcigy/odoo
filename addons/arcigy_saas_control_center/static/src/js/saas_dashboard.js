@@ -32,7 +32,7 @@ export class ArcigySaasDashboard extends Component {
                 plan_id: "", feature_id: "", integration_id: "", country_id: "",
                 currency_id: "", tenant_size_band: "", endpoint_group: "",
                 job_type: "", acquisition_source: "", browser: "",
-                operating_system: "", device: "", incident_severity: "", status: "",
+                operating_system: "", device: "", model_code: "", incident_severity: "", status: "",
             },
         });
         onWillStart(async () => {

@@ -214,7 +214,7 @@ class TestSaasMetricContract(TransactionCase):
 
     def test_every_seeded_metric_has_complete_definition_contract(self):
         definitions = self.env["saas.metric.definition"].search([])
-        self.assertEqual(len(definitions), 351)
+        self.assertEqual(len(definitions), 376)
         for definition in definitions:
             self.assertTrue(definition.code)
             self.assertTrue(definition.name)
@@ -330,6 +330,31 @@ class TestSaasMetricContract(TransactionCase):
         self.assertEqual(len(expected_metrics), 57)
         self.assertFalse(expected_metrics - actual_metrics)
 
+    def test_complete_ai_llm_metric_contract_is_seeded(self):
+        expected_metrics = {
+            "ai_request_count", "ai_successful_request_count", "ai_failed_request_count",
+            "ai_request_success_rate", "ai_input_token_count", "ai_output_token_count",
+            "ai_cached_token_count", "ai_cost", "ai_cost_per_request",
+            "ai_cost_per_tenant", "ai_cost_per_successful_outcome",
+            "ai_latency_p95_seconds", "ai_time_to_first_token_p95_seconds",
+            "ai_model_processing_p95_seconds", "ai_tool_call_duration_p95_seconds",
+            "ai_retry_rate", "ai_fallback_model_use_rate", "ai_provider_timeout_count",
+            "ai_provider_rate_limit_count", "ai_task_completion_rate",
+            "ai_user_acceptance_rate", "ai_regenerate_rate", "ai_correction_rate",
+            "ai_thumbs_up_count", "ai_thumbs_down_count", "ai_human_escalation_rate",
+            "ai_structured_output_validation_failure_rate", "ai_tool_call_success_rate",
+            "ai_citation_grounding_coverage_rate", "ai_detected_hallucination_rate",
+            "ai_moderation_block_count", "ai_prompt_injection_detection_count",
+            "ai_jailbreak_attempt_count", "ai_sensitive_data_detection_count",
+            "ai_output_policy_violation_count", "ai_tool_permission_denial_count",
+            "ai_tenant_quota_exceeded_count",
+        }
+        actual_metrics = set(
+            self.env["saas.metric.definition"].search([]).mapped("code")
+        )
+        self.assertEqual(len(expected_metrics), 37)
+        self.assertFalse(expected_metrics - actual_metrics)
+
     def test_ingest_rejects_unsafe_drilldown_url(self):
         payload = self._payload("develop", 99)
         payload["metrics"][0]["drilldown_url"] = "javascript:alert(1)"
@@ -397,7 +422,7 @@ class TestSaasMetricContract(TransactionCase):
 
         result = self.current_model.with_user(self.executive).dashboard_payload(
             "live_operations",
-            "service:core-api",
+            "global",
             {"service_id": self.service.id, "region_id": self.region.id},
         )
         row = next(
@@ -409,6 +434,42 @@ class TestSaasMetricContract(TransactionCase):
         self.assertEqual(row["develop"]["value"], 99.2)
         self.assertEqual(row["main"]["value"], 99.8)
         self.assertEqual(result["appliedFilters"]["service_id"], self.service.id)
+        self.assertEqual(result["scopeKey"], "filtered")
+
+    def test_ai_model_filter_keeps_develop_and_main_paired(self):
+        as_bot = self.current_model.with_user(self.bot)
+        for environment, value in (("develop", 98.1), ("main", 99.1)):
+            payload = self._payload(environment, value)
+            payload["metrics"][0].update(
+                {
+                    "scope_key": "model:model-v1",
+                    "model_code": "model-v1",
+                    "external_key": f"{environment}:model-v1:2026-07-16T10:00:00Z",
+                }
+            )
+            as_bot.ingest_metric_batch(payload)
+
+        result = self.current_model.with_user(self.executive).dashboard_payload(
+            "live_operations", "global", {"model_code": "model-v1"}
+        )
+        row = next(
+            row
+            for section in result["sections"]
+            for row in section["rows"]
+            if row["code"] == self.metric.code
+        )
+        self.assertEqual(row["develop"]["value"], 98.1)
+        self.assertEqual(row["main"]["value"], 99.1)
+        self.assertEqual(result["scopeKey"], "filtered")
+        self.assertEqual(result["appliedFilters"]["model_code"], "model-v1")
+        self.assertEqual(
+            set(
+                self.env["saas.metric.timeseries"]
+                .search([("model_code", "=", "model-v1")])
+                .mapped("environment_id.code")
+            ),
+            {"develop", "main"},
+        )
 
     def test_ingest_rejects_unknown_dimension(self):
         payload = self._payload("develop", 99)

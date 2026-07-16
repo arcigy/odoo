@@ -20,7 +20,7 @@ METRIC_ITEM_FIELDS = {
     "code", "value", "numerator", "denominator", "sample_count", "status",
     "measured_at", "freshness_seconds", "scope_key", "service_code",
     "tenant_external_id", "plan_code", "region_code", "feature_code",
-    "integration_code", "country_code", "currency_code", "tenant_size_band",
+    "integration_code", "country_code", "currency_code", "tenant_size_band", "model_code",
     "endpoint_group", "job_type", "acquisition_source", "browser",
     "operating_system", "device", "incident_severity", "drilldown_url",
     "external_key", "period_start", "period_end", "granularity",
@@ -256,6 +256,7 @@ class SaasMetricCurrent(models.Model):
     browser = fields.Char(index=True)
     operating_system = fields.Char(index=True)
     device = fields.Char(index=True)
+    model_code = fields.Char(index=True)
     incident_severity = fields.Selection(
         [("p0", "P0"), ("p1", "P1"), ("p2", "P2"), ("p3", "P3")],
         index=True,
@@ -1259,6 +1260,7 @@ class SaasMetricCurrent(models.Model):
             "browser",
             "operating_system",
             "device",
+            "model_code",
         }
         for field_name in relation_fields:
             raw_value = filters.get(field_name)
@@ -1379,6 +1381,13 @@ class SaasMetricCurrent(models.Model):
         if not SCOPE_KEY_PATTERN.fullmatch(scope_key or ""):
             raise ValidationError("Invalid scope key.")
         normalized_filters = self._normalize_dashboard_filters(filters)
+        scoped_filter_fields = {
+            "service_id", "region_id", "release_id", "tenant_id", "plan_id",
+            "feature_id", "integration_id", "country_id", "currency_id",
+            "tenant_size_band", "endpoint_group", "job_type", "acquisition_source",
+            "browser", "operating_system", "device", "incident_severity", "model_code",
+        }
+        effective_scope_key = None if scoped_filter_fields.intersection(normalized_filters) else scope_key
         base_url = self.env["ir.config_parameter"].sudo().get_param(
             "web.base.url", "http://localhost"
         ).rstrip("/")
@@ -1390,7 +1399,9 @@ class SaasMetricCurrent(models.Model):
             [("active", "=", True), ("dashboard_ids", "in", dashboards.ids)],
             order="sequence, code",
         )
-        current_domain = [("metric_id", "in", definitions.ids), ("scope_key", "=", scope_key)]
+        current_domain = [("metric_id", "in", definitions.ids)]
+        if effective_scope_key:
+            current_domain.append(("scope_key", "=", effective_scope_key))
         for field_name in (
             "service_id",
             "region_id",
@@ -1408,6 +1419,7 @@ class SaasMetricCurrent(models.Model):
             "browser",
             "operating_system",
             "device",
+            "model_code",
             "incident_severity",
             "status",
         ):
@@ -1433,10 +1445,11 @@ class SaasMetricCurrent(models.Model):
             ) else period_start
             history_domain = [
                 ("metric_id", "in", definitions.ids),
-                ("scope_key", "=", scope_key),
                 ("period_start", ">=", history_start),
                 ("period_start", "<=", now),
             ]
+            if effective_scope_key:
+                history_domain.append(("scope_key", "=", effective_scope_key))
             for field_name in (
                 "service_id",
                 "region_id",
@@ -1454,6 +1467,7 @@ class SaasMetricCurrent(models.Model):
                 "browser",
                 "operating_system",
                 "device",
+                "model_code",
                 "incident_severity",
                 "status",
             ):
@@ -1578,7 +1592,7 @@ class SaasMetricCurrent(models.Model):
             )
         return {
             "generatedAt": fields.Datetime.to_string(fields.Datetime.now()),
-            "scopeKey": scope_key,
+            "scopeKey": effective_scope_key or "filtered",
             "environments": ["develop", "main"],
             "appliedFilters": normalized_filters,
             "freshnessSummary": self._dashboard_freshness_summary(
@@ -1744,6 +1758,7 @@ class SaasMetricCurrent(models.Model):
                     item.get("operating_system"), "operating_system"
                 ),
                 "device": _bounded_text(item.get("device"), "device"),
+                "model_code": _bounded_text(item.get("model_code"), "model_code"),
                 "incident_severity": incident_severity or False,
                 "scope_key": scope_key,
                 "status": status,
@@ -1824,6 +1839,7 @@ class SaasMetricCurrent(models.Model):
                     "browser": values["browser"],
                     "operating_system": values["operating_system"],
                     "device": values["device"],
+                    "model_code": values["model_code"],
                     "incident_severity": values["incident_severity"],
                     "scope_key": scope_key,
                     "period_start": period_start,
@@ -1907,6 +1923,7 @@ class SaasMetricTimeseries(models.Model):
     browser = fields.Char(index=True)
     operating_system = fields.Char(index=True)
     device = fields.Char(index=True)
+    model_code = fields.Char(index=True)
     incident_severity = fields.Selection(
         [("p0", "P0"), ("p1", "P1"), ("p2", "P2"), ("p3", "P3")],
         index=True,
