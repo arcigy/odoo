@@ -1,0 +1,13 @@
+{
+  "environment": "develop",
+  "server_sources": ["server", "worker"],
+  "meaningful_events": [
+    "core_action_succeeded",
+    "feature_used",
+    "record_created",
+    "record_updated",
+    "export_completed",
+    "import_completed",
+    "file_processed"
+  ]
+}

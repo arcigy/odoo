@@ -1,0 +1,29 @@
+{
+  "source_updated_at": "2026-07-16T00:05:00Z",
+  "events": [
+    {
+      "event_id": "example-event-1",
+      "event_name": "core_action_succeeded",
+      "event_version": 1,
+      "occurred_at_utc": "2026-07-15T12:00:00Z",
+      "received_at_utc": "2026-07-15T12:00:01Z",
+      "environment": "develop",
+      "release_version": "example-release",
+      "tenant_id": "example-opaque-tenant",
+      "user_id_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "session_id": "example-opaque-session",
+      "feature": "example-feature",
+      "object_type": "project",
+      "object_id_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "outcome": "succeeded",
+      "failure_reason": null,
+      "request_id": "example-request",
+      "trace_id": "example-trace",
+      "source": "server",
+      "plan": "example-plan",
+      "properties": {
+        "workflow": "example-core-action"
+      }
+    }
+  ]
+}

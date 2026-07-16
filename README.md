@@ -112,6 +112,24 @@ node integrations/saas_aggregate_sync.mjs `
 
 Reálne artifacts držte mimo repozitára alebo ako `integrations/*.local.json`. Dry-run nečíta API key a nerobí sieťovú požiadavku. Ostrý zápis povoľte až po source reconciliation a iba cez integration bot API key.
 
+### Produktové eventy a denný rollup
+
+`integrations/saas_product_event_rollup.mjs` spracuje export raw produktových eventov lokálne mimo Odoo a vytvorí iba anonymný `saas.product.daily` aggregate artifact. Vyžaduje celý verzovaný event envelope, UTC časy, deduplikovateľné `event_id`, SHA-256 user/object identifikátory a zhodné `develop`/`main` prostredie. Billing a authorization eventy prijme iba z explicitne povoleného serverového zdroja. PII/secret properties, konfliktné duplikáty a neuzavreté denné okná odmietne.
+
+```powershell
+node integrations/saas_product_event_rollup.mjs `
+  --config=integrations/saas_product_event_rollup.example.json `
+  --events=integrations/saas_product_events.example.json `
+  > integrations/saas_product_daily.local.json
+
+node integrations/saas_aggregate_sync.mjs `
+  --config=integrations/saas_aggregate_sync.example.json `
+  --evidence=integrations/saas_product_daily.local.json `
+  --dry-run
+```
+
+Raw export držte v schválenom analytics úložisku alebo mimo repozitára; do Odoo ani Gitu nepatrí. Rollup pravdivo počíta iba priamo dokázateľné denné signups, meaningful active users/tenants a successful core actions. Activation, retention, feature adoption a time-to-value zámerne nevymýšľa bez úplného cohort/eligibility vstupu.
+
 ### GitHub CI/CD a security
 
 `integrations/saas_github_sync.mjs` číta iba agregovateľné metadata z GitHub Actions, Dependabot a Secret Scanning. Do Odoo neposiela kód, mená vývojárov, raw alerty ani literalne secrets (`hide_secret=true`). Develop a Main sú viazané na samostatné branche a repository-wide security stav sa smie priradiť iba jednému prostrediu.
