@@ -17,4 +17,7 @@ class GeothermDriveFile(models.Model):
     last_error = fields.Text()
     last_sync_at = fields.Datetime(default=fields.Datetime.now)
 
-    _sql_constraints = [("attachment_unique", "unique(attachment_id)", "An attachment can have only one Drive mapping.")]
+    _attachment_unique = models.Constraint(
+        "UNIQUE(attachment_id)",
+        "An attachment can have only one Drive mapping.",
+    )

@@ -1,6 +1,6 @@
 {
     "name": "Geotherm Google Drive",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.0.1",
     "summary": "Controlled Google Drive storage for CRM lead projects",
     "category": "Sales/CRM",
     "license": "LGPL-3",
