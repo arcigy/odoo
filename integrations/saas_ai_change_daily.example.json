@@ -1,0 +1,51 @@
+{
+  "environment": "develop",
+  "compiled_at": "2026-07-16T00:10:00Z",
+  "period_start": "2026-07-15T00:00:00Z",
+  "period_end": "2026-07-16T00:00:00Z",
+  "granularity": "day",
+  "sources": [
+    {
+      "contract": "change_inventory",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:05:00Z",
+      "drilldown_url": "https://github.example.invalid/aggregate",
+      "metrics": [
+        { "code": "ai_assisted_pr_count", "value": 2 },
+        { "code": "ai_assisted_pr_average_diff_lines", "value": 300, "sample_count": 2 },
+        { "code": "ai_assisted_changed_file_count", "value": 8 },
+        { "code": "ai_assisted_modules_touched_per_change", "value": 2.5, "sample_count": 2 },
+        { "code": "ai_assisted_security_sensitive_file_touch_count", "value": 1 },
+        { "code": "ai_assisted_billing_file_touch_count", "value": 0 },
+        { "code": "ai_assisted_auth_file_touch_count", "value": 1 },
+        { "code": "ai_assisted_db_migration_count", "value": 0 },
+        { "code": "ai_assisted_dependency_proposal_count", "value": 1 },
+        { "code": "ai_assisted_dependency_rejection_count", "value": 0 },
+        { "code": "ai_assisted_tests_added_count", "value": 5 },
+        { "code": "ai_assisted_tests_modified_count", "value": 1 },
+        { "code": "ai_assisted_tests_deleted_count", "value": 0 }
+      ]
+    },
+    {
+      "contract": "review_gates",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:06:00Z",
+      "metrics": [
+        { "code": "ai_change_human_review_coverage", "value": 100, "numerator": 2, "denominator": 2 },
+        { "code": "ai_change_security_review_coverage", "value": 100, "numerator": 1, "denominator": 1 }
+      ]
+    },
+    {
+      "contract": "risk_assessment",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:07:00Z",
+      "metrics": [
+        { "code": "ai_change_review_risk_p95_score", "value": 40, "sample_count": 2 },
+        { "code": "ai_change_low_risk_count", "value": 1 },
+        { "code": "ai_change_medium_risk_count", "value": 1 },
+        { "code": "ai_change_high_risk_count", "value": 0 },
+        { "code": "ai_change_critical_review_required_count", "value": 0 }
+      ]
+    }
+  ]
+}

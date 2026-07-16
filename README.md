@@ -165,7 +165,7 @@ Adapter neprijíma raw zákaznícke záznamy, credentials ani neznáme typy reco
 
 ### Business KPI bridge
 
-`integrations/saas_business_sync.mjs` je striktne allowlistovaný JSON-2 bridge pre 90 existujúcich KPI z produktového funnelu, engagementu, tenant health, revenue/billing, marketing/CRM, supportu, FinOps a privacy. Prijíma iba agregované scalar hodnoty za uzavretý UTC deň alebo kalendárny mesiac. Každý historický kľúč musí obsahovať správny `develop`/`main` a source prefix; dimenzované hodnoty musia mať samostatný non-global scope.
+`integrations/saas_business_sync.mjs` je striktne allowlistovaný JSON-2 bridge pre 120 existujúcich KPI z produktového funnelu, engagementu, tenant health, revenue/billing, marketing/CRM, supportu, FinOps, privacy a AI-change risk. Prijíma iba agregované scalar hodnoty za uzavretý UTC deň alebo kalendárny mesiac. Každý historický kľúč musí obsahovať správny `develop`/`main` a source prefix; dimenzované hodnoty musia mať samostatný non-global scope.
 
 ```powershell
 node integrations/saas_business_sync.mjs `
@@ -205,6 +205,23 @@ node integrations/saas_github_sync.mjs `
 ```
 
 Fine-grained GitHub token potrebuje iba repository permissions `Actions: read`, `Dependabot alerts: read` a `Secret scanning alerts: read`; nepotrebuje Contents write ani administračné mutácie. Adapter pravdivo počíta build success, deployment frequency, lead time a otvorené critical/secret-scan nálezy. `change_failure_rate` ani `release_rollback_rate` neodhaduje z failed workflow; vyžadujú dôkaz incidentu alebo rollbacku. Ostrý zápis navyše vyžaduje `ARCIGY_ODOO_API_KEY`.
+
+### AI-assisted change risk
+
+`integrations/saas_ai_change_rollup.mjs` kompiluje iba uzavreté agregované dôkazy z change inventory, review gates, release outcomes a schváleného risk policy. Pokrýva všetkých 30 metrík zo špecifikácie pre AI-assisted zmeny: veľkosť a rozsah zmien, citlivé oblasti, migrácie a dependencies, testy, human/security review, incidenty, rollbacky, hotfixy, escaped defects, regresie, reopen/repair a počty LOW/MEDIUM/HIGH/CRITICAL REVIEW REQUIRED.
+
+```powershell
+node integrations/saas_ai_change_rollup.mjs `
+  --input=integrations/saas_ai_change_daily.example.json `
+  > integrations/saas_ai_change_daily.local.json
+
+node integrations/saas_business_sync.mjs `
+  --config=integrations/saas_business_sync.example.json `
+  --evidence=integrations/saas_ai_change_daily.local.json `
+  --dry-run
+```
+
+Denné a mesačné kontrakty sú oddelené. Každý source musí byť explicitne kompletný a obsahovať celý svoj kontrakt. Pomer bez oprávnenej vzorky sa označí `available=false` s `no_eligible_sample`; adaptér ho vynechá namiesto vymyslenej nuly. Odoo nedostane kód, diff, názvy alebo cesty súborov, autorov, prompty, secrets ani produkčné dáta. Príklady sú syntetické a nesmú byť použité ako reálny dôkaz.
 
 ## CapRover nasadenie
 

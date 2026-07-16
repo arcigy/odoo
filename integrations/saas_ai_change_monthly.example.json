@@ -1,0 +1,27 @@
+{
+  "environment": "main",
+  "compiled_at": "2026-08-01T00:10:00Z",
+  "period_start": "2026-07-01T00:00:00Z",
+  "period_end": "2026-08-01T00:00:00Z",
+  "granularity": "month",
+  "sources": [
+    {
+      "contract": "release_outcomes",
+      "complete": true,
+      "source_updated_at": "2026-08-01T00:05:00Z",
+      "drilldown_url": "https://incidents.example.invalid/aggregate",
+      "metrics": [
+        { "code": "ai_assisted_release_incident_rate", "value": 25, "numerator": 1, "denominator": 4 },
+        { "code": "ai_assisted_release_rollback_rate", "value": 0, "numerator": 0, "denominator": 4 },
+        { "code": "ai_assisted_release_hotfix_rate", "value": 25, "numerator": 1, "denominator": 4 },
+        { "code": "ai_assisted_escaped_defect_count", "value": 1 },
+        { "code": "ai_assisted_authorization_defect_count", "value": 0 },
+        { "code": "ai_assisted_performance_regression_count", "value": 1 },
+        { "code": "ai_assisted_query_regression_count", "value": 0 },
+        { "code": "ai_assisted_cost_regression_count", "value": 0 },
+        { "code": "ai_assisted_change_reopen_rate", "value": 25, "numerator": 1, "denominator": 4 },
+        { "code": "ai_assisted_change_repair_p50_seconds", "value": 3600, "sample_count": 1 }
+      ]
+    }
+  ]
+}
