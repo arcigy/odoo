@@ -1,0 +1,114 @@
+{
+  "environment": "develop",
+  "compiled_at": "2026-07-16T00:10:00Z",
+  "period_start": "2026-07-15T00:00:00Z",
+  "period_end": "2026-07-16T00:00:00Z",
+  "granularity": "day",
+  "sources": [
+    {
+      "contract": "pull_requests",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:05:00Z",
+      "drilldown_url": "https://engineering.example.test/pull-requests",
+      "metrics": [
+        { "code": "open_pr_count", "value": 4 },
+        { "code": "pr_cycle_time_p50_seconds", "value": 7200, "sample_count": 10 },
+        { "code": "pr_time_to_first_review_p50_seconds", "value": 1800, "sample_count": 9 },
+        { "code": "pr_approval_to_merge_p50_seconds", "value": 900, "sample_count": 8 },
+        { "code": "pr_average_diff_lines", "value": 240, "sample_count": 10 },
+        { "code": "pr_average_files_changed", "value": 8, "sample_count": 10 },
+        { "code": "pr_average_modules_changed", "value": 2, "sample_count": 10 },
+        { "code": "pr_average_comment_count", "value": 5, "sample_count": 10 },
+        { "code": "pr_requested_changes_count", "value": 3 },
+        { "code": "stale_pr_count", "value": 2 },
+        { "code": "reopened_pr_count", "value": 1 }
+      ]
+    },
+    {
+      "contract": "branches",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:05:00Z",
+      "drilldown_url": "https://engineering.example.test/branches",
+      "metrics": [
+        { "code": "branch_age_average_seconds", "value": 86400, "sample_count": 5 },
+        { "code": "branch_oldest_age_seconds", "value": 259200, "sample_count": 5 },
+        { "code": "stale_branch_count", "value": 2 },
+        { "code": "merge_conflict_count", "value": 1 },
+        { "code": "direct_main_push_count", "value": 0 },
+        { "code": "branch_protection_bypass_count", "value": 0 },
+        { "code": "failed_required_check_count", "value": 1 },
+        { "code": "emergency_merge_count", "value": 0 },
+        { "code": "unreviewed_production_change_count", "value": 0 }
+      ]
+    },
+    {
+      "contract": "ci",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:05:00Z",
+      "drilldown_url": "https://engineering.example.test/ci",
+      "metrics": [
+        { "code": "build_count", "value": 20 },
+        { "code": "build_duration_p95_seconds", "value": 300, "sample_count": 20 },
+        { "code": "build_queue_p95_seconds", "value": 30, "sample_count": 20 },
+        { "code": "flaky_job_rate", "value": 2, "numerator": 2, "denominator": 100 }
+      ]
+    },
+    {
+      "contract": "tests",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:05:00Z",
+      "drilldown_url": "https://engineering.example.test/tests",
+      "metrics": [
+        { "code": "unit_test_pass_rate", "value": 98, "numerator": 980, "denominator": 1000 },
+        { "code": "integration_test_pass_rate", "value": 95, "numerator": 190, "denominator": 200 },
+        { "code": "e2e_test_pass_rate", "value": 90, "numerator": 45, "denominator": 50 },
+        { "code": "performance_test_pass_rate", "value": 90, "numerator": 18, "denominator": 20 },
+        { "code": "security_test_pass_rate", "value": 100, "numerator": 20, "denominator": 20 },
+        { "code": "flaky_test_count", "value": 2 },
+        { "code": "flaky_test_age_seconds", "value": 604800, "sample_count": 2 },
+        { "code": "ignored_test_count", "value": 1 },
+        { "code": "skipped_test_count", "value": 3 },
+        { "code": "test_duration_p95_seconds", "value": 600, "sample_count": 50 },
+        { "code": "critical_path_coverage_rate", "value": 95, "numerator": 95, "denominator": 100 },
+        { "code": "mutation_score_rate", "value": 80, "numerator": 80, "denominator": 100 },
+        { "code": "bug_reopen_rate", "value": 4, "numerator": 2, "denominator": 50 }
+      ]
+    },
+    {
+      "contract": "feature_flags",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:05:00Z",
+      "drilldown_url": "https://engineering.example.test/feature-flags",
+      "metrics": [
+        { "code": "active_feature_flag_count", "value": 10 },
+        { "code": "feature_flag_without_owner_count", "value": 1 },
+        { "code": "feature_flag_without_expiry_count", "value": 2 },
+        { "code": "feature_flag_age_p95_seconds", "value": 2592000, "sample_count": 10 },
+        { "code": "permanent_feature_flag_count", "value": 1 },
+        { "code": "feature_flag_untested_on_count", "value": 1 },
+        { "code": "feature_flag_untested_off_count", "value": 2 },
+        { "code": "feature_flag_rollback_count", "value": 1 }
+      ]
+    },
+    {
+      "contract": "architecture",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:05:00Z",
+      "drilldown_url": "https://engineering.example.test/architecture",
+      "metrics": [
+        { "code": "module_boundary_violation_count", "value": 0 },
+        { "code": "cyclic_dependency_count", "value": 0 },
+        { "code": "duplicate_code_rate", "value": 0.05, "numerator": 5, "denominator": 10000 },
+        { "code": "complexity_regression_rate", "value": 10, "numerator": 10, "denominator": 100 },
+        { "code": "oversized_file_count", "value": 2 },
+        { "code": "oversized_function_count", "value": 3 },
+        { "code": "dead_code_finding_count", "value": 1 },
+        { "code": "unused_dependency_count", "value": 1 },
+        { "code": "todo_count", "value": 12 },
+        { "code": "tech_debt_item_count", "value": 8 },
+        { "code": "tech_debt_age_average_seconds", "value": 2592000, "sample_count": 8 },
+        { "code": "sensitive_code_without_codeowner_review_count", "value": 0 }
+      ]
+    }
+  ]
+}

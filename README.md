@@ -218,7 +218,7 @@ Adapter neprijíma raw zákaznícke záznamy, credentials ani neznáme typy reco
 
 ### Business KPI bridge
 
-`integrations/saas_business_sync.mjs` je striktne allowlistovaný JSON-2 bridge pre 136 existujúcich KPI z produktového funnelu, engagementu, tenant health, revenue/billing, marketing/CRM, supportu, FinOps, privacy, release outcomes a AI-change risk. Prijíma iba agregované scalar hodnoty za uzavretý UTC deň alebo kalendárny mesiac. Každý historický kľúč musí obsahovať správny `develop`/`main` a source prefix; dimenzované hodnoty musia mať samostatný non-global scope.
+`integrations/saas_business_sync.mjs` je striktne allowlistovaný JSON-2 bridge pre 193 existujúcich KPI z produktového funnelu, engagementu, tenant health, revenue/billing, marketing/CRM, supportu, FinOps, privacy, release outcomes, AI-change risk a engineering quality. Prijíma iba agregované scalar hodnoty za uzavretý UTC deň alebo kalendárny mesiac. Každý historický kľúč musí obsahovať správny `develop`/`main` a source prefix; dimenzované hodnoty musia mať samostatný non-global scope.
 
 ```powershell
 node integrations/saas_business_sync.mjs `
@@ -292,6 +292,29 @@ node integrations/saas_business_sync.mjs `
 ```
 
 Kontrakt pokrýva 16 metrík: deployment count/success/duration/queue, confirmed change failures, incidenty, rollback count/rate/attempts/success, hotfixy, restore time, canary failures, artifact mismatch a environment drift. Raw workflow logy, commit SHA, mená aktérov a deployment IDs neprijíma. Príklad je syntetický a nie je produkčný dôkaz.
+
+### Engineering quality evidence
+
+`integrations/saas_engineering_quality_rollup.mjs` compiles exactly six complete daily
+aggregate contracts: pull requests, branches, CI, tests, feature flags and architecture.
+It emits 57 allowlisted metrics and keeps Develop and Main in independent keys. Counts
+must be explicit zeroes; sample-based metrics without an eligible population must be
+marked unavailable instead of being presented as healthy zeroes.
+
+```powershell
+node integrations/saas_engineering_quality_rollup.mjs `
+  --input=integrations/saas_engineering_quality.example.json `
+  > integrations/saas_engineering_quality.local.json
+
+node integrations/saas_business_sync.mjs `
+  --config=integrations/saas_business_sync.example.json `
+  --evidence=integrations/saas_engineering_quality.local.json `
+  --dry-run
+```
+
+The compiler rejects partial sources, unknown fields, raw logs, code or file paths,
+identities, credentials in URLs, inconsistent ratios and impossible cross-metric
+populations. The included input is synthetic and is not production evidence.
 
 ## CapRover nasadenie
 

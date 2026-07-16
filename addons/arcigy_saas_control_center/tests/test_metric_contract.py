@@ -214,7 +214,7 @@ class TestSaasMetricContract(TransactionCase):
 
     def test_every_seeded_metric_has_complete_definition_contract(self):
         definitions = self.env["saas.metric.definition"].search([])
-        self.assertEqual(len(definitions), 295)
+        self.assertEqual(len(definitions), 351)
         for definition in definitions:
             self.assertTrue(definition.code)
             self.assertTrue(definition.name)
@@ -295,6 +295,40 @@ class TestSaasMetricContract(TransactionCase):
             self.env["saas.metric.definition"].search([]).mapped("code")
         )
         self.assertFalse(expected_p0_metrics - actual_metrics)
+
+    def test_complete_engineering_quality_metric_contract_is_seeded(self):
+        expected_metrics = {
+            "open_pr_count", "pr_cycle_time_p50_seconds",
+            "pr_time_to_first_review_p50_seconds", "pr_approval_to_merge_p50_seconds",
+            "pr_average_diff_lines", "pr_average_files_changed",
+            "pr_average_modules_changed", "pr_average_comment_count",
+            "pr_requested_changes_count", "stale_pr_count", "reopened_pr_count",
+            "branch_age_average_seconds", "branch_oldest_age_seconds",
+            "stale_branch_count", "merge_conflict_count", "direct_main_push_count",
+            "branch_protection_bypass_count", "failed_required_check_count",
+            "emergency_merge_count", "unreviewed_production_change_count",
+            "build_count", "build_duration_p95_seconds", "build_queue_p95_seconds",
+            "flaky_job_rate", "unit_test_pass_rate", "integration_test_pass_rate",
+            "e2e_test_pass_rate", "performance_test_pass_rate",
+            "security_test_pass_rate", "flaky_test_count", "flaky_test_age_seconds",
+            "ignored_test_count", "skipped_test_count", "test_duration_p95_seconds",
+            "critical_path_coverage_rate", "mutation_score_rate", "bug_reopen_rate",
+            "active_feature_flag_count", "feature_flag_without_owner_count",
+            "feature_flag_without_expiry_count", "feature_flag_age_p95_seconds",
+            "permanent_feature_flag_count", "feature_flag_untested_on_count",
+            "feature_flag_untested_off_count", "feature_flag_rollback_count",
+            "module_boundary_violation_count", "cyclic_dependency_count",
+            "duplicate_code_rate", "complexity_regression_rate", "oversized_file_count",
+            "oversized_function_count", "dead_code_finding_count",
+            "unused_dependency_count", "todo_count", "tech_debt_item_count",
+            "tech_debt_age_average_seconds",
+            "sensitive_code_without_codeowner_review_count",
+        }
+        actual_metrics = set(
+            self.env["saas.metric.definition"].search([]).mapped("code")
+        )
+        self.assertEqual(len(expected_metrics), 57)
+        self.assertFalse(expected_metrics - actual_metrics)
 
     def test_ingest_rejects_unsafe_drilldown_url(self):
         payload = self._payload("develop", 99)

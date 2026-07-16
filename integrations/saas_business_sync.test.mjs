@@ -34,7 +34,7 @@ test("all allowlisted business metrics exist in the seeded Odoo metric registry"
   const csv = await readFile(new URL("../addons/arcigy_saas_control_center/data/saas.metric.definition.csv", import.meta.url), "utf8");
   const missing = businessMetricCodes().filter((code) => !csv.includes(`,${code},`));
   assert.deepEqual(missing, []);
-  assert.equal(businessMetricCodes().length, 136);
+  assert.equal(businessMetricCodes().length, 193);
 });
 
 test("validates privacy-safe daily and monthly business metric evidence", () => {
