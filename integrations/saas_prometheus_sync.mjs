@@ -6,6 +6,19 @@ const ENVIRONMENTS = ["develop", "main"];
 const METRIC_CODE = /^[a-z][a-z0-9_]{2,127}$/;
 const SECRET_ENV_NAME = /^ARCIGY_[A-Z0-9_]+$/;
 
+function selectedEnvironments(value = ENVIRONMENTS) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error("At least one environment must be selected.");
+  }
+  const selected = [...new Set(value.map((environment) => String(environment).trim()))];
+  for (const environment of selected) {
+    if (!ENVIRONMENTS.includes(environment)) {
+      throw new Error(`Invalid environment: ${environment}. Expected develop or main.`);
+    }
+  }
+  return selected;
+}
+
 function normalizedUrl(value, name) {
   const url = new URL(String(value || ""));
   if (url.username || url.password) throw new Error(`${name} must not contain credentials.`);
@@ -173,11 +186,15 @@ async function postToOdoo(config, environment, metrics, env, requestJson = bound
   });
 }
 
-export async function runPrometheusSync(rawConfig, { env = process.env, dryRun = false, requestJson = boundedJson } = {}) {
+export async function runPrometheusSync(
+  rawConfig,
+  { env = process.env, dryRun = false, environments = ENVIRONMENTS, requestJson = boundedJson } = {}
+) {
   const config = validateConfig(rawConfig);
+  const selected = selectedEnvironments(environments);
   const results = [];
   const errors = [];
-  for (const environment of ENVIRONMENTS) {
+  for (const environment of selected) {
     try {
       const metrics = await collectEnvironment(config, environment, env, requestJson);
       const odoo = dryRun ? undefined : await postToOdoo(config, environment, metrics, env, requestJson);
@@ -192,9 +209,19 @@ export async function runPrometheusSync(rawConfig, { env = process.env, dryRun =
 
 async function main() {
   const configArg = process.argv.find((arg) => arg.startsWith("--config="));
-  if (!configArg) throw new Error("Usage: node saas_prometheus_sync.mjs --config=<path> [--dry-run]");
+  const environmentArg = process.argv.find((arg) => arg.startsWith("--environment="));
+  if (!configArg) {
+    throw new Error(
+      "Usage: node saas_prometheus_sync.mjs --config=<path> [--dry-run] [--environment=develop|main|all]"
+    );
+  }
+  const environment = environmentArg?.slice("--environment=".length) || "all";
+  const environments = environment === "all" ? ENVIRONMENTS : [environment];
   const raw = JSON.parse(await readFile(configArg.slice("--config=".length), "utf8"));
-  const results = await runPrometheusSync(raw, { dryRun: process.argv.includes("--dry-run") });
+  const results = await runPrometheusSync(raw, {
+    dryRun: process.argv.includes("--dry-run"),
+    environments
+  });
   console.log(JSON.stringify({ ok: true, results: results.map((item) => ({ environment: item.environment, metrics: item.metrics.length })) }, null, 2));
 }
 

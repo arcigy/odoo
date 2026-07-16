@@ -51,3 +51,36 @@ test("dry-run collects separate environment payloads and never writes Odoo", asy
   assert.match(decodeURIComponent(calls[0]), /environment="develop"/);
   assert.match(decodeURIComponent(calls[1]), /environment="main"/);
 });
+
+test("can prove Develop independently before Main", async () => {
+  const calls = [];
+  const result = await runPrometheusSync(config(), {
+    dryRun: true,
+    environments: ["develop"],
+    requestJson: async (url) => {
+      calls.push(url);
+      return { status: "success", data: { resultType: "vector", result: [{ value: [Math.floor(Date.now() / 1000), "7"] }] } };
+    }
+  });
+  assert.deepEqual(result.map((item) => item.environment), ["develop"]);
+  assert.equal(calls.length, 1);
+  assert.match(decodeURIComponent(calls[0]), /environment="develop"/);
+  assert.doesNotMatch(decodeURIComponent(calls[0]), /environment="main"/);
+});
+
+test("rejects unknown or empty environment selections before scraping", async () => {
+  let calls = 0;
+  const requestJson = async () => {
+    calls += 1;
+    return {};
+  };
+  await assert.rejects(
+    () => runPrometheusSync(config(), { dryRun: true, environments: ["production"], requestJson }),
+    /Invalid environment/
+  );
+  await assert.rejects(
+    () => runPrometheusSync(config(), { dryRun: true, environments: [], requestJson }),
+    /At least one environment/
+  );
+  assert.equal(calls, 0);
+});

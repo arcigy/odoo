@@ -79,6 +79,17 @@ Copy the verified backup off-host before the live deployment. A backup left only
 9. Run the Develop-to-Odoo sync twice, confirm idempotency and inspect the Develop column while Main remains unchanged.
 10. Only after the Develop and Odoo proof, repeat the runtime/token steps for Main and verify that Main updates never overwrite Develop.
 
+Use the fail-closed selector during cutover so a proof run cannot scrape or write the other environment:
+
+```bash
+node integrations/saas_prometheus_sync.mjs --config=<path> --dry-run --environment=develop
+node integrations/saas_prometheus_sync.mjs --config=<path> --environment=develop
+node integrations/saas_prometheus_sync.mjs --config=<path> --dry-run --environment=main
+node integrations/saas_prometheus_sync.mjs --config=<path> --environment=main
+```
+
+Omit `--dry-run` only after both no-write scrapes for that environment have been reconciled. Use `--environment=all` only after the independent Develop and Main cutovers are complete.
+
 ## Smoke checks
 
 - Odoo `/web/login` and `/geotherm/api/v1/health` return expected responses.
