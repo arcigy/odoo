@@ -1,6 +1,6 @@
 {
     "name": "Arcigy SaaS Control Center",
-    "version": "19.0.1.2.0",
+    "version": "19.0.1.3.0",
     "summary": "Develop/Main SaaS health, reliability, cost and recovery cockpit",
     "category": "Administration",
     "license": "LGPL-3",
@@ -12,6 +12,7 @@
         "data/saas_environment_data.xml",
         "data/saas_dashboard_data.xml",
         "data/saas.metric.definition.csv",
+        "data/saas_internal_cron.xml",
         "views/saas_metric_views.xml",
         "views/saas_operations_views.xml",
         "views/saas_aggregate_views.xml",

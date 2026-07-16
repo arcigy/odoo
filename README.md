@@ -66,6 +66,15 @@ Odoo nie je úložisko raw requestov, logov ani traces. Prijíma iba aktuálne a
 POST /json/2/saas.metric.current/ingest_metric_batch
 ```
 
+Odoo každých 5 minút samo obnoví iba prevádzkové metriky, pre ktoré je jeho
+databáza autoritatívnym zdrojom: otvorené P0/P1 incidenty, vek posledného
+úspešného šifrovaného off-host backupu, vek posledného úspešného restore testu
+s checksumom, aplikačným smoke a tenant-isolation testom a vek poslednej
+úspešnej synchronizácie. Incident count môže byť pravdivá nula. Chýbajúci
+backup, restore alebo sync dôkaz sa neprezentuje ako nula: príslušný current
+ani history riadok sa nevytvorí. Cron nikdy nečíta Arcigy databázu, storage,
+credentials ani raw telemetriu a nevytvára zdrojové synchronizácie.
+
 V Odoo vytvorte samostatného interného používateľa iba so skupinou `SaaS Integration Bot`, potom mu v `Preferences > Account Security` vytvorte časovo obmedzený API key. Kľúč držte iba v schválenom secret store; neukladajte ho do tohto repozitára, logov ani dashboardov.
 
 Lokálny sync a presné premenné prostredia sú opísané v `kitchen_app/docs/SAAS_ODOO_CONTROL_CENTER.md`. Produkčný schedule, API key, deploy a zápisy do live Odoo vyžadujú samostatné schválenie a live smoke test.

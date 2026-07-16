@@ -369,6 +369,183 @@ class SaasMetricCurrent(models.Model):
         alert_model.create(alert_values)
         return 1, 0
 
+    @api.model
+    def _internal_metric_status(self, definition, value):
+        if definition.direction == "neutral":
+            return "unknown"
+        if definition.direction == "lower":
+            if value >= definition.critical_value:
+                return "critical"
+            if value >= definition.warning_value:
+                return "warning"
+            return "healthy"
+        if value <= definition.critical_value:
+            return "critical"
+        if value <= definition.warning_value:
+            return "warning"
+        return "healthy"
+
+    @api.model
+    def _cron_refresh_internal_operational_metrics(self):
+        """Refresh only metrics whose authoritative source is this Odoo database."""
+        self = self.sudo()
+        now = fields.Datetime.now()
+        hour_start = now.replace(minute=0, second=0, microsecond=0)
+        hour_end = hour_start + timedelta(hours=1)
+        base_url = self.env["ir.config_parameter"].get_param(
+            "web.base.url", "http://localhost"
+        ).rstrip("/")
+        metric_specs = {
+            "open_p0_p1_incidents": {
+                "model": "saas.incident",
+                "drilldown": f"{base_url}/web#model=saas.incident&view_type=list",
+            },
+            "backup_age_seconds": {
+                "model": "saas.backup.run",
+                "drilldown": f"{base_url}/web#model=saas.backup.run&view_type=list",
+            },
+            "restore_test_age_seconds": {
+                "model": "saas.restore.test",
+                "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
+            },
+            "odoo_sync_freshness_seconds": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+        }
+        definitions = {
+            definition.code: definition
+            for definition in self.env["saas.metric.definition"].search(
+                [("code", "in", list(metric_specs)), ("active", "=", True)]
+            )
+        }
+        environments = self.env["saas.environment"].search(
+            [("code", "in", ["develop", "main"]), ("active", "=", True)]
+        )
+        refreshed = 0
+        omitted = []
+
+        def age_seconds(record):
+            return max((now - record.finished_at).total_seconds(), 0)
+
+        for environment in environments:
+            values = {
+                "open_p0_p1_incidents": self.env["saas.incident"].search_count(
+                    [
+                        "|",
+                        ("triggering_metric_id", "=", False),
+                        ("triggering_metric_id.code", "!=", "open_p0_p1_incidents"),
+                        ("environment_id", "=", environment.id),
+                        ("severity", "in", ["p0", "p1"]),
+                        ("status", "!=", "resolved"),
+                    ]
+                )
+            }
+            backup = self.env["saas.backup.run"].search(
+                [
+                    ("environment_id", "=", environment.id),
+                    ("status", "=", "success"),
+                    ("encrypted", "=", True),
+                    ("off_host", "=", True),
+                    ("finished_at", "!=", False),
+                ],
+                order="finished_at desc, id desc",
+                limit=1,
+            )
+            if backup:
+                values["backup_age_seconds"] = age_seconds(backup)
+            restore = self.env["saas.restore.test"].search(
+                [
+                    ("environment_id", "=", environment.id),
+                    ("status", "=", "success"),
+                    ("checksum_valid", "=", True),
+                    ("application_smoke_passed", "=", True),
+                    ("tenant_isolation_passed", "=", True),
+                    ("finished_at", "!=", False),
+                ],
+                order="finished_at desc, id desc",
+                limit=1,
+            )
+            if restore:
+                values["restore_test_age_seconds"] = age_seconds(restore)
+            sync_run = self.env["saas.sync.run"].search(
+                [
+                    ("environment_id", "=", environment.id),
+                    ("status", "=", "success"),
+                    ("finished_at", "!=", False),
+                ],
+                order="finished_at desc, id desc",
+                limit=1,
+            )
+            if sync_run:
+                values["odoo_sync_freshness_seconds"] = age_seconds(sync_run)
+
+            for code, spec in metric_specs.items():
+                definition = definitions.get(code)
+                if not definition or code not in values:
+                    omitted.append(f"{environment.code}:{code}")
+                    continue
+                value = float(values[code])
+                status = self._internal_metric_status(definition, value)
+                current_values = {
+                    "metric_id": definition.id,
+                    "environment_id": environment.id,
+                    "scope_key": "global",
+                    "status": status,
+                    "current_value": value,
+                    "sample_count": 1 if code != "open_p0_p1_incidents" else int(value),
+                    "measured_at": now,
+                    "fresh_until": now + timedelta(seconds=definition.freshness_seconds),
+                    "source_updated_at": now,
+                    "drilldown_url": spec["drilldown"],
+                }
+                current = self.search(
+                    [
+                        ("metric_id", "=", definition.id),
+                        ("environment_id", "=", environment.id),
+                        ("scope_key", "=", "global"),
+                    ],
+                    limit=1,
+                )
+                if current:
+                    current.write(current_values)
+                else:
+                    current = self.create(current_values)
+                current._sync_status_alert()
+
+                external_key = (
+                    f"{environment.code}:odoo-internal:{code}:"
+                    f"{hour_start.strftime('%Y%m%d%H')}"
+                )
+                history_values = {
+                    "metric_id": definition.id,
+                    "environment_id": environment.id,
+                    "scope_key": "global",
+                    "period_start": hour_start,
+                    "period_end": hour_end,
+                    "granularity": "hour",
+                    "value": value,
+                    "sample_count": current_values["sample_count"],
+                    "status": status,
+                    "data_quality_status": "valid",
+                    "source_updated_at": now,
+                    "external_key": external_key,
+                    "drilldown_url": spec["drilldown"],
+                }
+                history = self.env["saas.metric.timeseries"].search(
+                    [("external_key", "=", external_key)], limit=1
+                )
+                if history:
+                    if history.metric_id != definition or history.environment_id != environment:
+                        raise ValidationError(
+                            "Internal metric history key belongs to another metric or environment."
+                        )
+                    history.write(history_values)
+                else:
+                    self.env["saas.metric.timeseries"].create(history_values)
+                refreshed += 1
+        return {"refreshed": refreshed, "omitted": omitted}
+
     @api.constrains("scope_key", "sample_count", "numerator", "denominator")
     def _check_value_contract(self):
         for record in self:
