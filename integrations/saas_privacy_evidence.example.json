@@ -1,0 +1,43 @@
+{
+  "environment": "develop",
+  "compiled_at": "2026-07-16T00:10:00Z",
+  "period_start": "2026-07-15T00:00:00Z",
+  "period_end": "2026-07-16T00:00:00Z",
+  "granularity": "day",
+  "sources": [
+    {
+      "contract": "privacy_workflow",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:05:00Z",
+      "drilldown_url": "https://privacy.example.test/dsr/aggregate",
+      "metrics": [
+        {
+          "code": "open_data_subject_requests",
+          "value": 2
+        },
+        {
+          "code": "overdue_data_subject_requests",
+          "value": 0
+        },
+        {
+          "code": "dsr_completion_p95_seconds",
+          "value": 3600,
+          "sample_count": 12
+        }
+      ]
+    },
+    {
+      "contract": "consent_registry",
+      "complete": true,
+      "source_updated_at": "2026-07-16T00:06:00Z",
+      "metrics": [
+        {
+          "code": "tracking_consent_rate",
+          "value": 75,
+          "numerator": 75,
+          "denominator": 100
+        }
+      ]
+    }
+  ]
+}

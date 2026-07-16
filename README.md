@@ -165,7 +165,7 @@ Adapter neprijíma raw zákaznícke záznamy, credentials ani neznáme typy reco
 
 ### Business KPI bridge
 
-`integrations/saas_business_sync.mjs` je striktne allowlistovaný JSON-2 bridge pre 80 existujúcich KPI z produktového funnelu, engagementu, tenant health, revenue/billing, marketing/CRM, supportu a FinOps. Prijíma iba agregované scalar hodnoty za uzavretý UTC deň alebo kalendárny mesiac. Každý historický kľúč musí obsahovať správny `develop`/`main` a source prefix; dimenzované hodnoty musia mať samostatný non-global scope.
+`integrations/saas_business_sync.mjs` je striktne allowlistovaný JSON-2 bridge pre 90 existujúcich KPI z produktového funnelu, engagementu, tenant health, revenue/billing, marketing/CRM, supportu, FinOps a privacy. Prijíma iba agregované scalar hodnoty za uzavretý UTC deň alebo kalendárny mesiac. Každý historický kľúč musí obsahovať správny `develop`/`main` a source prefix; dimenzované hodnoty musia mať samostatný non-global scope.
 
 ```powershell
 node integrations/saas_business_sync.mjs `
@@ -175,6 +175,23 @@ node integrations/saas_business_sync.mjs `
 ```
 
 Bridge odmieta raw customer payloady, neznáme KPI, vysokokardinalitné user/object identifikátory, cross-environment keys, neuzavreté obdobia, insecure URLs a credentials. Príklad je iba syntetický kontrakt a nesmie sa ingestovať ako reálny business dôkaz. Ostrý zápis povoľte až po schválení authoritative source, definície metriky, tolerancií a source reconciliation.
+
+### Privacy a compliance agregácie
+
+`integrations/saas_privacy_rollup.mjs` prijíma iba globálne agregáty z explicitne pomenovaných zdrojov: data inventory, DSR workflow, retention jobs, consent registry, privacy audit a governance. Každý zdroj musí označiť export ako úplný; inak kompilátor odmietne aj nulové hodnoty. Raw DSR, osoby, tenanty, emaily a auditné záznamy schéma nepozná.
+
+```powershell
+node integrations/saas_privacy_rollup.mjs `
+  --input=integrations/saas_privacy_evidence.example.json `
+  > integrations/saas_privacy_daily.local.json
+
+node integrations/saas_business_sync.mjs `
+  --config=integrations/saas_business_sync.example.json `
+  --evidence=integrations/saas_privacy_daily.local.json `
+  --dry-run
+```
+
+Denné a mesačné kontrakty sa nesmú miešať. Percentá vyžadujú numerátor aj denominátor a p95 čas DSR vyžaduje sample size. Príklad je iba syntetický; reálny export musí pochádzať zo schválených privacy systémov a pred Odoo zápisom prejsť reconciliation.
 
 ### GitHub CI/CD a security
 

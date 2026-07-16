@@ -49,7 +49,12 @@ const BUSINESS_METRIC_CODES = new Set([
   "customer_acquisition_cost", "return_on_ad_spend", "unknown_acquisition_source_rate",
   "crm_win_rate", "weighted_pipeline_value", "median_sales_cycle_days",
   "pql_to_paid_rate", "email_delivery_rate", "email_complaint_rate",
-  "tracking_consent_rate", "ai_request_count", "ai_input_token_count",
+  "pii_field_count", "unclassified_data_field_count", "open_data_subject_requests",
+  "overdue_data_subject_requests", "dsr_completion_p95_seconds",
+  "records_past_retention_limit", "retention_job_failure_count",
+  "tracking_consent_rate", "tracking_without_valid_consent",
+  "access_review_completion", "subprocessor_review_compliance",
+  "ai_request_count", "ai_input_token_count",
   "ai_output_token_count", "ai_cost",
 ]);
 
