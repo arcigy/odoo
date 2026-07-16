@@ -7,7 +7,7 @@ const ENVIRONMENTS = new Set(["develop", "main"]);
 const SAFE_EXTERNAL_KEY = /^[A-Za-z0-9._:-]{1,255}$/;
 const SECRET_ENV_NAME = /^ARCIGY_[A-Z0-9_]+$/;
 
-const stringField = (required = false) => ({ type: "string", required });
+const stringField = (required = false, maximum = 1024) => ({ type: "string", required, maximum });
 const dateField = (required = false) => ({ type: "datetime", required });
 const numberField = (integer = false, minimum = 0) => ({
   type: integer ? "integer" : "number",
@@ -40,6 +40,8 @@ const OPERATIONAL_MODELS = Object.freeze({
       status: selectionField(["running", "success", "failed"], true),
       actual_rpo_seconds: numberField(true),
       actual_rto_seconds: numberField(true),
+      rpo_measured: booleanField(),
+      rto_measured: booleanField(),
       checksum_valid: booleanField(),
       application_smoke_passed: booleanField(),
       tenant_isolation_passed: booleanField(),
@@ -62,6 +64,8 @@ const OPERATIONAL_MODELS = Object.freeze({
       p99_seconds: numberField(),
       error_rate: numberField(),
       recovery_seconds: numberField(),
+      representative: booleanField(),
+      architecture_version: stringField(false, 128),
       evidence_url: urlField(),
     },
   },
@@ -120,8 +124,8 @@ function validateField(value, descriptor, name) {
     return undefined;
   }
   if (descriptor.type === "string") {
-    if (typeof value !== "string" || !value.trim() || value.length > 1024) {
-      throw new Error(`${name} must be a non-empty string of at most 1024 characters.`);
+    if (typeof value !== "string" || !value.trim() || value.length > descriptor.maximum) {
+      throw new Error(`${name} must be a non-empty string of at most ${descriptor.maximum} characters.`);
     }
     return value.trim();
   }
@@ -195,12 +199,63 @@ export function validateOperationalEvidence(raw, now = Date.now()) {
       const value = validateField(item[fieldName], descriptor, `evidence.items[${index}].${fieldName}`);
       if (value !== undefined) normalized[fieldName] = value;
     }
-    if (normalized.finished_at && Date.parse(normalized.finished_at) < Date.parse(normalized.started_at)) {
-      throw new Error(`evidence.items[${index}].finished_at must not precede started_at.`);
+    if (normalized.finished_at && Date.parse(normalized.finished_at) <= Date.parse(normalized.started_at)) {
+      throw new Error(`evidence.items[${index}].finished_at must be after started_at.`);
     }
     for (const fieldName of ["started_at", "finished_at", "oldest_unsynced_at"]) {
       if (normalized[fieldName] && Date.parse(normalized[fieldName]) > Date.parse(sourceUpdatedAt) + 5 * 60_000) {
         throw new Error(`evidence.items[${index}].${fieldName} is too far in the future.`);
+      }
+    }
+    if (model === "saas.restore.test") {
+      for (const [marker, measurement] of [
+        ["rpo_measured", "actual_rpo_seconds"],
+        ["rto_measured", "actual_rto_seconds"],
+      ]) {
+        if (normalized[measurement] !== undefined && normalized[marker] !== true) {
+          throw new Error(`evidence.items[${index}].${measurement} requires ${marker}=true.`);
+        }
+        if (normalized[marker] === true && normalized[measurement] === undefined) {
+          throw new Error(`evidence.items[${index}].${marker}=true requires ${measurement}.`);
+        }
+      }
+      if (["success", "failed"].includes(normalized.status) && !normalized.finished_at) {
+        throw new Error(`evidence.items[${index}] completed restore evidence requires finished_at.`);
+      }
+      if (normalized.status === "success") {
+        for (const fieldName of [
+          "checksum_valid",
+          "application_smoke_passed",
+          "tenant_isolation_passed",
+          "rpo_measured",
+          "rto_measured",
+        ]) {
+          if (normalized[fieldName] !== true) {
+            throw new Error(`evidence.items[${index}] successful restore requires ${fieldName}=true.`);
+          }
+        }
+      }
+    }
+    if (model === "saas.load.test") {
+      if (!normalized.finished_at) {
+        throw new Error(`evidence.items[${index}] completed load-test evidence requires finished_at.`);
+      }
+      if (
+        normalized.p95_seconds !== undefined
+        && normalized.p99_seconds !== undefined
+        && normalized.p99_seconds < normalized.p95_seconds
+      ) {
+        throw new Error(`evidence.items[${index}].p99_seconds cannot be lower than p95_seconds.`);
+      }
+      if (normalized.error_rate !== undefined && normalized.error_rate > 100) {
+        throw new Error(`evidence.items[${index}].error_rate cannot exceed 100.`);
+      }
+      if (normalized.representative === true) {
+        if (!normalized.architecture_version || !(normalized.concurrent_users > 0)) {
+          throw new Error(
+            `evidence.items[${index}] representative load evidence requires architecture_version and positive concurrent_users.`,
+          );
+        }
       }
     }
     return normalized;

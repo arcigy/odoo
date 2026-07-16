@@ -1,3 +1,4 @@
+import hashlib
 import math
 import re
 from datetime import datetime, timedelta, timezone
@@ -408,9 +409,33 @@ class SaasMetricCurrent(models.Model):
                 "model": "saas.restore.test",
                 "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
             },
+            "restore_test_success_rate": {
+                "model": "saas.restore.test",
+                "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
+            },
+            "actual_rpo_seconds": {
+                "model": "saas.restore.test",
+                "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
+            },
+            "actual_rto_seconds": {
+                "model": "saas.restore.test",
+                "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
+            },
             "odoo_sync_freshness_seconds": {
                 "model": "saas.sync.run",
                 "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "tested_concurrent_users": {
+                "model": "saas.load.test",
+                "drilldown": f"{base_url}/web#model=saas.load.test&view_type=list",
+            },
+            "load_test_age_days": {
+                "model": "saas.load.test",
+                "drilldown": f"{base_url}/web#model=saas.load.test&view_type=list",
+            },
+            "capacity_readiness_status": {
+                "model": "saas.load.test",
+                "drilldown": f"{base_url}/web#model=saas.load.test&view_type=list",
             },
         }
         definitions = {
@@ -429,6 +454,7 @@ class SaasMetricCurrent(models.Model):
             return max((now - record.finished_at).total_seconds(), 0)
 
         for environment in environments:
+            details = {}
             values = {
                 "open_p0_p1_incidents": self.env["saas.incident"].search_count(
                     [
@@ -454,6 +480,28 @@ class SaasMetricCurrent(models.Model):
             )
             if backup:
                 values["backup_age_seconds"] = age_seconds(backup)
+            latest_restore = self.env["saas.restore.test"].search(
+                [
+                    ("environment_id", "=", environment.id),
+                    ("finished_at", "!=", False),
+                ],
+                order="finished_at desc, id desc",
+                limit=1,
+            )
+            if latest_restore:
+                restore_success = bool(
+                    latest_restore.status == "success"
+                    and latest_restore.checksum_valid
+                    and latest_restore.application_smoke_passed
+                    and latest_restore.tenant_isolation_passed
+                )
+                values["restore_test_success_rate"] = 100 if restore_success else 0
+                details["restore_test_success_rate"] = {
+                    "numerator": 1 if restore_success else 0,
+                    "denominator": 1,
+                    "sample_count": 1,
+                    "source_record": latest_restore,
+                }
             restore = self.env["saas.restore.test"].search(
                 [
                     ("environment_id", "=", environment.id),
@@ -468,6 +516,12 @@ class SaasMetricCurrent(models.Model):
             )
             if restore:
                 values["restore_test_age_seconds"] = age_seconds(restore)
+                if restore.rpo_measured:
+                    values["actual_rpo_seconds"] = restore.actual_rpo_seconds
+                    details["actual_rpo_seconds"] = {"source_record": restore}
+                if restore.rto_measured:
+                    values["actual_rto_seconds"] = restore.actual_rto_seconds
+                    details["actual_rto_seconds"] = {"source_record": restore}
             sync_run = self.env["saas.sync.run"].search(
                 [
                     ("environment_id", "=", environment.id),
@@ -480,12 +534,54 @@ class SaasMetricCurrent(models.Model):
             if sync_run:
                 values["odoo_sync_freshness_seconds"] = age_seconds(sync_run)
 
+            latest_load = self.env["saas.load.test"].search(
+                [
+                    ("environment_id", "=", environment.id),
+                    ("representative", "=", True),
+                    ("finished_at", "!=", False),
+                    ("architecture_version", "!=", False),
+                ],
+                order="finished_at desc, id desc",
+                limit=1,
+            )
+            if latest_load:
+                values["load_test_age_days"] = age_seconds(latest_load) / 86400
+                readiness_values = {
+                    "ready": 1,
+                    "ready_with_risk": 0.66,
+                    "test_stale": 0.33,
+                    "not_ready": 0,
+                }
+                values["capacity_readiness_status"] = readiness_values[latest_load.status]
+                details["capacity_readiness_status"] = {"source_record": latest_load}
+                safe_load = self.env["saas.load.test"].search(
+                    [
+                        ("environment_id", "=", environment.id),
+                        ("representative", "=", True),
+                        ("architecture_version", "=", latest_load.architecture_version),
+                        ("status", "in", ["ready", "ready_with_risk"]),
+                        ("finished_at", "!=", False),
+                        ("concurrent_users", ">", 0),
+                    ],
+                    order="concurrent_users desc, finished_at desc, id desc",
+                    limit=1,
+                )
+                if safe_load:
+                    values["tested_concurrent_users"] = safe_load.concurrent_users
+                    details["tested_concurrent_users"] = {"source_record": safe_load}
+
             for code, spec in metric_specs.items():
                 definition = definitions.get(code)
                 if not definition or code not in values:
                     omitted.append(f"{environment.code}:{code}")
                     continue
                 value = float(values[code])
+                detail = details.get(code, {})
+                source_record = detail.get("source_record")
+                measured_at = source_record.finished_at if source_record else now
+                source_updated_at = (
+                    source_record.source_updated_at if source_record else now
+                )
                 status = self._internal_metric_status(definition, value)
                 current_values = {
                     "metric_id": definition.id,
@@ -493,12 +589,19 @@ class SaasMetricCurrent(models.Model):
                     "scope_key": "global",
                     "status": status,
                     "current_value": value,
-                    "sample_count": 1 if code != "open_p0_p1_incidents" else int(value),
-                    "measured_at": now,
-                    "fresh_until": now + timedelta(seconds=definition.freshness_seconds),
-                    "source_updated_at": now,
+                    "sample_count": detail.get(
+                        "sample_count",
+                        1 if code != "open_p0_p1_incidents" else int(value),
+                    ),
+                    "measured_at": measured_at,
+                    "fresh_until": measured_at + timedelta(seconds=definition.freshness_seconds),
+                    "source_updated_at": source_updated_at,
                     "drilldown_url": spec["drilldown"],
                 }
+                if "numerator" in detail:
+                    current_values["numerator"] = detail["numerator"]
+                if "denominator" in detail:
+                    current_values["denominator"] = detail["denominator"]
                 current = self.search(
                     [
                         ("metric_id", "=", definition.id),
@@ -513,25 +616,45 @@ class SaasMetricCurrent(models.Model):
                     current = self.create(current_values)
                 current._sync_status_alert()
 
-                external_key = (
-                    f"{environment.code}:odoo-internal:{code}:"
-                    f"{hour_start.strftime('%Y%m%d%H')}"
-                )
+                if source_record:
+                    source_token = hashlib.sha256(
+                        source_record.external_key.encode("utf-8")
+                    ).hexdigest()[:24]
+                    period_start = source_record.started_at
+                    period_end = source_record.finished_at
+                    history_granularity = "event"
+                    external_key = (
+                        f"{environment.code}:odoo-internal:{code}:{source_token}"
+                    )
+                    history_source_updated_at = source_record.source_updated_at
+                else:
+                    period_start = hour_start
+                    period_end = hour_end
+                    history_granularity = "hour"
+                    external_key = (
+                        f"{environment.code}:odoo-internal:{code}:"
+                        f"{hour_start.strftime('%Y%m%d%H')}"
+                    )
+                    history_source_updated_at = now
                 history_values = {
                     "metric_id": definition.id,
                     "environment_id": environment.id,
                     "scope_key": "global",
-                    "period_start": hour_start,
-                    "period_end": hour_end,
-                    "granularity": "hour",
+                    "period_start": period_start,
+                    "period_end": period_end,
+                    "granularity": history_granularity,
                     "value": value,
                     "sample_count": current_values["sample_count"],
                     "status": status,
                     "data_quality_status": "valid",
-                    "source_updated_at": now,
+                    "source_updated_at": history_source_updated_at,
                     "external_key": external_key,
                     "drilldown_url": spec["drilldown"],
                 }
+                if "numerator" in detail:
+                    history_values["numerator"] = detail["numerator"]
+                if "denominator" in detail:
+                    history_values["denominator"] = detail["denominator"]
                 history = self.env["saas.metric.timeseries"].search(
                     [("external_key", "=", external_key)], limit=1
                 )
@@ -1237,7 +1360,13 @@ class SaasMetricTimeseries(models.Model):
     period_start = fields.Datetime(required=True, index=True)
     period_end = fields.Datetime(required=True, index=True)
     granularity = fields.Selection(
-        [("5m", "5 minutes"), ("hour", "Hour"), ("day", "Day"), ("month", "Month")],
+        [
+            ("5m", "5 minutes"),
+            ("hour", "Hour"),
+            ("day", "Day"),
+            ("month", "Month"),
+            ("event", "Event"),
+        ],
         required=True,
         index=True,
     )

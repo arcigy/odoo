@@ -75,6 +75,14 @@ backup, restore alebo sync dôkaz sa neprezentuje ako nula: príslušný current
 ani history riadok sa nevytvorí. Cron nikdy nečíta Arcigy databázu, storage,
 credentials ani raw telemetriu a nevytvára zdrojové synchronizácie.
 
+Z rovnakých Odoo evidence záznamov sa odvádza aj výsledok posledného restore
+testu, explicitne namerané RPO/RTO a posledný reprezentatívny capacity test.
+RPO/RTO bez `rpo_measured`/`rto_measured` sa vynechá. Capacity readiness, vek
+load testu a najvyššia bezpečne overená concurrency sa vytvorí iba pre záznam
+s `representative=true`, uzavretým časom a konkrétnou `architecture_version`.
+Restore a capacity event sa do histórie zapíše raz cez hash evidence kľúča;
+5-minútový cron ho nekopíruje ako nový event.
+
 V Odoo vytvorte samostatného interného používateľa iba so skupinou `SaaS Integration Bot`, potom mu v `Preferences > Account Security` vytvorte časovo obmedzený API key. Kľúč držte iba v schválenom secret store; neukladajte ho do tohto repozitára, logov ani dashboardov.
 
 Lokálny sync a presné premenné prostredia sú opísané v `kitchen_app/docs/SAAS_ODOO_CONTROL_CENTER.md`. Produkčný schedule, API key, deploy a zápisy do live Odoo vyžadujú samostatné schválenie a live smoke test.
@@ -96,6 +104,11 @@ Príkladové PromQL názvy s prefixom `arcigy_` sú kontrakt, nie tvrdenie, že 
 ### Backup, restore, load a data-quality dôkazy
 
 `integrations/saas_operational_sync.mjs` posiela do Odoo iba striktne povolené skalárne polia pre `saas.backup.run`, `saas.restore.test`, `saas.load.test` a `saas.data.quality.run`. Odmieta raw logy, neznáme polia, URL s credentials, nezabezpečený transport a external keys bez prefixu `develop:` alebo `main:`.
+
+Úspešný restore musí niesť checksum, aplikačný smoke, tenant-isolation a
+explicitné RPO/RTO measurement markery. Reprezentatívny load test musí mať
+ukončenie, pozitívnu concurrency a verziu architektúry; p99 nesmie byť nižšie
+ako p95 a error rate musí zostať v rozsahu 0–100 %.
 
 Najprv vždy spustite no-write validáciu:
 

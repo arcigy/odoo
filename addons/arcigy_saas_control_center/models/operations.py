@@ -22,13 +22,13 @@ OPERATIONAL_ALLOWED_FIELDS = {
     },
     "saas.restore.test": {
         "name", "started_at", "finished_at", "status", "actual_rpo_seconds",
-        "actual_rto_seconds", "checksum_valid", "application_smoke_passed",
-        "tenant_isolation_passed", "evidence_url",
+        "actual_rto_seconds", "rpo_measured", "rto_measured", "checksum_valid",
+        "application_smoke_passed", "tenant_isolation_passed", "evidence_url",
     },
     "saas.load.test": {
         "name", "started_at", "finished_at", "test_type", "status", "concurrent_users",
         "requests_per_second", "p95_seconds", "p99_seconds", "error_rate",
-        "recovery_seconds", "evidence_url",
+        "recovery_seconds", "representative", "architecture_version", "evidence_url",
     },
 }
 
@@ -502,6 +502,8 @@ class SaasRestoreTest(models.Model):
     )
     actual_rpo_seconds = fields.Integer()
     actual_rto_seconds = fields.Integer()
+    rpo_measured = fields.Boolean()
+    rto_measured = fields.Boolean()
     checksum_valid = fields.Boolean()
     application_smoke_passed = fields.Boolean()
     tenant_isolation_passed = fields.Boolean()
@@ -511,6 +513,43 @@ class SaasRestoreTest(models.Model):
     @api.constrains("evidence_url")
     def _check_evidence_url(self):
         _validate_http_urls(self, ("evidence_url",))
+
+    @api.constrains(
+        "started_at",
+        "finished_at",
+        "status",
+        "actual_rpo_seconds",
+        "actual_rto_seconds",
+        "rpo_measured",
+        "rto_measured",
+        "checksum_valid",
+        "application_smoke_passed",
+        "tenant_isolation_passed",
+    )
+    def _check_restore_evidence(self):
+        for record in self:
+            if record.finished_at and record.finished_at <= record.started_at:
+                raise ValidationError("Restore finish must be after its start.")
+            if record.actual_rpo_seconds < 0 or record.actual_rto_seconds < 0:
+                raise ValidationError("Restore RPO and RTO cannot be negative.")
+            if not record.rpo_measured and record.actual_rpo_seconds:
+                raise ValidationError("RPO requires explicit measured evidence.")
+            if not record.rto_measured and record.actual_rto_seconds:
+                raise ValidationError("RTO requires explicit measured evidence.")
+            if record.status in {"success", "failed"} and not record.finished_at:
+                raise ValidationError("A completed restore test requires finished_at.")
+            if record.status == "success" and not all(
+                (
+                    record.checksum_valid,
+                    record.application_smoke_passed,
+                    record.tenant_isolation_passed,
+                    record.rpo_measured,
+                    record.rto_measured,
+                )
+            ):
+                raise ValidationError(
+                    "A successful restore requires checksum, smoke, tenant isolation, RPO and RTO evidence."
+                )
 
 
 class SaasLoadTest(models.Model):
@@ -553,11 +592,57 @@ class SaasLoadTest(models.Model):
     p99_seconds = fields.Float()
     error_rate = fields.Float()
     recovery_seconds = fields.Float()
+    representative = fields.Boolean()
+    architecture_version = fields.Char()
     evidence_url = fields.Char()
 
     @api.constrains("evidence_url")
     def _check_evidence_url(self):
         _validate_http_urls(self, ("evidence_url",))
+
+    @api.constrains(
+        "started_at",
+        "finished_at",
+        "concurrent_users",
+        "requests_per_second",
+        "p95_seconds",
+        "p99_seconds",
+        "error_rate",
+        "recovery_seconds",
+        "representative",
+        "architecture_version",
+    )
+    def _check_load_evidence(self):
+        for record in self:
+            if record.finished_at and record.finished_at <= record.started_at:
+                raise ValidationError("Load-test finish must be after its start.")
+            if any(
+                value < 0
+                for value in (
+                    record.concurrent_users,
+                    record.requests_per_second,
+                    record.p95_seconds,
+                    record.p99_seconds,
+                    record.error_rate,
+                    record.recovery_seconds,
+                )
+            ):
+                raise ValidationError("Load-test measurements cannot be negative.")
+            if record.error_rate > 100:
+                raise ValidationError("Load-test error rate cannot exceed 100 percent.")
+            if record.p99_seconds and record.p95_seconds and record.p99_seconds < record.p95_seconds:
+                raise ValidationError("Load-test p99 cannot be lower than p95.")
+            architecture_version = (record.architecture_version or "").strip()
+            if len(architecture_version) > 128:
+                raise ValidationError("Architecture version is too long.")
+            if record.representative and (
+                not record.finished_at
+                or not architecture_version
+                or record.concurrent_users <= 0
+            ):
+                raise ValidationError(
+                    "A representative load test requires finish time, architecture version and positive concurrency."
+                )
 
 
 class SaasSyncRun(models.Model):

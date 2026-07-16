@@ -115,7 +115,7 @@ test("rejects unsupported models and chronologically invalid evidence", () => {
 
   const invalidTime = backupEvidence();
   invalidTime.items[0].finished_at = "2026-07-16T11:59:59Z";
-  assert.throws(() => validateOperationalEvidence(invalidTime), /must not precede started_at/);
+  assert.throws(() => validateOperationalEvidence(invalidTime), /must be after started_at/);
 
   const future = backupEvidence();
   future.items[0].started_at = "2026-07-16T12:11:00Z";
@@ -160,6 +160,8 @@ test("validates restore and load evidence without accepting raw test output", ()
           status: "success",
           actual_rpo_seconds: 0,
           actual_rto_seconds: 240,
+          rpo_measured: true,
+          rto_measured: true,
           checksum_valid: true,
           application_smoke_passed: true,
           tenant_isolation_passed: true,
@@ -179,13 +181,67 @@ test("validates restore and load evidence without accepting raw test output", ()
         external_key: "main:load:2026-07-16T12:00:00Z",
         name: "Synthetic capacity test",
         started_at: "2026-07-16T12:00:00Z",
+        finished_at: "2026-07-16T12:04:00Z",
         status: "ready_with_risk",
         test_type: "ramp",
+        representative: true,
+        architecture_version: "architecture-v1",
         concurrent_users: 1000,
         p95_seconds: 1.2,
         raw_results: ["must not leave the load-test backend"],
       },
     ],
   };
+  const validLoad = structuredClone(load);
+  delete validLoad.items[0].raw_results;
+  const normalizedLoad = validateOperationalEvidence(
+    validLoad,
+    Date.parse("2026-07-16T12:05:00Z"),
+  );
+  assert.equal(normalizedLoad.items[0].representative, true);
+  assert.equal(normalizedLoad.items[0].architecture_version, "architecture-v1");
   assert.throws(() => validateOperationalEvidence(load), /unsupported fields: raw_results/);
+});
+
+test("requires explicit restore measurements and representative load evidence", () => {
+  const restore = {
+    model: "saas.restore.test",
+    environment: "develop",
+    source_updated_at: "2026-07-16T12:05:00Z",
+    items: [
+      {
+        external_key: "develop:restore:2026-07-16T12:00:00Z",
+        name: "Restore without measurement marker",
+        started_at: "2026-07-16T12:00:00Z",
+        finished_at: "2026-07-16T12:04:00Z",
+        status: "success",
+        actual_rpo_seconds: 0,
+        actual_rto_seconds: 240,
+        rto_measured: true,
+        checksum_valid: true,
+        application_smoke_passed: true,
+        tenant_isolation_passed: true,
+      },
+    ],
+  };
+  assert.throws(() => validateOperationalEvidence(restore), /actual_rpo_seconds requires rpo_measured=true/);
+
+  const load = {
+    model: "saas.load.test",
+    environment: "main",
+    source_updated_at: "2026-07-16T12:05:00Z",
+    items: [
+      {
+        external_key: "main:load:2026-07-16T12:00:00Z",
+        name: "Unqualified capacity claim",
+        started_at: "2026-07-16T12:00:00Z",
+        finished_at: "2026-07-16T12:04:00Z",
+        status: "ready",
+        test_type: "ramp",
+        representative: true,
+        concurrent_users: 1000,
+      },
+    ],
+  };
+  assert.throws(() => validateOperationalEvidence(load), /requires architecture_version/);
 });
