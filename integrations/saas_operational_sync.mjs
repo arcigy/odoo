@@ -86,7 +86,23 @@ const OPERATIONAL_MODELS = Object.freeze({
       missing_field_count: numberField(true),
       late_event_count: numberField(true),
       unknown_tenant_count: numberField(true),
+      clock_skew_seconds: numberField(),
+      processing_lag_p95_seconds: numberField(),
+      dead_letter_count: numberField(true),
+      metric_quality_contract_complete: booleanField(),
+      eligible_metric_count: numberField(true),
+      fresh_metric_count: numberField(true),
+      complete_metric_count: numberField(true),
+      unique_metric_count: numberField(true),
+      valid_metric_count: numberField(true),
+      consistent_metric_count: numberField(true),
       reconciliation_difference: numberField(false, Number.NEGATIVE_INFINITY),
+      outlier_count: numberField(true),
+      unexpected_zero_count: numberField(true),
+      unexpected_volume_spike_count: numberField(true),
+      numerator_denominator_violation_count: numberField(true),
+      negative_value_violation_count: numberField(true),
+      missing_dimension_count: numberField(true),
       oldest_unsynced_at: dateField(),
       drilldown_url: urlField(),
     },
@@ -300,6 +316,9 @@ export function validateOperationalEvidence(raw, now = Date.now()) {
         "missing_field_count",
         "late_event_count",
         "unknown_tenant_count",
+        "clock_skew_seconds",
+        "processing_lag_p95_seconds",
+        "dead_letter_count",
       ];
       for (const fieldName of completeCountFields) {
         if (normalized[fieldName] === undefined) {
@@ -334,6 +353,42 @@ export function validateOperationalEvidence(raw, now = Date.now()) {
         throw new Error(
           `evidence.items[${index}].retry_adjustment_count exceeds the sent/received difference.`,
         );
+      }
+    }
+    if (model === "saas.data.quality.run" && normalized.metric_quality_contract_complete === true) {
+      if (!normalized.finished_at) {
+        throw new Error(`evidence.items[${index}] complete metric-quality evidence requires finished_at.`);
+      }
+      const completeQualityFields = [
+        "eligible_metric_count",
+        "fresh_metric_count",
+        "complete_metric_count",
+        "unique_metric_count",
+        "valid_metric_count",
+        "consistent_metric_count",
+        "reconciliation_difference",
+        "outlier_count",
+        "unexpected_zero_count",
+        "unexpected_volume_spike_count",
+        "numerator_denominator_violation_count",
+        "negative_value_violation_count",
+        "missing_dimension_count",
+      ];
+      for (const fieldName of completeQualityFields) {
+        if (normalized[fieldName] === undefined) {
+          throw new Error(
+            `evidence.items[${index}] complete metric-quality evidence requires ${fieldName}.`,
+          );
+        }
+      }
+      for (const fieldName of completeQualityFields.filter(
+        (fieldName) => fieldName !== "eligible_metric_count" && fieldName !== "reconciliation_difference",
+      )) {
+        if (normalized[fieldName] > normalized.eligible_metric_count) {
+          throw new Error(
+            `evidence.items[${index}].${fieldName} cannot exceed eligible_metric_count.`,
+          );
+        }
       }
     }
     if (model === "saas.sync.run") {

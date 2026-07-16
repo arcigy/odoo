@@ -561,11 +561,33 @@ class SaasDataQualityRun(models.Model):
     missing_field_count = fields.Integer()
     late_event_count = fields.Integer()
     unknown_tenant_count = fields.Integer()
+    clock_skew_seconds = fields.Float(
+        help="Maximum absolute source/ingest clock skew in the complete event window."
+    )
+    processing_lag_p95_seconds = fields.Float(
+        help="P95 event processing lag in the complete event window."
+    )
+    dead_letter_count = fields.Integer()
+    metric_quality_contract_complete = fields.Boolean(
+        help="True only when the evidence covers the complete eligible metric population."
+    )
+    eligible_metric_count = fields.Integer()
+    fresh_metric_count = fields.Integer()
+    complete_metric_count = fields.Integer()
+    unique_metric_count = fields.Integer()
+    valid_metric_count = fields.Integer()
+    consistent_metric_count = fields.Integer()
     reconciliation_difference = fields.Float()
+    outlier_count = fields.Integer()
+    unexpected_zero_count = fields.Integer()
+    unexpected_volume_spike_count = fields.Integer()
+    numerator_denominator_violation_count = fields.Integer()
+    negative_value_violation_count = fields.Integer()
+    missing_dimension_count = fields.Integer()
     oldest_unsynced_at = fields.Datetime()
     drilldown_url = fields.Char()
 
-    _complete_event_count_fields = {
+    _complete_event_fields = {
         "events_sent",
         "events_received",
         "events_processed",
@@ -576,16 +598,41 @@ class SaasDataQualityRun(models.Model):
         "missing_field_count",
         "late_event_count",
         "unknown_tenant_count",
+        "clock_skew_seconds",
+        "processing_lag_p95_seconds",
+        "dead_letter_count",
+    }
+    _complete_metric_quality_fields = {
+        "eligible_metric_count",
+        "fresh_metric_count",
+        "complete_metric_count",
+        "unique_metric_count",
+        "valid_metric_count",
+        "consistent_metric_count",
+        "reconciliation_difference",
+        "outlier_count",
+        "unexpected_zero_count",
+        "unexpected_volume_spike_count",
+        "numerator_denominator_violation_count",
+        "negative_value_violation_count",
+        "missing_dimension_count",
     }
 
     @api.model_create_multi
     def create(self, vals_list):
         for values in vals_list:
             if values.get("event_stream_complete") is True:
-                missing = self._complete_event_count_fields - set(values)
+                missing = self._complete_event_fields - set(values)
                 if missing:
                     raise ValidationError(
-                        "Complete event-stream evidence requires all event counts: "
+                        "Complete event-stream evidence requires all event fields: "
+                        f"{', '.join(sorted(missing))}."
+                    )
+            if values.get("metric_quality_contract_complete") is True:
+                missing = self._complete_metric_quality_fields - set(values)
+                if missing:
+                    raise ValidationError(
+                        "Complete metric-quality evidence requires all quality fields: "
                         f"{', '.join(sorted(missing))}."
                     )
         return super().create(vals_list)
@@ -593,10 +640,20 @@ class SaasDataQualityRun(models.Model):
     def write(self, values):
         if values.get("event_stream_complete") is True:
             for record in self.filtered(lambda item: not item.event_stream_complete):
-                missing = self._complete_event_count_fields - set(values)
+                missing = self._complete_event_fields - set(values)
                 if missing:
                     raise ValidationError(
-                        "Completing event-stream evidence requires all event counts: "
+                        "Completing event-stream evidence requires all event fields: "
+                        f"{', '.join(sorted(missing))}."
+                    )
+        if values.get("metric_quality_contract_complete") is True:
+            for record in self.filtered(
+                lambda item: not item.metric_quality_contract_complete
+            ):
+                missing = self._complete_metric_quality_fields - set(values)
+                if missing:
+                    raise ValidationError(
+                        "Completing metric-quality evidence requires all quality fields: "
                         f"{', '.join(sorted(missing))}."
                     )
         return super().write(values)
@@ -613,6 +670,9 @@ class SaasDataQualityRun(models.Model):
         "missing_field_count",
         "late_event_count",
         "unknown_tenant_count",
+        "clock_skew_seconds",
+        "processing_lag_p95_seconds",
+        "dead_letter_count",
         "started_at",
         "finished_at",
     )
@@ -629,9 +689,20 @@ class SaasDataQualityRun(models.Model):
                 record.missing_field_count,
                 record.late_event_count,
                 record.unknown_tenant_count,
+                record.clock_skew_seconds,
+                record.processing_lag_p95_seconds,
+                record.dead_letter_count,
             ]
             if any(value < 0 for value in values):
                 raise ValidationError("Data quality counts cannot be negative.")
+            if not all(
+                math.isfinite(value)
+                for value in [
+                    record.clock_skew_seconds,
+                    record.processing_lag_p95_seconds,
+                ]
+            ):
+                raise ValidationError("Event timing evidence must be finite.")
             if not record.event_stream_complete:
                 continue
             if not record.finished_at or record.finished_at <= record.started_at:
@@ -648,6 +719,7 @@ class SaasDataQualityRun(models.Model):
                 record.missing_field_count,
                 record.late_event_count,
                 record.unknown_tenant_count,
+                record.dead_letter_count,
             ]
             if any(value > record.events_received for value in received_bounded_counts):
                 raise ValidationError(
@@ -659,4 +731,54 @@ class SaasDataQualityRun(models.Model):
             if record.retry_adjustment_count > maximum_retry_adjustment:
                 raise ValidationError(
                     "Retry adjustment cannot exceed the sent/received difference."
+                )
+
+    @api.constrains(
+        "metric_quality_contract_complete",
+        "eligible_metric_count",
+        "fresh_metric_count",
+        "complete_metric_count",
+        "unique_metric_count",
+        "valid_metric_count",
+        "consistent_metric_count",
+        "reconciliation_difference",
+        "outlier_count",
+        "unexpected_zero_count",
+        "unexpected_volume_spike_count",
+        "numerator_denominator_violation_count",
+        "negative_value_violation_count",
+        "missing_dimension_count",
+        "started_at",
+        "finished_at",
+    )
+    def _check_metric_quality_contract(self):
+        for record in self:
+            quality_counts = [
+                record.eligible_metric_count,
+                record.fresh_metric_count,
+                record.complete_metric_count,
+                record.unique_metric_count,
+                record.valid_metric_count,
+                record.consistent_metric_count,
+                record.outlier_count,
+                record.unexpected_zero_count,
+                record.unexpected_volume_spike_count,
+                record.numerator_denominator_violation_count,
+                record.negative_value_violation_count,
+                record.missing_dimension_count,
+            ]
+            if any(value < 0 for value in quality_counts):
+                raise ValidationError("Metric-quality counts cannot be negative.")
+            if not math.isfinite(record.reconciliation_difference):
+                raise ValidationError("Reconciliation difference must be finite.")
+            if not record.metric_quality_contract_complete:
+                continue
+            if not record.finished_at or record.finished_at <= record.started_at:
+                raise ValidationError(
+                    "Complete metric-quality evidence requires finished_at after started_at."
+                )
+            bounded_counts = quality_counts[1:]
+            if any(value > record.eligible_metric_count for value in bounded_counts):
+                raise ValidationError(
+                    "Metric-quality result counts cannot exceed eligible metrics."
                 )

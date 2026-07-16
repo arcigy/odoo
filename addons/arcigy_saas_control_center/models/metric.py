@@ -529,6 +529,66 @@ class SaasMetricCurrent(models.Model):
                 "model": "saas.data.quality.run",
                 "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
             },
+            "event_clock_skew_seconds": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "event_processing_lag_p95_seconds": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "dead_letter_event_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "metric_freshness_rate": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "metric_completeness_rate": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "metric_uniqueness_rate": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "metric_validity_rate": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "metric_consistency_rate": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "data_quality_reconciliation_difference": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "data_quality_outlier_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "unexpected_zero_value_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "unexpected_volume_spike_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "numerator_denominator_violation_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "negative_value_violation_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "missing_dimension_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
             "tested_concurrent_users": {
                 "model": "saas.load.test",
                 "drilldown": f"{base_url}/web#model=saas.load.test&view_type=list",
@@ -731,6 +791,18 @@ class SaasMetricCurrent(models.Model):
                         data_quality.unknown_tenant_count,
                         received,
                     ),
+                    "event_clock_skew_seconds": (
+                        data_quality.clock_skew_seconds,
+                        received,
+                    ),
+                    "event_processing_lag_p95_seconds": (
+                        data_quality.processing_lag_p95_seconds,
+                        received,
+                    ),
+                    "dead_letter_event_count": (
+                        data_quality.dead_letter_count,
+                        received,
+                    ),
                 }
                 for code, (value, sample_count) in direct_values.items():
                     values[code] = value
@@ -760,6 +832,57 @@ class SaasMetricCurrent(models.Model):
                             "denominator": received,
                             "sample_count": received,
                             "source_record": data_quality,
+                        }
+
+            metric_quality = self.env["saas.data.quality.run"].search(
+                [
+                    ("environment_id", "=", environment.id),
+                    ("metric_quality_contract_complete", "=", True),
+                    ("finished_at", "!=", False),
+                ],
+                order="finished_at desc, id desc",
+                limit=1,
+            )
+            if metric_quality:
+                eligible = metric_quality.eligible_metric_count
+                direct_quality_values = {
+                    "data_quality_reconciliation_difference": abs(
+                        metric_quality.reconciliation_difference
+                    ),
+                    "data_quality_outlier_count": metric_quality.outlier_count,
+                    "unexpected_zero_value_count": metric_quality.unexpected_zero_count,
+                    "unexpected_volume_spike_count": (
+                        metric_quality.unexpected_volume_spike_count
+                    ),
+                    "numerator_denominator_violation_count": (
+                        metric_quality.numerator_denominator_violation_count
+                    ),
+                    "negative_value_violation_count": (
+                        metric_quality.negative_value_violation_count
+                    ),
+                    "missing_dimension_count": metric_quality.missing_dimension_count,
+                }
+                for code, value in direct_quality_values.items():
+                    values[code] = value
+                    details[code] = {
+                        "sample_count": eligible,
+                        "source_record": metric_quality,
+                    }
+                if eligible > 0:
+                    ratio_quality_values = {
+                        "metric_freshness_rate": metric_quality.fresh_metric_count,
+                        "metric_completeness_rate": metric_quality.complete_metric_count,
+                        "metric_uniqueness_rate": metric_quality.unique_metric_count,
+                        "metric_validity_rate": metric_quality.valid_metric_count,
+                        "metric_consistency_rate": metric_quality.consistent_metric_count,
+                    }
+                    for code, numerator in ratio_quality_values.items():
+                        values[code] = numerator / eligible * 100
+                        details[code] = {
+                            "numerator": numerator,
+                            "denominator": eligible,
+                            "sample_count": eligible,
+                            "source_record": metric_quality,
                         }
 
             latest_load = self.env["saas.load.test"].search(

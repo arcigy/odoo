@@ -183,7 +183,16 @@
                 <field name="event_stream_complete"/><field name="retry_adjustment_count"/>
                 <field name="duplicate_count"/><field name="schema_failure_count"/><field name="missing_field_count"/>
                 <field name="late_event_count"/><field name="unknown_tenant_count"/>
-                <field name="reconciliation_difference"/><field name="oldest_unsynced_at"/>
+                <field name="clock_skew_seconds"/><field name="processing_lag_p95_seconds"/>
+                <field name="dead_letter_count"/><field name="metric_quality_contract_complete"/>
+                <field name="eligible_metric_count"/><field name="fresh_metric_count"/>
+                <field name="complete_metric_count"/><field name="unique_metric_count"/>
+                <field name="valid_metric_count"/><field name="consistent_metric_count"/>
+                <field name="reconciliation_difference"/><field name="outlier_count"/>
+                <field name="unexpected_zero_count"/><field name="unexpected_volume_spike_count"/>
+                <field name="numerator_denominator_violation_count"/>
+                <field name="negative_value_violation_count"/><field name="missing_dimension_count"/>
+                <field name="oldest_unsynced_at"/>
                 <field name="source_updated_at"/><field name="external_key" optional="hide"/>
             </list>
         </field>

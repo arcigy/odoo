@@ -251,6 +251,9 @@ test("requires a complete and internally consistent event-stream contract", () =
         missing_field_count: 0,
         late_event_count: 1,
         unknown_tenant_count: 0,
+        clock_skew_seconds: 2.5,
+        processing_lag_p95_seconds: 0.75,
+        dead_letter_count: 1,
       },
     ],
   };
@@ -260,6 +263,7 @@ test("requires a complete and internally consistent event-stream contract", () =
   );
   assert.equal(normalized.items[0].event_stream_complete, true);
   assert.equal(normalized.items[0].retry_adjustment_count, 2);
+  assert.equal(normalized.items[0].clock_skew_seconds, 2.5);
 
   const missingCount = structuredClone(evidence);
   delete missingCount.items[0].retry_adjustment_count;
@@ -281,6 +285,57 @@ test("requires a complete and internally consistent event-stream contract", () =
   assert.throws(
     () => validateOperationalEvidence(excessiveRetryAdjustment),
     /retry_adjustment_count exceeds the sent\/received difference/,
+  );
+});
+
+test("requires a complete and bounded metric-quality contract", () => {
+  const evidence = {
+    model: "saas.data.quality.run",
+    environment: "develop",
+    source_updated_at: "2026-07-16T12:05:00Z",
+    items: [
+      {
+        external_key: "develop:metric-quality:2026-07-16T12:00:00Z",
+        name: "Complete metric quality scan",
+        started_at: "2026-07-16T12:00:00Z",
+        finished_at: "2026-07-16T12:04:00Z",
+        status: "warning",
+        metric_quality_contract_complete: true,
+        eligible_metric_count: 100,
+        fresh_metric_count: 90,
+        complete_metric_count: 95,
+        unique_metric_count: 100,
+        valid_metric_count: 98,
+        consistent_metric_count: 97,
+        reconciliation_difference: -2.5,
+        outlier_count: 3,
+        unexpected_zero_count: 2,
+        unexpected_volume_spike_count: 1,
+        numerator_denominator_violation_count: 1,
+        negative_value_violation_count: 2,
+        missing_dimension_count: 5,
+      },
+    ],
+  };
+  const normalized = validateOperationalEvidence(
+    evidence,
+    Date.parse("2026-07-16T12:05:00Z"),
+  );
+  assert.equal(normalized.items[0].metric_quality_contract_complete, true);
+  assert.equal(normalized.items[0].reconciliation_difference, -2.5);
+
+  const missingField = structuredClone(evidence);
+  delete missingField.items[0].missing_dimension_count;
+  assert.throws(
+    () => validateOperationalEvidence(missingField),
+    /complete metric-quality evidence requires missing_dimension_count/,
+  );
+
+  const excessiveResult = structuredClone(evidence);
+  excessiveResult.items[0].fresh_metric_count = 101;
+  assert.throws(
+    () => validateOperationalEvidence(excessiveResult),
+    /fresh_metric_count cannot exceed eligible_metric_count/,
   );
 });
 

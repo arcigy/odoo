@@ -29,7 +29,7 @@ class TestInternalOperationalMetrics(TransactionCase):
     def test_refresh_emits_true_zero_incident_counts_but_omits_missing_ages(self):
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 2)
-        self.assertEqual(len(result["omitted"]), 70)
+        self.assertEqual(len(result["omitted"]), 100)
 
         metric = self.env.ref(
             "arcigy_saas_control_center.metric_open_critical_incidents"
@@ -154,7 +154,7 @@ class TestInternalOperationalMetrics(TransactionCase):
 
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 11)
-        self.assertEqual(len(result["omitted"]), 61)
+        self.assertEqual(len(result["omitted"]), 91)
         by_code = {
             record.metric_id.code: record
             for record in self.current.search(
@@ -271,6 +271,9 @@ class TestInternalOperationalMetrics(TransactionCase):
                 "missing_field_count": 0,
                 "late_event_count": 1,
                 "unknown_tenant_count": 0,
+                "clock_skew_seconds": 3.5,
+                "processing_lag_p95_seconds": 0.8,
+                "dead_letter_count": 1,
                 "external_key": "develop:test:complete-event-stream",
                 "source_updated_at": now - timedelta(minutes=1),
             }
@@ -293,14 +296,17 @@ class TestInternalOperationalMetrics(TransactionCase):
                 "missing_field_count": 0,
                 "late_event_count": 0,
                 "unknown_tenant_count": 0,
+                "clock_skew_seconds": 0,
+                "processing_lag_p95_seconds": 0,
+                "dead_letter_count": 0,
                 "external_key": "main:test:complete-empty-event-stream",
                 "source_updated_at": now - timedelta(minutes=1),
             }
         )
 
         result = self.current._cron_refresh_internal_operational_metrics()
-        self.assertEqual(result["refreshed"], 20)
-        self.assertEqual(len(result["omitted"]), 52)
+        self.assertEqual(result["refreshed"], 26)
+        self.assertEqual(len(result["omitted"]), 76)
         develop_values = {
             record.metric_id.code: record
             for record in self.current.search(
@@ -323,6 +329,12 @@ class TestInternalOperationalMetrics(TransactionCase):
             develop_values["unknown_tenant_mapping_count"].current_value,
             0,
         )
+        self.assertEqual(develop_values["event_clock_skew_seconds"].current_value, 3.5)
+        self.assertEqual(
+            develop_values["event_processing_lag_p95_seconds"].current_value,
+            0.8,
+        )
+        self.assertEqual(develop_values["dead_letter_event_count"].current_value, 1)
         self.assertFalse(
             self.current.search(
                 [
@@ -366,7 +378,143 @@ class TestInternalOperationalMetrics(TransactionCase):
                     "missing_field_count": 0,
                     "late_event_count": 0,
                     "unknown_tenant_count": 0,
+                    "clock_skew_seconds": 0,
+                    "processing_lag_p95_seconds": 0,
+                    "dead_letter_count": 0,
                     "external_key": "develop:test:inconsistent-event-stream",
+                    "source_updated_at": now - timedelta(minutes=1),
+                }
+            )
+
+    def test_refresh_derives_only_complete_metric_quality_evidence(self):
+        now = fields.Datetime.now()
+        self.env["saas.data.quality.run"].create(
+            {
+                "name": "Complete Develop metric quality scan",
+                "environment_id": self.develop.id,
+                "started_at": now - timedelta(minutes=5),
+                "finished_at": now - timedelta(minutes=1),
+                "status": "warning",
+                "metric_quality_contract_complete": True,
+                "eligible_metric_count": 100,
+                "fresh_metric_count": 90,
+                "complete_metric_count": 95,
+                "unique_metric_count": 100,
+                "valid_metric_count": 98,
+                "consistent_metric_count": 97,
+                "reconciliation_difference": -2.5,
+                "outlier_count": 3,
+                "unexpected_zero_count": 2,
+                "unexpected_volume_spike_count": 1,
+                "numerator_denominator_violation_count": 1,
+                "negative_value_violation_count": 2,
+                "missing_dimension_count": 5,
+                "external_key": "develop:test:complete-metric-quality",
+                "source_updated_at": now - timedelta(minutes=1),
+            }
+        )
+        self.env["saas.data.quality.run"].create(
+            {
+                "name": "Complete empty Main metric quality scan",
+                "environment_id": self.main.id,
+                "started_at": now - timedelta(minutes=5),
+                "finished_at": now - timedelta(minutes=1),
+                "status": "valid",
+                "metric_quality_contract_complete": True,
+                "eligible_metric_count": 0,
+                "fresh_metric_count": 0,
+                "complete_metric_count": 0,
+                "unique_metric_count": 0,
+                "valid_metric_count": 0,
+                "consistent_metric_count": 0,
+                "reconciliation_difference": 0,
+                "outlier_count": 0,
+                "unexpected_zero_count": 0,
+                "unexpected_volume_spike_count": 0,
+                "numerator_denominator_violation_count": 0,
+                "negative_value_violation_count": 0,
+                "missing_dimension_count": 0,
+                "external_key": "main:test:complete-empty-metric-quality",
+                "source_updated_at": now - timedelta(minutes=1),
+            }
+        )
+
+        result = self.current._cron_refresh_internal_operational_metrics()
+        self.assertEqual(result["refreshed"], 21)
+        self.assertEqual(len(result["omitted"]), 81)
+        develop_values = {
+            record.metric_id.code: record
+            for record in self.current.search(
+                [("environment_id", "=", self.develop.id)]
+            )
+        }
+        self.assertEqual(develop_values["metric_freshness_rate"].current_value, 90)
+        self.assertEqual(develop_values["metric_freshness_rate"].numerator, 90)
+        self.assertEqual(develop_values["metric_freshness_rate"].denominator, 100)
+        self.assertEqual(develop_values["metric_completeness_rate"].current_value, 95)
+        self.assertEqual(develop_values["metric_uniqueness_rate"].current_value, 100)
+        self.assertEqual(develop_values["metric_validity_rate"].current_value, 98)
+        self.assertEqual(develop_values["metric_consistency_rate"].current_value, 97)
+        self.assertEqual(
+            develop_values["data_quality_reconciliation_difference"].current_value,
+            2.5,
+        )
+        self.assertEqual(develop_values["data_quality_outlier_count"].current_value, 3)
+        self.assertEqual(develop_values["unexpected_zero_value_count"].current_value, 2)
+        self.assertEqual(develop_values["unexpected_volume_spike_count"].current_value, 1)
+        self.assertEqual(
+            develop_values["numerator_denominator_violation_count"].current_value,
+            1,
+        )
+        self.assertEqual(develop_values["negative_value_violation_count"].current_value, 2)
+        self.assertEqual(develop_values["missing_dimension_count"].current_value, 5)
+        self.assertFalse(
+            self.current.search(
+                [
+                    ("environment_id", "=", self.main.id),
+                    (
+                        "metric_id.code",
+                        "in",
+                        [
+                            "metric_freshness_rate",
+                            "metric_completeness_rate",
+                            "metric_uniqueness_rate",
+                            "metric_validity_rate",
+                            "metric_consistency_rate",
+                        ],
+                    ),
+                ]
+            )
+        )
+
+    def test_complete_metric_quality_rejects_counts_above_population(self):
+        now = fields.Datetime.now()
+        with self.assertRaisesRegex(
+            ValidationError,
+            "Metric-quality result counts cannot exceed eligible metrics",
+        ):
+            self.env["saas.data.quality.run"].create(
+                {
+                    "name": "Invalid metric quality scan",
+                    "environment_id": self.develop.id,
+                    "started_at": now - timedelta(minutes=5),
+                    "finished_at": now - timedelta(minutes=1),
+                    "status": "invalid",
+                    "metric_quality_contract_complete": True,
+                    "eligible_metric_count": 1,
+                    "fresh_metric_count": 2,
+                    "complete_metric_count": 1,
+                    "unique_metric_count": 1,
+                    "valid_metric_count": 1,
+                    "consistent_metric_count": 1,
+                    "reconciliation_difference": 0,
+                    "outlier_count": 0,
+                    "unexpected_zero_count": 0,
+                    "unexpected_volume_spike_count": 0,
+                    "numerator_denominator_violation_count": 0,
+                    "negative_value_violation_count": 0,
+                    "missing_dimension_count": 0,
+                    "external_key": "develop:test:invalid-metric-quality",
                     "source_updated_at": now - timedelta(minutes=1),
                 }
             )
@@ -402,7 +550,7 @@ class TestInternalOperationalMetrics(TransactionCase):
 
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 18)
-        self.assertEqual(len(result["omitted"]), 54)
+        self.assertEqual(len(result["omitted"]), 84)
         sync_codes = {
             "odoo_sync_attempt_age_seconds",
             "odoo_sync_duration_seconds",

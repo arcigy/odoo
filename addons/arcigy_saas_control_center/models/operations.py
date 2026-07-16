@@ -15,6 +15,13 @@ OPERATIONAL_ALLOWED_FIELDS = {
         "events_processed", "events_rejected", "event_stream_complete",
         "retry_adjustment_count", "duplicate_count", "schema_failure_count",
         "missing_field_count", "late_event_count", "unknown_tenant_count",
+        "clock_skew_seconds", "processing_lag_p95_seconds", "dead_letter_count",
+        "metric_quality_contract_complete", "eligible_metric_count",
+        "fresh_metric_count", "complete_metric_count", "unique_metric_count",
+        "valid_metric_count", "consistent_metric_count", "outlier_count",
+        "unexpected_zero_count", "unexpected_volume_spike_count",
+        "numerator_denominator_violation_count", "negative_value_violation_count",
+        "missing_dimension_count",
         "reconciliation_difference", "oldest_unsynced_at", "drilldown_url",
     },
     "saas.backup.run": {
@@ -194,11 +201,21 @@ class SaasOperationalIngestMixin(models.AbstractModel):
             if self._name == "saas.data.quality.run" and raw_item.get(
                 "event_stream_complete"
             ) is True:
-                complete_fields = model._complete_event_count_fields
+                complete_fields = model._complete_event_fields
                 missing = complete_fields - set(raw_item)
                 if missing:
                     raise ValidationError(
-                        "Complete event-stream evidence requires all event counts: "
+                        "Complete event-stream evidence requires all event fields: "
+                        f"{', '.join(sorted(missing))}."
+                    )
+            if self._name == "saas.data.quality.run" and raw_item.get(
+                "metric_quality_contract_complete"
+            ) is True:
+                complete_fields = model._complete_metric_quality_fields
+                missing = complete_fields - set(raw_item)
+                if missing:
+                    raise ValidationError(
+                        "Complete metric-quality evidence requires all quality fields: "
                         f"{', '.join(sorted(missing))}."
                     )
             values = {

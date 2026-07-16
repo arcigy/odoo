@@ -213,7 +213,7 @@ class TestSaasMetricContract(TransactionCase):
 
     def test_every_seeded_metric_has_complete_definition_contract(self):
         definitions = self.env["saas.metric.definition"].search([])
-        self.assertEqual(len(definitions), 255)
+        self.assertEqual(len(definitions), 270)
         for definition in definitions:
             self.assertTrue(definition.code)
             self.assertTrue(definition.name)
@@ -260,6 +260,14 @@ class TestSaasMetricContract(TransactionCase):
             "events_rejected_count", "event_loss_estimate", "event_duplicate_rate",
             "schema_validation_failure_count", "missing_required_field_count",
             "late_event_rate", "unknown_tenant_mapping_count",
+            "event_clock_skew_seconds", "event_processing_lag_p95_seconds",
+            "dead_letter_event_count", "metric_freshness_rate",
+            "metric_completeness_rate", "metric_uniqueness_rate",
+            "metric_validity_rate", "metric_consistency_rate",
+            "data_quality_reconciliation_difference", "data_quality_outlier_count",
+            "unexpected_zero_value_count", "unexpected_volume_spike_count",
+            "numerator_denominator_violation_count", "negative_value_violation_count",
+            "missing_dimension_count",
             "odoo_sync_attempt_age_seconds", "odoo_sync_duration_seconds",
             "odoo_sync_records_read_count", "odoo_sync_records_created_count",
             "odoo_sync_records_updated_count", "odoo_sync_records_skipped_count",
@@ -542,11 +550,57 @@ class TestSaasMetricContract(TransactionCase):
         }
         with self.assertRaisesRegex(
             ValidationError,
-            "Complete event-stream evidence requires all event counts",
+            "Complete event-stream evidence requires all event fields",
         ):
             self.env["saas.data.quality.run"].with_user(
                 self.bot
             ).ingest_operational_batch(payload)
+
+    def test_complete_metric_quality_ingest_is_idempotent(self):
+        payload = {
+            "environment": "develop",
+            "source_updated_at": "2026-07-16T12:05:00Z",
+            "items": [
+                {
+                    "external_key": "develop:metric-quality:2026-07-16T12:00:00Z",
+                    "name": "Complete metric quality scan",
+                    "started_at": "2026-07-16T12:00:00Z",
+                    "finished_at": "2026-07-16T12:04:00Z",
+                    "status": "warning",
+                    "metric_quality_contract_complete": True,
+                    "eligible_metric_count": 100,
+                    "fresh_metric_count": 90,
+                    "complete_metric_count": 95,
+                    "unique_metric_count": 100,
+                    "valid_metric_count": 98,
+                    "consistent_metric_count": 97,
+                    "reconciliation_difference": -2.5,
+                    "outlier_count": 3,
+                    "unexpected_zero_count": 2,
+                    "unexpected_volume_spike_count": 1,
+                    "numerator_denominator_violation_count": 1,
+                    "negative_value_violation_count": 2,
+                    "missing_dimension_count": 5,
+                }
+            ],
+        }
+        model = self.env["saas.data.quality.run"].with_user(self.bot)
+        first = model.ingest_operational_batch(payload)
+        second = model.ingest_operational_batch(payload)
+        self.assertEqual(first["created"], 1)
+        self.assertEqual(second["updated"], 1)
+        record = self.env["saas.data.quality.run"].search(
+            [
+                (
+                    "external_key",
+                    "=",
+                    "develop:metric-quality:2026-07-16T12:00:00Z",
+                )
+            ]
+        )
+        self.assertEqual(len(record), 1)
+        self.assertTrue(record.metric_quality_contract_complete)
+        self.assertEqual(record.eligible_metric_count, 100)
 
     def test_complete_sync_evidence_is_idempotent_and_stale_safe(self):
         payload = {
