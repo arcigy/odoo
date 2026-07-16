@@ -268,6 +268,20 @@ class TestSaasMetricContract(TransactionCase):
         with self.assertRaises(ValidationError):
             self.current_model.with_user(self.bot).ingest_metric_batch(payload)
 
+    def test_ingest_rejects_unknown_or_raw_payload_fields_before_writing(self):
+        payload = self._payload("develop", 99)
+        payload["raw_logs"] = [{"message": "must remain outside Odoo"}]
+        before = self.env["saas.sync.run"].search_count([])
+        with self.assertRaisesRegex(ValidationError, "Unsupported metric payload fields: raw_logs"):
+            self.current_model.with_user(self.bot).ingest_metric_batch(payload)
+        self.assertEqual(self.env["saas.sync.run"].search_count([]), before)
+
+        payload = self._payload("develop", 99)
+        payload["metrics"][0]["raw_request"] = {"authorization": "forbidden"}
+        with self.assertRaisesRegex(ValidationError, "Unsupported metric item fields: raw_request"):
+            self.current_model.with_user(self.bot).ingest_metric_batch(payload)
+        self.assertEqual(self.env["saas.sync.run"].search_count([]), before)
+
     def test_dimension_filters_keep_develop_and_main_paired(self):
         as_bot = self.current_model.with_user(self.bot)
         for environment, value in (("develop", 99.2), ("main", 99.8)):

@@ -14,6 +14,16 @@ STATUS_SELECTION = [
     ("unknown", "Unknown"),
 ]
 SCOPE_KEY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,120}$")
+METRIC_BATCH_FIELDS = {"environment", "source_updated_at", "release_version", "commit_sha", "metrics"}
+METRIC_ITEM_FIELDS = {
+    "code", "value", "numerator", "denominator", "sample_count", "status",
+    "measured_at", "freshness_seconds", "scope_key", "service_code",
+    "tenant_external_id", "plan_code", "region_code", "feature_code",
+    "integration_code", "country_code", "currency_code", "tenant_size_band",
+    "endpoint_group", "job_type", "acquisition_source", "browser",
+    "operating_system", "device", "incident_severity", "drilldown_url",
+    "external_key", "period_start", "period_end", "granularity",
+}
 
 
 def _utc_datetime(value, field_name):
@@ -715,9 +725,22 @@ class SaasMetricCurrent(models.Model):
         self = self.sudo()
         if not isinstance(payload, dict):
             raise ValidationError("payload must be an object.")
+        unknown_payload_fields = set(payload) - METRIC_BATCH_FIELDS
+        if unknown_payload_fields:
+            raise ValidationError(
+                f"Unsupported metric payload fields: {', '.join(sorted(unknown_payload_fields))}."
+            )
         raw_metrics = payload.get("metrics")
         if not isinstance(raw_metrics, list) or not raw_metrics or len(raw_metrics) > 500:
             raise ValidationError("metrics must contain between 1 and 500 items.")
+        for item in raw_metrics:
+            if not isinstance(item, dict):
+                raise ValidationError("Every metric item must be an object.")
+            unknown_metric_fields = set(item) - METRIC_ITEM_FIELDS
+            if unknown_metric_fields:
+                raise ValidationError(
+                    f"Unsupported metric item fields: {', '.join(sorted(unknown_metric_fields))}."
+                )
         environment_code = str(payload.get("environment") or "").strip().lower()
         if environment_code not in {"develop", "main"}:
             raise ValidationError("environment must be develop or main.")
@@ -763,8 +786,6 @@ class SaasMetricCurrent(models.Model):
             return record
 
         for item in raw_metrics:
-            if not isinstance(item, dict):
-                raise ValidationError("Every metric item must be an object.")
             metric_code = str(item.get("code") or "").strip()
             definition = self.env["saas.metric.definition"].search(
                 [("code", "=", metric_code), ("active", "=", True)], limit=1

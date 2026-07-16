@@ -16,22 +16,15 @@ Before deployment, confirm all of the following:
 
 Current read-only evidence from 2026-07-16:
 
-- host root filesystem: 38 GB total, 35 GB used, 1.3 GB free (97% used);
-- Docker images: 28.33 GB, of which Docker reports 27 GB reclaimable;
+- host root filesystem: 38 GB total, 16 GB used and 21 GB free (44% used);
+- Docker images: 24 total, 13 active, 9.248 GB, of which Docker reports 7.916 GB reclaimable;
+- dangling images: 0;
 - Odoo database: 35 MB;
 - PostgreSQL data volume: 105.7 MB;
 - Odoo filestore volume: 2.6 MB;
 - live volumes: `captain--geotherm-odoo-db-data` and `captain--geotherm-odoo-data`.
 
-Image-retention preview found 141 local images, including 88 CapRover application images and 44 dangling images. The largest histories are currently:
-
-- `img-captain-arcigy-kitchen-develop`: 29 images;
-- `img-captain-geotherm-chatbot-preview`: 17 images;
-- `img-captain-geotherm-chatbot`: 13 images;
-- `img-captain-geotherm-odoo`: 7 images;
-- `img-captain-kitchenapp`: 7 images.
-
-Swarm service inspection identified 20 unique current/previous protected image references across 14 services. After excluding those references, 70 tagged CapRover image references plus 44 dangling images remain as retention-review candidates. This is only a preview; shared layers, aliases and rollback needs must be resolved by image ID before deletion.
+The earlier 97%-full condition has been remediated outside this Odoo change. No image cleanup is required for the current deployment. Docker's reclaimable estimate is not an approval to delete images: current and previous working images for every live service remain protected rollback evidence, and shared layers or aliases must be resolved by image ID before any future retention decision.
 
 Do not run `docker system prune -a`. Image deletion requires an explicit reviewed list that preserves the current and previous working image for every live service.
 
@@ -64,7 +57,7 @@ sha256sum "$backup_dir/database.dump" "$backup_dir/filestore.tar.gz" \
 chmod 600 "$backup_dir"/*
 ```
 
-Copy the verified backup off-host before the live deployment. A backup left only on the 97%-full server is not sufficient.
+Copy the verified backup off-host before the live deployment. A backup left only on the application host is not sufficient even while disk headroom is healthy.
 
 ## Controlled deployment order
 
