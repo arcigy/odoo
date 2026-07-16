@@ -1,0 +1,27 @@
+{
+  "environment": "develop",
+  "compiled_at": "2026-07-16T00:10:00Z",
+  "period_start": "2026-07-15T00:00:00Z",
+  "period_end": "2026-07-16T00:00:00Z",
+  "complete": true,
+  "source_updated_at": "2026-07-16T00:05:00Z",
+  "drilldown_url": "https://releases.example.invalid/aggregate",
+  "metrics": [
+    { "code": "deployment_count", "value": 4 },
+    { "code": "deployment_success_rate", "value": 75, "numerator": 3, "denominator": 4 },
+    { "code": "deployment_duration_p95_seconds", "value": 900, "sample_count": 4 },
+    { "code": "deployment_queue_p95_seconds", "value": 45, "sample_count": 4 },
+    { "code": "deployment_change_failure_count", "value": 1 },
+    { "code": "change_failure_rate", "value": 25, "numerator": 1, "denominator": 4 },
+    { "code": "release_rollback_count", "value": 1 },
+    { "code": "release_rollback_rate", "value": 25, "numerator": 1, "denominator": 4 },
+    { "code": "rollback_attempt_count", "value": 1 },
+    { "code": "rollback_success_rate", "value": 100, "numerator": 1, "denominator": 1 },
+    { "code": "hotfix_count", "value": 1 },
+    { "code": "release_incident_count", "value": 1 },
+    { "code": "time_to_restore_service_seconds", "value": 3600, "sample_count": 1 },
+    { "code": "canary_failure_count", "value": 0 },
+    { "code": "artifact_mismatch_count", "value": 0 },
+    { "code": "environment_drift_count", "value": 0 }
+  ]
+}

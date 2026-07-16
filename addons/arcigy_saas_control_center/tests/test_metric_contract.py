@@ -213,7 +213,7 @@ class TestSaasMetricContract(TransactionCase):
 
     def test_every_seeded_metric_has_complete_definition_contract(self):
         definitions = self.env["saas.metric.definition"].search([])
-        self.assertEqual(len(definitions), 219)
+        self.assertEqual(len(definitions), 232)
         for definition in definitions:
             self.assertTrue(definition.code)
             self.assertTrue(definition.name)

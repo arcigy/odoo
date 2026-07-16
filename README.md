@@ -165,7 +165,7 @@ Adapter neprijíma raw zákaznícke záznamy, credentials ani neznáme typy reco
 
 ### Business KPI bridge
 
-`integrations/saas_business_sync.mjs` je striktne allowlistovaný JSON-2 bridge pre 120 existujúcich KPI z produktového funnelu, engagementu, tenant health, revenue/billing, marketing/CRM, supportu, FinOps, privacy a AI-change risk. Prijíma iba agregované scalar hodnoty za uzavretý UTC deň alebo kalendárny mesiac. Každý historický kľúč musí obsahovať správny `develop`/`main` a source prefix; dimenzované hodnoty musia mať samostatný non-global scope.
+`integrations/saas_business_sync.mjs` je striktne allowlistovaný JSON-2 bridge pre 136 existujúcich KPI z produktového funnelu, engagementu, tenant health, revenue/billing, marketing/CRM, supportu, FinOps, privacy, release outcomes a AI-change risk. Prijíma iba agregované scalar hodnoty za uzavretý UTC deň alebo kalendárny mesiac. Každý historický kľúč musí obsahovať správny `develop`/`main` a source prefix; dimenzované hodnoty musia mať samostatný non-global scope.
 
 ```powershell
 node integrations/saas_business_sync.mjs `
@@ -222,6 +222,23 @@ node integrations/saas_business_sync.mjs `
 ```
 
 Denné a mesačné kontrakty sú oddelené. Každý source musí byť explicitne kompletný a obsahovať celý svoj kontrakt. Pomer bez oprávnenej vzorky sa označí `available=false` s `no_eligible_sample`; adaptér ho vynechá namiesto vymyslenej nuly. Odoo nedostane kód, diff, názvy alebo cesty súborov, autorov, prompty, secrets ani produkčné dáta. Príklady sú syntetické a nesmú byť použité ako reálny dôkaz.
+
+### Release outcome a DORA evidence
+
+`integrations/saas_release_outcome_rollup.mjs` spája schválený deployment registry s incidentmi a rollbackmi až po uzavretí UTC dňa. Na rozdiel od workflow heuristiky vyžaduje jeden konzistentný deployment population pre success rate, change-failure rate a rollback rate; rollback success navyše kontroluje voči explicitnému počtu rollback pokusov.
+
+```powershell
+node integrations/saas_release_outcome_rollup.mjs `
+  --input=integrations/saas_release_outcome.example.json `
+  > integrations/saas_release_outcome.local.json
+
+node integrations/saas_business_sync.mjs `
+  --config=integrations/saas_business_sync.example.json `
+  --evidence=integrations/saas_release_outcome.local.json `
+  --dry-run
+```
+
+Kontrakt pokrýva 16 metrík: deployment count/success/duration/queue, confirmed change failures, incidenty, rollback count/rate/attempts/success, hotfixy, restore time, canary failures, artifact mismatch a environment drift. Raw workflow logy, commit SHA, mená aktérov a deployment IDs neprijíma. Príklad je syntetický a nie je produkčný dôkaz.
 
 ## CapRover nasadenie
 

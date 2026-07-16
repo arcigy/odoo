@@ -70,6 +70,12 @@ const BUSINESS_METRIC_CODES = new Set([
   "ai_change_low_risk_count", "ai_change_medium_risk_count",
   "ai_change_high_risk_count", "ai_change_critical_review_required_count",
   "ai_assisted_release_incident_rate", "ai_change_human_review_coverage",
+  "deployment_count", "deployment_success_rate", "deployment_duration_p95_seconds",
+  "deployment_queue_p95_seconds", "deployment_change_failure_count",
+  "release_rollback_count", "rollback_attempt_count", "rollback_success_rate", "hotfix_count",
+  "release_incident_count", "canary_failure_count", "artifact_mismatch_count",
+  "environment_drift_count", "change_failure_rate", "release_rollback_rate",
+  "time_to_restore_service_seconds",
   "ai_request_count", "ai_input_token_count",
   "ai_output_token_count", "ai_cost",
 ]);
