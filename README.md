@@ -117,6 +117,15 @@ deduplikácia, schema failures, chýbajúce polia, late events a unknown tenant
 mapping musia byť navzájom konzistentné; duplicate a late rate sa pri nulovom
 počte prijatých eventov vynechajú namiesto falošnej nuly.
 
+Úplné event okno navyše povinne deklaruje maximálny absolútny clock skew,
+processing-lag p95 a dead-letter count. Samostatný
+`metric_quality_contract_complete=true` kontrakt pokrýva freshness,
+completeness, uniqueness, validity, consistency, reconciliation, outliers,
+unexpected zero/volume spike, numerator-over-denominator, neplatné záporné
+hodnoty a missing dimensions. Každý výsledný počet je ohraničený explicitnou
+eligible populáciou. Pri `eligible_metric_count=0` sa percentá vynechajú;
+pravdivé nulové violation counts zostanú dostupné.
+
 Úplný externý Odoo sync pokus používa rovnaký no-write-first adapter s modelom
 `saas.sync.run`, ale zapisuje cez samostatnú idempotentnú metódu. Vyžaduje
 uzavreté timestamps, úplné a navzájom konzistentné read/create/update/skip/reject
