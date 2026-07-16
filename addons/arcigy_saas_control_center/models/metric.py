@@ -425,6 +425,70 @@ class SaasMetricCurrent(models.Model):
                 "model": "saas.sync.run",
                 "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
             },
+            "odoo_sync_attempt_age_seconds": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_duration_seconds": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_records_read_count": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_records_created_count": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_records_updated_count": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_records_skipped_count": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_records_rejected_count": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_duplicate_upsert_count": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_api_error_count": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_authentication_error_count": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_permission_error_count": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_rate_limit_error_count": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_retry_count": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_backlog_count": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_oldest_unsynced_age_seconds": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
+            "odoo_sync_error_rate": {
+                "model": "saas.sync.run",
+                "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
+            },
             "events_sent_count": {
                 "model": "saas.data.quality.run",
                 "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
@@ -573,6 +637,71 @@ class SaasMetricCurrent(models.Model):
             )
             if sync_run:
                 values["odoo_sync_freshness_seconds"] = age_seconds(sync_run)
+
+            sync_attempt = self.env["saas.sync.run"].search(
+                [
+                    ("environment_id", "=", environment.id),
+                    ("sync_contract_complete", "=", True),
+                    ("finished_at", "!=", False),
+                ],
+                order="finished_at desc, id desc",
+                limit=1,
+            )
+            if sync_attempt:
+                values["odoo_sync_attempt_age_seconds"] = max(
+                    (now - sync_attempt.started_at).total_seconds(), 0
+                )
+                details["odoo_sync_attempt_age_seconds"] = {"sample_count": 1}
+                values["odoo_sync_duration_seconds"] = (
+                    sync_attempt.finished_at - sync_attempt.started_at
+                ).total_seconds()
+                details["odoo_sync_duration_seconds"] = {
+                    "sample_count": 1,
+                    "source_record": sync_attempt,
+                }
+                sync_counts = {
+                    "odoo_sync_records_read_count": sync_attempt.records_read,
+                    "odoo_sync_records_created_count": sync_attempt.records_created,
+                    "odoo_sync_records_updated_count": sync_attempt.records_updated,
+                    "odoo_sync_records_skipped_count": sync_attempt.records_skipped,
+                    "odoo_sync_records_rejected_count": sync_attempt.records_rejected,
+                    "odoo_sync_duplicate_upsert_count": sync_attempt.duplicate_upsert_count,
+                    "odoo_sync_api_error_count": sync_attempt.api_error_count,
+                    "odoo_sync_authentication_error_count": (
+                        sync_attempt.authentication_error_count
+                    ),
+                    "odoo_sync_permission_error_count": sync_attempt.permission_error_count,
+                    "odoo_sync_rate_limit_error_count": sync_attempt.rate_limit_error_count,
+                    "odoo_sync_retry_count": sync_attempt.retry_count,
+                    "odoo_sync_backlog_count": sync_attempt.backlog_count,
+                }
+                attempted_records = sync_attempt.records_read + sync_attempt.api_error_count
+                for code, value in sync_counts.items():
+                    values[code] = value
+                    details[code] = {
+                        "sample_count": attempted_records,
+                        "source_record": sync_attempt,
+                    }
+                if attempted_records > 0:
+                    failed_records = (
+                        sync_attempt.records_rejected + sync_attempt.api_error_count
+                    )
+                    values["odoo_sync_error_rate"] = (
+                        failed_records / attempted_records * 100
+                    )
+                    details["odoo_sync_error_rate"] = {
+                        "numerator": failed_records,
+                        "denominator": attempted_records,
+                        "sample_count": attempted_records,
+                        "source_record": sync_attempt,
+                    }
+                if sync_attempt.backlog_count > 0:
+                    values["odoo_sync_oldest_unsynced_age_seconds"] = max(
+                        (now - sync_attempt.oldest_unsynced_at).total_seconds(), 0
+                    )
+                    details["odoo_sync_oldest_unsynced_age_seconds"] = {
+                        "sample_count": sync_attempt.backlog_count
+                    }
 
             data_quality = self.env["saas.data.quality.run"].search(
                 [

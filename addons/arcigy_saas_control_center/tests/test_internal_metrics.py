@@ -29,7 +29,7 @@ class TestInternalOperationalMetrics(TransactionCase):
     def test_refresh_emits_true_zero_incident_counts_but_omits_missing_ages(self):
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 2)
-        self.assertEqual(len(result["omitted"]), 38)
+        self.assertEqual(len(result["omitted"]), 70)
 
         metric = self.env.ref(
             "arcigy_saas_control_center.metric_open_critical_incidents"
@@ -154,7 +154,7 @@ class TestInternalOperationalMetrics(TransactionCase):
 
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 11)
-        self.assertEqual(len(result["omitted"]), 29)
+        self.assertEqual(len(result["omitted"]), 61)
         by_code = {
             record.metric_id.code: record
             for record in self.current.search(
@@ -300,7 +300,7 @@ class TestInternalOperationalMetrics(TransactionCase):
 
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 20)
-        self.assertEqual(len(result["omitted"]), 20)
+        self.assertEqual(len(result["omitted"]), 52)
         develop_values = {
             record.metric_id.code: record
             for record in self.current.search(
@@ -361,10 +361,127 @@ class TestInternalOperationalMetrics(TransactionCase):
                     "events_processed": 9,
                     "events_rejected": 1,
                     "retry_adjustment_count": 1,
+                    "duplicate_count": 0,
+                    "schema_failure_count": 0,
+                    "missing_field_count": 0,
+                    "late_event_count": 0,
+                    "unknown_tenant_count": 0,
                     "external_key": "develop:test:inconsistent-event-stream",
                     "source_updated_at": now - timedelta(minutes=1),
                 }
             )
+
+    def test_refresh_derives_complete_sync_attempt_and_backlog(self):
+        now = fields.Datetime.now()
+        self.env["saas.sync.run"].create(
+            {
+                "name": "Complete partial Develop sync",
+                "environment_id": self.develop.id,
+                "started_at": now - timedelta(minutes=5),
+                "finished_at": now - timedelta(minutes=1),
+                "status": "partial",
+                "sync_contract_complete": True,
+                "records_read": 100,
+                "records_created": 30,
+                "records_updated": 40,
+                "records_skipped": 20,
+                "records_rejected": 10,
+                "duplicate_upsert_count": 2,
+                "api_error_count": 2,
+                "authentication_error_count": 1,
+                "permission_error_count": 0,
+                "rate_limit_error_count": 1,
+                "retry_count": 3,
+                "backlog_count": 5,
+                "oldest_unsynced_at": now - timedelta(minutes=30),
+                "error_code": "PARTIAL_SOURCE_REJECTS",
+                "external_key": "develop:test:complete-sync-attempt",
+                "source_updated_at": now - timedelta(minutes=1),
+            }
+        )
+
+        result = self.current._cron_refresh_internal_operational_metrics()
+        self.assertEqual(result["refreshed"], 18)
+        self.assertEqual(len(result["omitted"]), 54)
+        sync_codes = {
+            "odoo_sync_attempt_age_seconds",
+            "odoo_sync_duration_seconds",
+            "odoo_sync_records_read_count",
+            "odoo_sync_records_created_count",
+            "odoo_sync_records_updated_count",
+            "odoo_sync_records_skipped_count",
+            "odoo_sync_records_rejected_count",
+            "odoo_sync_duplicate_upsert_count",
+            "odoo_sync_api_error_count",
+            "odoo_sync_authentication_error_count",
+            "odoo_sync_permission_error_count",
+            "odoo_sync_rate_limit_error_count",
+            "odoo_sync_retry_count",
+            "odoo_sync_backlog_count",
+            "odoo_sync_oldest_unsynced_age_seconds",
+            "odoo_sync_error_rate",
+        }
+        sync_values = {
+            record.metric_id.code: record
+            for record in self.current.search(
+                [
+                    ("environment_id", "=", self.develop.id),
+                    ("metric_id.code", "in", list(sync_codes)),
+                ]
+            )
+        }
+        self.assertEqual(set(sync_values), sync_codes)
+        self.assertGreaterEqual(
+            sync_values["odoo_sync_attempt_age_seconds"].current_value,
+            300,
+        )
+        self.assertEqual(sync_values["odoo_sync_duration_seconds"].current_value, 240)
+        self.assertEqual(sync_values["odoo_sync_records_read_count"].current_value, 100)
+        self.assertEqual(sync_values["odoo_sync_records_created_count"].current_value, 30)
+        self.assertEqual(sync_values["odoo_sync_records_updated_count"].current_value, 40)
+        self.assertEqual(sync_values["odoo_sync_records_skipped_count"].current_value, 20)
+        self.assertEqual(sync_values["odoo_sync_records_rejected_count"].current_value, 10)
+        self.assertEqual(sync_values["odoo_sync_duplicate_upsert_count"].current_value, 2)
+        self.assertEqual(sync_values["odoo_sync_api_error_count"].current_value, 2)
+        self.assertEqual(
+            sync_values["odoo_sync_authentication_error_count"].current_value,
+            1,
+        )
+        self.assertEqual(sync_values["odoo_sync_rate_limit_error_count"].current_value, 1)
+        self.assertEqual(sync_values["odoo_sync_retry_count"].current_value, 3)
+        self.assertEqual(sync_values["odoo_sync_backlog_count"].current_value, 5)
+        self.assertGreaterEqual(
+            sync_values["odoo_sync_oldest_unsynced_age_seconds"].current_value,
+            1800,
+        )
+        self.assertAlmostEqual(
+            sync_values["odoo_sync_error_rate"].current_value,
+            12 / 102 * 100,
+        )
+        self.assertEqual(sync_values["odoo_sync_error_rate"].numerator, 12)
+        self.assertEqual(sync_values["odoo_sync_error_rate"].denominator, 102)
+        sync_history = self.env["saas.metric.timeseries"].search(
+            [
+                ("environment_id", "=", self.develop.id),
+                ("metric_id.code", "in", list(sync_codes)),
+            ]
+        )
+        self.assertEqual(len(sync_history), 16)
+        self.assertEqual(
+            len(sync_history.filtered(lambda row: row.granularity == "event")),
+            14,
+        )
+        history_count = len(sync_history)
+        self.current._cron_refresh_internal_operational_metrics()
+        self.assertEqual(
+            self.env["saas.metric.timeseries"].search_count(
+                [
+                    ("environment_id", "=", self.develop.id),
+                    ("metric_id.code", "in", list(sync_codes)),
+                ]
+            ),
+            history_count,
+        )
 
     def test_invalid_restore_and_capacity_claims_fail_closed(self):
         now = fields.Datetime.now()

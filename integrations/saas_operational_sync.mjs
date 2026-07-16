@@ -91,6 +91,31 @@ const OPERATIONAL_MODELS = Object.freeze({
       drilldown_url: urlField(),
     },
   },
+  "saas.sync.run": {
+    method: "ingest_sync_run_batch",
+    fields: {
+      name: stringField(true),
+      started_at: dateField(true),
+      finished_at: dateField(),
+      status: selectionField(["running", "success", "partial", "failed"], true),
+      sync_contract_complete: booleanField(),
+      records_read: numberField(true),
+      records_created: numberField(true),
+      records_updated: numberField(true),
+      records_skipped: numberField(true),
+      records_rejected: numberField(true),
+      duplicate_upsert_count: numberField(true),
+      api_error_count: numberField(true),
+      authentication_error_count: numberField(true),
+      permission_error_count: numberField(true),
+      rate_limit_error_count: numberField(true),
+      retry_count: numberField(true),
+      backlog_count: numberField(true),
+      oldest_unsynced_at: dateField(),
+      error_code: stringField(false, 64),
+      drilldown_url: urlField(),
+    },
+  },
 });
 
 function plainObject(value, name) {
@@ -311,6 +336,76 @@ export function validateOperationalEvidence(raw, now = Date.now()) {
         );
       }
     }
+    if (model === "saas.sync.run") {
+      if (normalized.sync_contract_complete !== true) {
+        throw new Error(`evidence.items[${index}] external sync evidence requires sync_contract_complete=true.`);
+      }
+      if (!normalized.finished_at || normalized.status === "running") {
+        throw new Error(`evidence.items[${index}] complete sync evidence requires a completed attempt.`);
+      }
+      const completeCountFields = [
+        "records_read",
+        "records_created",
+        "records_updated",
+        "records_skipped",
+        "records_rejected",
+        "duplicate_upsert_count",
+        "api_error_count",
+        "authentication_error_count",
+        "permission_error_count",
+        "rate_limit_error_count",
+        "retry_count",
+        "backlog_count",
+      ];
+      for (const fieldName of completeCountFields) {
+        if (normalized[fieldName] === undefined) {
+          throw new Error(`evidence.items[${index}] complete sync evidence requires ${fieldName}.`);
+        }
+      }
+      const categorized = normalized.records_created
+        + normalized.records_updated
+        + normalized.records_skipped
+        + normalized.records_rejected;
+      if (categorized !== normalized.records_read) {
+        throw new Error(`evidence.items[${index}] categorized records must equal records_read.`);
+      }
+      if (normalized.duplicate_upsert_count > normalized.records_read) {
+        throw new Error(`evidence.items[${index}].duplicate_upsert_count cannot exceed records_read.`);
+      }
+      const classifiedApiErrors = normalized.authentication_error_count
+        + normalized.permission_error_count
+        + normalized.rate_limit_error_count;
+      if (classifiedApiErrors > normalized.api_error_count) {
+        throw new Error(`evidence.items[${index}] classified API errors cannot exceed api_error_count.`);
+      }
+      if (normalized.backlog_count > 0 && !normalized.oldest_unsynced_at) {
+        throw new Error(`evidence.items[${index}] positive backlog requires oldest_unsynced_at.`);
+      }
+      if (normalized.backlog_count === 0 && normalized.oldest_unsynced_at) {
+        throw new Error(`evidence.items[${index}] empty backlog cannot have oldest_unsynced_at.`);
+      }
+      if (
+        normalized.oldest_unsynced_at
+        && Date.parse(normalized.oldest_unsynced_at) > Date.parse(normalized.finished_at)
+      ) {
+        throw new Error(`evidence.items[${index}].oldest_unsynced_at cannot be newer than finished_at.`);
+      }
+      if (
+        normalized.status === "success"
+        && (
+          normalized.records_rejected
+          || normalized.api_error_count
+          || normalized.authentication_error_count
+          || normalized.permission_error_count
+          || normalized.rate_limit_error_count
+        )
+      ) {
+        throw new Error(`evidence.items[${index}] successful sync evidence cannot contain errors.`);
+      }
+      if (normalized.error_code && !/^[A-Z0-9_.:-]{1,64}$/.test(normalized.error_code)) {
+        throw new Error(`evidence.items[${index}].error_code must be a bounded symbolic code.`);
+      }
+    }
     return normalized;
   });
   return { model, environment, source_updated_at: sourceUpdatedAt, items };
@@ -346,7 +441,8 @@ export async function runOperationalSync(
     "User-Agent": "Arcigy-SaaS-Operational-Sync/1.0",
   };
   if (config.odoo.database) headers["X-Odoo-Database"] = config.odoo.database;
-  const url = `${config.odoo.url}/json/2/${evidence.model}/ingest_operational_batch`;
+  const method = OPERATIONAL_MODELS[evidence.model].method || "ingest_operational_batch";
+  const url = `${config.odoo.url}/json/2/${evidence.model}/${method}`;
   const odoo = await requestJson(url, {
     method: "POST",
     headers,

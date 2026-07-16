@@ -117,6 +117,14 @@ deduplikácia, schema failures, chýbajúce polia, late events a unknown tenant
 mapping musia byť navzájom konzistentné; duplicate a late rate sa pri nulovom
 počte prijatých eventov vynechajú namiesto falošnej nuly.
 
+Úplný externý Odoo sync pokus používa rovnaký no-write-first adapter s modelom
+`saas.sync.run`, ale zapisuje cez samostatnú idempotentnú metódu. Vyžaduje
+uzavreté timestamps, úplné a navzájom konzistentné read/create/update/skip/reject
+počty, rozpad API chýb, retry, backlog a `oldest_unsynced_at`. `error_code` môže
+byť iba krátky symbolický kód, nie raw provider odpoveď. Existujúce interné Odoo
+ingest behy zostávajú kompatibilné, ale bez `sync_contract_complete=true` sa z
+nich nesmú odvodiť kompletné sync/backlog KPI.
+
 Najprv vždy spustite no-write validáciu:
 
 ```powershell

@@ -38,6 +38,39 @@ function backupEvidence(environment = "develop") {
   };
 }
 
+function syncEvidence(environment = "develop") {
+  return {
+    model: "saas.sync.run",
+    environment,
+    source_updated_at: "2026-07-16T12:05:00Z",
+    items: [
+      {
+        external_key: `${environment}:sync:2026-07-16T12:00:00Z`,
+        name: "Complete Odoo sync attempt",
+        started_at: "2026-07-16T12:00:00Z",
+        finished_at: "2026-07-16T12:04:00Z",
+        status: "partial",
+        sync_contract_complete: true,
+        records_read: 100,
+        records_created: 30,
+        records_updated: 40,
+        records_skipped: 20,
+        records_rejected: 10,
+        duplicate_upsert_count: 2,
+        api_error_count: 2,
+        authentication_error_count: 1,
+        permission_error_count: 0,
+        rate_limit_error_count: 1,
+        retry_count: 3,
+        backlog_count: 5,
+        oldest_unsynced_at: "2026-07-16T11:30:00Z",
+        error_code: "PARTIAL_SOURCE_REJECTS",
+        drilldown_url: "https://evidence.example.test/sync/123",
+      },
+    ],
+  };
+}
+
 test("accepts only environment-prefixed, scalar operational evidence", () => {
   const result = validateOperationalEvidence(backupEvidence("develop"), Date.parse("2026-07-16T12:05:00Z"));
   assert.equal(result.model, "saas.backup.run");
@@ -106,6 +139,56 @@ test("live mode posts one bounded JSON-2 batch with secret-store authentication"
   assert.deepEqual(Object.keys(body), ["payload"]);
   assert.equal(body.payload.environment, "develop");
   assert.equal(body.payload.items.length, 1);
+});
+
+test("routes only complete and consistent sync evidence to the dedicated method", async () => {
+  const normalized = validateOperationalEvidence(
+    syncEvidence(),
+    Date.parse("2026-07-16T12:05:00Z"),
+  );
+  assert.equal(normalized.items[0].sync_contract_complete, true);
+  assert.equal(normalized.items[0].backlog_count, 5);
+
+  let capturedUrl;
+  await runOperationalSync(config, syncEvidence(), {
+    env: { ARCIGY_ODOO_API_KEY: "test-only-key" },
+    requestJson: async (url) => {
+      capturedUrl = url;
+      return { ok: true, created: 1, updated: 0 };
+    },
+  });
+  assert.equal(
+    capturedUrl,
+    "https://odoo.example.test/json/2/saas.sync.run/ingest_sync_run_batch",
+  );
+
+  const incomplete = syncEvidence();
+  delete incomplete.items[0].backlog_count;
+  assert.throws(
+    () => validateOperationalEvidence(incomplete),
+    /complete sync evidence requires backlog_count/,
+  );
+
+  const falseSuccess = syncEvidence();
+  falseSuccess.items[0].status = "success";
+  assert.throws(
+    () => validateOperationalEvidence(falseSuccess),
+    /successful sync evidence cannot contain errors/,
+  );
+
+  const missingOldest = syncEvidence();
+  delete missingOldest.items[0].oldest_unsynced_at;
+  assert.throws(
+    () => validateOperationalEvidence(missingOldest),
+    /positive backlog requires oldest_unsynced_at/,
+  );
+
+  const unsafeError = syncEvidence();
+  unsafeError.items[0].error_code = "raw provider error with details";
+  assert.throws(
+    () => validateOperationalEvidence(unsafeError),
+    /error_code must be a bounded symbolic code/,
+  );
 });
 
 test("rejects unsupported models and chronologically invalid evidence", () => {

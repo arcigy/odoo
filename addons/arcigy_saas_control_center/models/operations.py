@@ -1,6 +1,6 @@
 import math
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from odoo import api, fields, models
@@ -31,6 +31,14 @@ OPERATIONAL_ALLOWED_FIELDS = {
         "requests_per_second", "p95_seconds", "p99_seconds", "error_rate",
         "recovery_seconds", "representative", "architecture_version", "evidence_url",
     },
+}
+
+SYNC_RUN_ALLOWED_FIELDS = {
+    "name", "started_at", "finished_at", "status", "sync_contract_complete",
+    "records_read", "records_created", "records_updated", "records_skipped",
+    "records_rejected", "duplicate_upsert_count", "api_error_count",
+    "authentication_error_count", "permission_error_count", "rate_limit_error_count",
+    "retry_count", "backlog_count", "oldest_unsynced_at", "error_code", "drilldown_url",
 }
 
 
@@ -678,7 +686,277 @@ class SaasSyncRun(models.Model):
     records_updated = fields.Integer()
     records_skipped = fields.Integer()
     records_rejected = fields.Integer()
+    duplicate_upsert_count = fields.Integer()
+    api_error_count = fields.Integer()
+    authentication_error_count = fields.Integer()
+    permission_error_count = fields.Integer()
+    rate_limit_error_count = fields.Integer()
     retry_count = fields.Integer()
+    backlog_count = fields.Integer()
     oldest_unsynced_at = fields.Datetime()
     error_code = fields.Char()
     drilldown_url = fields.Char()
+    sync_contract_complete = fields.Boolean(
+        help="True only when the full sync attempt and backlog contract is measured."
+    )
+    external_key = fields.Char(index=True)
+    source_updated_at = fields.Datetime(
+        required=True, default=fields.Datetime.now, index=True
+    )
+
+    _external_key_unique = models.Constraint(
+        "UNIQUE(external_key)", "Sync evidence external key must be unique."
+    )
+
+    _complete_sync_count_fields = {
+        "records_read",
+        "records_created",
+        "records_updated",
+        "records_skipped",
+        "records_rejected",
+        "duplicate_upsert_count",
+        "api_error_count",
+        "authentication_error_count",
+        "permission_error_count",
+        "rate_limit_error_count",
+        "retry_count",
+        "backlog_count",
+    }
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for values in vals_list:
+            if values.get("sync_contract_complete") is True:
+                missing = self._complete_sync_count_fields - set(values)
+                if missing:
+                    raise ValidationError(
+                        "Complete sync evidence requires every sync count: "
+                        f"{', '.join(sorted(missing))}."
+                    )
+                if not values.get("external_key"):
+                    raise ValidationError("Complete sync evidence requires external_key.")
+        return super().create(vals_list)
+
+    def write(self, values):
+        if values.get("sync_contract_complete") is True:
+            for record in self.filtered(lambda item: not item.sync_contract_complete):
+                missing = self._complete_sync_count_fields - set(values)
+                if missing:
+                    raise ValidationError(
+                        "Completing sync evidence requires every sync count: "
+                        f"{', '.join(sorted(missing))}."
+                    )
+                if not (values.get("external_key") or record.external_key):
+                    raise ValidationError("Complete sync evidence requires external_key.")
+        return super().write(values)
+
+    @api.constrains(
+        "environment_id",
+        "external_key",
+        "started_at",
+        "finished_at",
+        "status",
+        "sync_contract_complete",
+        "records_read",
+        "records_created",
+        "records_updated",
+        "records_skipped",
+        "records_rejected",
+        "duplicate_upsert_count",
+        "api_error_count",
+        "authentication_error_count",
+        "permission_error_count",
+        "rate_limit_error_count",
+        "retry_count",
+        "backlog_count",
+        "oldest_unsynced_at",
+        "error_code",
+    )
+    def _check_sync_evidence_contract(self):
+        for record in self:
+            counts = [record[field_name] for field_name in self._complete_sync_count_fields]
+            if any(value < 0 for value in counts):
+                raise ValidationError("Sync evidence counts cannot be negative.")
+            if record.external_key and (
+                len(record.external_key) > 255
+                or not record.external_key.startswith(f"{record.environment_id.code}:")
+                or not re.fullmatch(r"[A-Za-z0-9._:-]+", record.external_key)
+            ):
+                raise ValidationError(
+                    "Sync evidence external_key must be safe and environment-prefixed."
+                )
+            if record.error_code and not re.fullmatch(
+                r"[A-Z0-9_.:-]{1,64}", record.error_code
+            ):
+                raise ValidationError("Sync error_code must be a bounded symbolic code.")
+            if not record.sync_contract_complete:
+                continue
+            if (
+                not record.finished_at
+                or record.finished_at <= record.started_at
+                or record.status == "running"
+            ):
+                raise ValidationError(
+                    "Complete sync evidence requires a completed attempt with valid timestamps."
+                )
+            categorized = (
+                record.records_created
+                + record.records_updated
+                + record.records_skipped
+                + record.records_rejected
+            )
+            if categorized != record.records_read:
+                raise ValidationError(
+                    "Created, updated, skipped and rejected records must equal records read."
+                )
+            if record.duplicate_upsert_count > record.records_read:
+                raise ValidationError("Duplicate upserts cannot exceed records read.")
+            classified_api_errors = (
+                record.authentication_error_count
+                + record.permission_error_count
+                + record.rate_limit_error_count
+            )
+            if classified_api_errors > record.api_error_count:
+                raise ValidationError(
+                    "Classified API errors cannot exceed total API errors."
+                )
+            if record.backlog_count > 0 and not record.oldest_unsynced_at:
+                raise ValidationError("A positive sync backlog requires oldest_unsynced_at.")
+            if record.backlog_count == 0 and record.oldest_unsynced_at:
+                raise ValidationError("An empty sync backlog cannot have oldest_unsynced_at.")
+            if record.oldest_unsynced_at and record.oldest_unsynced_at > record.finished_at:
+                raise ValidationError("oldest_unsynced_at cannot be newer than the sync finish.")
+            if record.status == "success" and (
+                record.records_rejected
+                or record.api_error_count
+                or record.authentication_error_count
+                or record.permission_error_count
+                or record.rate_limit_error_count
+            ):
+                raise ValidationError("A successful complete sync cannot contain errors.")
+
+    @api.constrains("drilldown_url")
+    def _check_sync_drilldown_url(self):
+        _validate_http_urls(self, ("drilldown_url",))
+
+    @api.model
+    def ingest_sync_run_batch(self, payload):
+        if not (
+            self.env.user.has_group("arcigy_saas_control_center.group_saas_integration_bot")
+            or self.env.user.has_group("arcigy_saas_control_center.group_saas_administrator")
+        ):
+            raise AccessError("Only the SaaS integration bot can ingest sync evidence.")
+        if not isinstance(payload, dict):
+            raise ValidationError("payload must be an object.")
+        unknown_payload_fields = set(payload) - {"environment", "source_updated_at", "items"}
+        if unknown_payload_fields:
+            raise ValidationError(
+                "Unsupported sync payload fields: "
+                f"{', '.join(sorted(unknown_payload_fields))}."
+            )
+        raw_items = payload.get("items")
+        if not isinstance(raw_items, list) or not raw_items or len(raw_items) > 200:
+            raise ValidationError("items must contain between 1 and 200 sync records.")
+        environment_code = str(payload.get("environment") or "").strip().lower()
+        if environment_code not in {"develop", "main"}:
+            raise ValidationError("environment must be develop or main.")
+        model = self.sudo()
+        environment = model.env["saas.environment"].search(
+            [("code", "=", environment_code)], limit=1
+        )
+        if not environment:
+            raise ValidationError("Configured SaaS environment was not found.")
+        source_updated_at = _operation_datetime(
+            payload.get("source_updated_at"), "source_updated_at", required=True
+        )
+        if source_updated_at > fields.Datetime.now() + timedelta(minutes=5):
+            raise ValidationError("source_updated_at is too far in the future.")
+        created = updated = stale_skipped = 0
+        for raw_item in raw_items:
+            if not isinstance(raw_item, dict):
+                raise ValidationError("Every sync item must be an object.")
+            unknown = set(raw_item) - SYNC_RUN_ALLOWED_FIELDS - {"external_key"}
+            if unknown:
+                raise ValidationError(
+                    f"Unsupported sync fields: {', '.join(sorted(unknown))}."
+                )
+            if raw_item.get("sync_contract_complete") is not True:
+                raise ValidationError("External sync evidence must declare a complete contract.")
+            required_fields = self._complete_sync_count_fields | {
+                "name",
+                "started_at",
+                "finished_at",
+                "status",
+                "sync_contract_complete",
+            }
+            missing = required_fields - set(raw_item)
+            if missing:
+                raise ValidationError(
+                    "Complete external sync evidence requires every contract field: "
+                    f"{', '.join(sorted(missing))}."
+                )
+            external_key = _operation_text(
+                raw_item.get("external_key"), "external_key", 255
+            )
+            if (
+                not external_key
+                or not external_key.startswith(f"{environment_code}:")
+                or not re.fullmatch(r"[A-Za-z0-9._:-]+", external_key)
+            ):
+                raise ValidationError(
+                    "external_key must be safe and environment-prefixed."
+                )
+            values = {
+                "environment_id": environment.id,
+                "external_key": external_key,
+                "source_updated_at": source_updated_at,
+            }
+            for field_name in SYNC_RUN_ALLOWED_FIELDS:
+                if field_name not in raw_item:
+                    continue
+                field = model._fields[field_name]
+                value = raw_item[field_name]
+                if field.type == "datetime":
+                    values[field_name] = _operation_datetime(
+                        value, field_name, required=field.required
+                    )
+                elif field.type == "integer":
+                    if isinstance(value, bool) or not isinstance(value, (int, float)):
+                        raise ValidationError(f"{field_name} must be numeric.")
+                    numeric = float(value)
+                    if not math.isfinite(numeric) or not numeric.is_integer():
+                        raise ValidationError(f"{field_name} must be a finite integer.")
+                    values[field_name] = int(numeric)
+                elif field.type == "boolean":
+                    if not isinstance(value, bool):
+                        raise ValidationError(f"{field_name} must be boolean.")
+                    values[field_name] = value
+                elif field.type in {"char", "selection"}:
+                    values[field_name] = _operation_text(value, field_name)
+                else:
+                    raise ValidationError(f"{field_name} cannot be ingested directly.")
+            for field_name in ("started_at", "finished_at", "oldest_unsynced_at"):
+                if values.get(field_name) and values[field_name] > source_updated_at + timedelta(
+                    minutes=5
+                ):
+                    raise ValidationError(f"{field_name} is too far in the future.")
+            existing = model.search([("external_key", "=", external_key)], limit=1)
+            if existing:
+                if existing.environment_id != environment:
+                    raise ValidationError("external_key belongs to another environment.")
+                if existing.source_updated_at > source_updated_at:
+                    stale_skipped += 1
+                    continue
+                existing.write(values)
+                updated += 1
+            else:
+                model.create(values)
+                created += 1
+        return {
+            "ok": True,
+            "environment": environment_code,
+            "created": created,
+            "updated": updated,
+            "stale_skipped": stale_skipped,
+            "processed": len(raw_items),
+        }

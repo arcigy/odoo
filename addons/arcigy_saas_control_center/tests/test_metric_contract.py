@@ -213,7 +213,7 @@ class TestSaasMetricContract(TransactionCase):
 
     def test_every_seeded_metric_has_complete_definition_contract(self):
         definitions = self.env["saas.metric.definition"].search([])
-        self.assertEqual(len(definitions), 240)
+        self.assertEqual(len(definitions), 255)
         for definition in definitions:
             self.assertTrue(definition.code)
             self.assertTrue(definition.name)
@@ -260,6 +260,14 @@ class TestSaasMetricContract(TransactionCase):
             "events_rejected_count", "event_loss_estimate", "event_duplicate_rate",
             "schema_validation_failure_count", "missing_required_field_count",
             "late_event_rate", "unknown_tenant_mapping_count",
+            "odoo_sync_attempt_age_seconds", "odoo_sync_duration_seconds",
+            "odoo_sync_records_read_count", "odoo_sync_records_created_count",
+            "odoo_sync_records_updated_count", "odoo_sync_records_skipped_count",
+            "odoo_sync_records_rejected_count", "odoo_sync_duplicate_upsert_count",
+            "odoo_sync_api_error_count", "odoo_sync_authentication_error_count",
+            "odoo_sync_permission_error_count", "odoo_sync_rate_limit_error_count",
+            "odoo_sync_retry_count", "odoo_sync_backlog_count",
+            "odoo_sync_oldest_unsynced_age_seconds",
         }
         actual_metrics = set(
             self.env["saas.metric.definition"].search([]).mapped("code")
@@ -539,6 +547,62 @@ class TestSaasMetricContract(TransactionCase):
             self.env["saas.data.quality.run"].with_user(
                 self.bot
             ).ingest_operational_batch(payload)
+
+    def test_complete_sync_evidence_is_idempotent_and_stale_safe(self):
+        payload = {
+            "environment": "develop",
+            "source_updated_at": "2026-07-16T12:05:00Z",
+            "items": [
+                {
+                    "external_key": "develop:sync:2026-07-16T12:00:00Z",
+                    "name": "Complete Odoo sync attempt",
+                    "started_at": "2026-07-16T12:00:00Z",
+                    "finished_at": "2026-07-16T12:04:00Z",
+                    "status": "partial",
+                    "sync_contract_complete": True,
+                    "records_read": 100,
+                    "records_created": 30,
+                    "records_updated": 40,
+                    "records_skipped": 20,
+                    "records_rejected": 10,
+                    "duplicate_upsert_count": 2,
+                    "api_error_count": 2,
+                    "authentication_error_count": 1,
+                    "permission_error_count": 0,
+                    "rate_limit_error_count": 1,
+                    "retry_count": 3,
+                    "backlog_count": 5,
+                    "oldest_unsynced_at": "2026-07-16T11:30:00Z",
+                    "error_code": "PARTIAL_SOURCE_REJECTS",
+                    "drilldown_url": "https://evidence.example.test/sync/123",
+                }
+            ],
+        }
+        sync_model = self.env["saas.sync.run"].with_user(self.bot)
+        first = sync_model.ingest_sync_run_batch(payload)
+        second = sync_model.ingest_sync_run_batch(payload)
+        self.assertEqual(first["created"], 1)
+        self.assertEqual(second["updated"], 1)
+
+        stale = dict(payload)
+        stale["source_updated_at"] = "2026-07-16T12:04:00Z"
+        stale_result = sync_model.ingest_sync_run_batch(stale)
+        self.assertEqual(stale_result["stale_skipped"], 1)
+        record = self.env["saas.sync.run"].search(
+            [("external_key", "=", "develop:sync:2026-07-16T12:00:00Z")]
+        )
+        self.assertEqual(len(record), 1)
+        self.assertTrue(record.sync_contract_complete)
+        self.assertEqual(record.backlog_count, 5)
+
+        invalid_success = dict(payload)
+        invalid_success["source_updated_at"] = "2026-07-16T12:06:00Z"
+        invalid_success["items"] = [dict(payload["items"][0], status="success")]
+        with self.assertRaisesRegex(
+            ValidationError,
+            "successful complete sync cannot contain errors",
+        ):
+            sync_model.ingest_sync_run_batch(invalid_success)
 
     def test_delayed_delivery_does_not_replace_newer_current_value(self):
         as_bot = self.current_model.with_user(self.bot)
