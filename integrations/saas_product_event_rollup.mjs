@@ -59,7 +59,7 @@ const BILLING_EVENTS = new Set([
   "usage_recorded",
   "usage_invoiced",
 ]);
-const AUTHORIZATION_EVENTS = new Set([
+const SERVER_ONLY_EVENTS = new Set([
   "account_signed_up",
   "email_verification_sent",
   "email_verified",
@@ -77,6 +77,17 @@ const AUTHORIZATION_EVENTS = new Set([
   "permission_changed",
   "sensitive_export_requested",
   "sensitive_export_completed",
+  "data_deletion_requested",
+  "data_deletion_completed",
+  "rate_limit_triggered",
+  "suspicious_login_detected",
+  "cross_tenant_access_denied",
+  "cross_tenant_exposure_confirmed",
+  "webhook_received",
+  "webhook_processed",
+  "webhook_rejected",
+  "webhook_signature_failed",
+  "audit_log_delivery_failed",
 ]);
 const PII_PROPERTY = /email|e_mail|fullname|full_name|firstname|first_name|lastname|last_name|phone|address|password|secret|token|cookie|authorization/i;
 
@@ -189,7 +200,7 @@ function validateEvent(raw, index, config, sourceUpdatedAt) {
   }
   const eventName = code(event.event_name, `${name}.event_name`);
   const source = code(event.source, `${name}.source`);
-  if ((BILLING_EVENTS.has(eventName) || AUTHORIZATION_EVENTS.has(eventName)) && !config.serverSources.has(source)) {
+  if ((BILLING_EVENTS.has(eventName) || SERVER_ONLY_EVENTS.has(eventName)) && !config.serverSources.has(source)) {
     throw new Error(`${name}.${eventName} must originate from an approved server source.`);
   }
   const outcome = code(event.outcome, `${name}.outcome`).toLowerCase();
@@ -228,7 +239,7 @@ function dayBounds(timestamp) {
   return { day, start, end };
 }
 
-export function rollupProductEvents(rawConfig, rawExport) {
+export function normalizeProductEventExport(rawConfig, rawExport) {
   const config = validateProductEventConfig(rawConfig);
   const exported = plainObject(rawExport, "export");
   rejectUnknownKeys(exported, new Set(["source_updated_at", "events"]), "export");
@@ -250,9 +261,24 @@ export function rollupProductEvents(rawConfig, rawExport) {
     }
     unique.set(event.event_id, event);
   });
+  return {
+    config,
+    sourceUpdatedAt,
+    events: [...unique.values()],
+    stats: {
+      eventsRead: exported.events.length,
+      uniqueEvents: unique.size,
+      duplicatesSuppressed,
+    },
+  };
+}
+
+export function rollupProductEvents(rawConfig, rawExport) {
+  const normalized = normalizeProductEventExport(rawConfig, rawExport);
+  const { config, sourceUpdatedAt } = normalized;
 
   const days = new Map();
-  for (const event of unique.values()) {
+  for (const event of normalized.events) {
     const period = dayBounds(event.occurred_at_utc);
     if (Date.parse(period.end) > Date.parse(sourceUpdatedAt)) {
       throw new Error(`Event day ${period.day} is not closed at the export watermark.`);
@@ -293,9 +319,7 @@ export function rollupProductEvents(rawConfig, rawExport) {
       items,
     },
     stats: {
-      eventsRead: exported.events.length,
-      uniqueEvents: unique.size,
-      duplicatesSuppressed,
+      ...normalized.stats,
       dailyRows: items.length,
     },
   };

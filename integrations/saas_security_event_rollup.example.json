@@ -1,0 +1,5 @@
+{
+  "environment": "develop",
+  "server_sources": ["server", "worker"],
+  "security_stream_complete": true
+}

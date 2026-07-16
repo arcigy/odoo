@@ -130,6 +130,22 @@ node integrations/saas_aggregate_sync.mjs `
 
 Raw export držte v schválenom analytics úložisku alebo mimo repozitára; do Odoo ani Gitu nepatrí. Rollup pravdivo počíta iba priamo dokázateľné denné signups, meaningful active users/tenants a successful core actions. Activation, retention, feature adoption a time-to-value zámerne nevymýšľa bez úplného cohort/eligibility vstupu.
 
+Rovnaký verzovaný export môže `integrations/saas_security_event_rollup.mjs` previesť na anonymný `saas.security.daily` artifact. Nulové hodnoty smie emitovať iba pri explicitnom `security_stream_complete: true`; inak failne, aby neúplný export nevydával za zdravý stav. Billing, auth, permission, cross-tenant, security a webhook eventy musia pochádzať zo schváleného serverového zdroja.
+
+```powershell
+node integrations/saas_security_event_rollup.mjs `
+  --config=integrations/saas_security_event_rollup.example.json `
+  --events=integrations/saas_product_events.local.json `
+  > integrations/saas_security_daily.local.json
+
+node integrations/saas_aggregate_sync.mjs `
+  --config=integrations/saas_aggregate_sync.example.json `
+  --evidence=integrations/saas_security_daily.local.json `
+  --dry-run
+```
+
+Security rollup posiela iba denné počty login pokusov/zlyhaní, rate-limitov, suspicious loginov, cross-tenant denial/exposure, privileged actions, webhook signature failures a audit delivery failures. User, tenant, session, request, trace ani raw audit údaje v jeho výstupe nie sú.
+
 ### Reconciliation zdrojov
 
 `integrations/saas_reconciliation_rollup.mjs` porovnáva iba agregované scalar totals pre sedem povinných kontrol: payment provider/Odoo invoices, app subscription/billing provider, measured/invoiced usage, app tenant/Odoo partner, active/paid seats, cloud invoice/cost import a observability/business request totals. Z rozdielu a explicitnej tolerancie vytvorí idempotentný `saas.data.quality.run` artifact so stavom `valid`, `warning` alebo `invalid`.
