@@ -6,13 +6,17 @@ Status: preparation only. No command in this document authorizes a live change.
 
 Before deployment, confirm all of the following:
 
-- the parallel `kitchen_app` task has finished and an exact tested commit is named;
 - the canonical Odoo source contains `geotherm_chatbot`, `geotherm_drive` and `arcigy_saas_control_center`;
 - existing Geotherm CRM, pricebook, analytics, monthly costs, Drive OAuth, Drive mappings and attachments remain present;
 - the current CapRover app definition and env are exported to a mode-0600 backup without printing secrets;
 - PostgreSQL and `/var/lib/odoo` backups exist, have SHA-256 checksums and pass structural verification;
 - host disk free space is at least 5 GB after a separately approved image-retention cleanup;
 - rollback owner and verification window are agreed.
+
+There are two separate approval gates:
+
+- An additive Odoo-only module upgrade may proceed with explicit Odoo deploy approval and a fresh verified backup while the parallel `kitchen_app` task is active. It must not create a metrics API key, enable a sync schedule, change an Arcigy URL/credential, ingest source rows or touch the `kitchen_app` repository, service, database or storage.
+- Arcigy source cutover may proceed only after the parallel `kitchen_app` task has finished, an exact tested commit is named, Develop/Main isolation is proven and both no-write scrapes reconcile. The Odoo-only approval does not authorize this cutover.
 
 Current read-only evidence from 2026-07-16:
 
