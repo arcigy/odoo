@@ -1,0 +1,280 @@
+import { readFile, stat } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
+
+const MAX_RESPONSE_BYTES = 1024 * 1024;
+const MAX_INPUT_BYTES = 1024 * 1024;
+const ENVIRONMENTS = new Set(["develop", "main"]);
+const SAFE_EXTERNAL_KEY = /^[A-Za-z0-9._:-]{1,255}$/;
+const SECRET_ENV_NAME = /^ARCIGY_[A-Z0-9_]+$/;
+
+const stringField = (required = false) => ({ type: "string", required });
+const dateField = (required = false) => ({ type: "datetime", required });
+const numberField = (integer = false, minimum = 0) => ({
+  type: integer ? "integer" : "number",
+  minimum,
+});
+const booleanField = () => ({ type: "boolean" });
+const urlField = () => ({ type: "url" });
+const selectionField = (values, required = false) => ({ type: "selection", values, required });
+
+const OPERATIONAL_MODELS = Object.freeze({
+  "saas.backup.run": {
+    fields: {
+      name: stringField(true),
+      started_at: dateField(true),
+      finished_at: dateField(),
+      status: selectionField(["running", "success", "failed"], true),
+      backup_type: selectionField(["full", "incremental", "pitr"], true),
+      size_bytes: numberField(true),
+      checksum: stringField(),
+      encrypted: booleanField(),
+      off_host: booleanField(),
+      drilldown_url: urlField(),
+    },
+  },
+  "saas.restore.test": {
+    fields: {
+      name: stringField(true),
+      started_at: dateField(true),
+      finished_at: dateField(),
+      status: selectionField(["running", "success", "failed"], true),
+      actual_rpo_seconds: numberField(true),
+      actual_rto_seconds: numberField(true),
+      checksum_valid: booleanField(),
+      application_smoke_passed: booleanField(),
+      tenant_isolation_passed: booleanField(),
+      evidence_url: urlField(),
+    },
+  },
+  "saas.load.test": {
+    fields: {
+      name: stringField(true),
+      started_at: dateField(true),
+      finished_at: dateField(),
+      test_type: selectionField(
+        ["baseline", "ramp", "hold", "spike", "stress", "soak", "failure"],
+        true,
+      ),
+      status: selectionField(["ready", "ready_with_risk", "not_ready", "test_stale"], true),
+      concurrent_users: numberField(true),
+      requests_per_second: numberField(),
+      p95_seconds: numberField(),
+      p99_seconds: numberField(),
+      error_rate: numberField(),
+      recovery_seconds: numberField(),
+      evidence_url: urlField(),
+    },
+  },
+  "saas.data.quality.run": {
+    fields: {
+      name: stringField(true),
+      started_at: dateField(true),
+      finished_at: dateField(),
+      status: selectionField(["valid", "warning", "invalid"], true),
+      events_sent: numberField(true),
+      events_received: numberField(true),
+      events_processed: numberField(true),
+      events_rejected: numberField(true),
+      duplicate_count: numberField(true),
+      schema_failure_count: numberField(true),
+      missing_field_count: numberField(true),
+      late_event_count: numberField(true),
+      unknown_tenant_count: numberField(true),
+      reconciliation_difference: numberField(false, Number.NEGATIVE_INFINITY),
+      oldest_unsynced_at: dateField(),
+      drilldown_url: urlField(),
+    },
+  },
+});
+
+function plainObject(value, name) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${name} must be an object.`);
+  }
+  return value;
+}
+
+function rejectUnknownKeys(value, allowed, name) {
+  const unknown = Object.keys(value).filter((key) => !allowed.has(key));
+  if (unknown.length) throw new Error(`${name} contains unsupported fields: ${unknown.sort().join(", ")}.`);
+}
+
+function normalizedUrl(value, name) {
+  const url = new URL(String(value || ""));
+  if (url.username || url.password) throw new Error(`${name} must not contain credentials.`);
+  const loopback = url.protocol === "http:" && ["127.0.0.1", "localhost", "::1"].includes(url.hostname);
+  if (url.protocol !== "https:" && !loopback) throw new Error(`${name} must use HTTPS except on loopback.`);
+  url.hash = "";
+  return url.toString().replace(/\/$/, "");
+}
+
+function validDate(value, name) {
+  const timestamp = Date.parse(String(value || ""));
+  if (!Number.isFinite(timestamp)) throw new Error(`${name} must be an ISO-8601 timestamp.`);
+  return new Date(timestamp).toISOString();
+}
+
+function validateField(value, descriptor, name) {
+  if (value === undefined || value === null || value === "") {
+    if (descriptor.required) throw new Error(`${name} is required.`);
+    return undefined;
+  }
+  if (descriptor.type === "string") {
+    if (typeof value !== "string" || !value.trim() || value.length > 1024) {
+      throw new Error(`${name} must be a non-empty string of at most 1024 characters.`);
+    }
+    return value.trim();
+  }
+  if (descriptor.type === "datetime") return validDate(value, name);
+  if (descriptor.type === "boolean") {
+    if (typeof value !== "boolean") throw new Error(`${name} must be boolean.`);
+    return value;
+  }
+  if (descriptor.type === "url") return normalizedUrl(value, name);
+  if (descriptor.type === "selection") {
+    if (!descriptor.values.includes(value)) throw new Error(`${name} has an unsupported value.`);
+    return value;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${name} must be finite numeric data.`);
+  if (descriptor.type === "integer" && !Number.isInteger(value)) throw new Error(`${name} must be an integer.`);
+  if (descriptor.minimum !== undefined && value < descriptor.minimum) {
+    throw new Error(`${name} must be at least ${descriptor.minimum}.`);
+  }
+  return value;
+}
+
+function secret(env, name) {
+  if (!SECRET_ENV_NAME.test(String(name || ""))) throw new Error(`Invalid secret environment variable name: ${name}.`);
+  const value = env[name]?.trim();
+  if (!value) throw new Error(`${name} is required.`);
+  return value;
+}
+
+export function validateOperationalConfig(raw) {
+  const config = plainObject(raw, "config");
+  rejectUnknownKeys(config, new Set(["odoo"]), "config");
+  const odoo = plainObject(config.odoo, "config.odoo");
+  rejectUnknownKeys(odoo, new Set(["url", "database", "apiKeyEnv"]), "config.odoo");
+  const database = odoo.database === undefined ? undefined : String(odoo.database).trim();
+  if (database !== undefined && !/^[A-Za-z0-9_.-]{1,128}$/.test(database)) {
+    throw new Error("config.odoo.database contains unsupported characters.");
+  }
+  const apiKeyEnv = String(odoo.apiKeyEnv || "ARCIGY_ODOO_API_KEY");
+  if (!SECRET_ENV_NAME.test(apiKeyEnv)) throw new Error("config.odoo.apiKeyEnv must name an ARCIGY_ environment variable.");
+  return { odoo: { url: normalizedUrl(odoo.url, "config.odoo.url"), database, apiKeyEnv } };
+}
+
+export function validateOperationalEvidence(raw, now = Date.now()) {
+  const evidence = plainObject(raw, "evidence");
+  rejectUnknownKeys(evidence, new Set(["model", "environment", "source_updated_at", "items"]), "evidence");
+  const model = String(evidence.model || "").trim();
+  const contract = OPERATIONAL_MODELS[model];
+  if (!contract) throw new Error(`Unsupported operational model: ${model || "<empty>"}.`);
+  const environment = String(evidence.environment || "").trim().toLowerCase();
+  if (!ENVIRONMENTS.has(environment)) throw new Error("evidence.environment must be develop or main.");
+  const sourceUpdatedAt = validDate(evidence.source_updated_at, "evidence.source_updated_at");
+  if (Date.parse(sourceUpdatedAt) > now + 5 * 60_000) throw new Error("evidence.source_updated_at is too far in the future.");
+  if (!Array.isArray(evidence.items) || evidence.items.length < 1 || evidence.items.length > 200) {
+    throw new Error("evidence.items must contain between 1 and 200 records.");
+  }
+  const allowed = new Set(["external_key", "release_version", ...Object.keys(contract.fields)]);
+  const items = evidence.items.map((rawItem, index) => {
+    const item = plainObject(rawItem, `evidence.items[${index}]`);
+    rejectUnknownKeys(item, allowed, `evidence.items[${index}]`);
+    const externalKey = String(item.external_key || "").trim();
+    if (!SAFE_EXTERNAL_KEY.test(externalKey) || !externalKey.startsWith(`${environment}:`)) {
+      throw new Error(`evidence.items[${index}].external_key must be safe and prefixed by ${environment}:`);
+    }
+    const normalized = { external_key: externalKey };
+    if (item.release_version !== undefined) {
+      const releaseVersion = String(item.release_version).trim();
+      if (!releaseVersion || releaseVersion.length > 128) throw new Error(`evidence.items[${index}].release_version is invalid.`);
+      normalized.release_version = releaseVersion;
+    }
+    for (const [fieldName, descriptor] of Object.entries(contract.fields)) {
+      const value = validateField(item[fieldName], descriptor, `evidence.items[${index}].${fieldName}`);
+      if (value !== undefined) normalized[fieldName] = value;
+    }
+    if (normalized.finished_at && Date.parse(normalized.finished_at) < Date.parse(normalized.started_at)) {
+      throw new Error(`evidence.items[${index}].finished_at must not precede started_at.`);
+    }
+    for (const fieldName of ["started_at", "finished_at", "oldest_unsynced_at"]) {
+      if (normalized[fieldName] && Date.parse(normalized[fieldName]) > Date.parse(sourceUpdatedAt) + 5 * 60_000) {
+        throw new Error(`evidence.items[${index}].${fieldName} is too far in the future.`);
+      }
+    }
+    return normalized;
+  });
+  return { model, environment, source_updated_at: sourceUpdatedAt, items };
+}
+
+async function boundedJson(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    const text = await response.text();
+    if (Buffer.byteLength(text) > MAX_RESPONSE_BYTES) throw new Error(`Response from ${new URL(url).origin} is too large.`);
+    if (!response.ok) throw new Error(`${new URL(url).origin} returned HTTP ${response.status}.`);
+    return JSON.parse(text);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function runOperationalSync(
+  rawConfig,
+  rawEvidence,
+  { env = process.env, dryRun = false, requestJson = boundedJson } = {},
+) {
+  const config = validateOperationalConfig(rawConfig);
+  const evidence = validateOperationalEvidence(rawEvidence);
+  if (dryRun) {
+    return { ok: true, dryRun: true, model: evidence.model, environment: evidence.environment, records: evidence.items.length };
+  }
+  const headers = {
+    Authorization: `Bearer ${secret(env, config.odoo.apiKeyEnv)}`,
+    "Content-Type": "application/json; charset=utf-8",
+    "User-Agent": "Arcigy-SaaS-Operational-Sync/1.0",
+  };
+  if (config.odoo.database) headers["X-Odoo-Database"] = config.odoo.database;
+  const url = `${config.odoo.url}/json/2/${evidence.model}/ingest_operational_batch`;
+  const odoo = await requestJson(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      payload: {
+        environment: evidence.environment,
+        source_updated_at: evidence.source_updated_at,
+        items: evidence.items,
+      },
+    }),
+  });
+  return { ok: true, dryRun: false, model: evidence.model, environment: evidence.environment, records: evidence.items.length, odoo };
+}
+
+async function main() {
+  const configArg = process.argv.find((arg) => arg.startsWith("--config="));
+  const evidenceArg = process.argv.find((arg) => arg.startsWith("--evidence="));
+  if (!configArg || !evidenceArg) {
+    throw new Error("Usage: node saas_operational_sync.mjs --config=<path> --evidence=<path> [--dry-run]");
+  }
+  const readBoundedJson = async (path, name) => {
+    const metadata = await stat(path);
+    if (!metadata.isFile() || metadata.size > MAX_INPUT_BYTES) {
+      throw new Error(`${name} must be a JSON file no larger than ${MAX_INPUT_BYTES} bytes.`);
+    }
+    return JSON.parse(await readFile(path, "utf8"));
+  };
+  const config = await readBoundedJson(configArg.slice("--config=".length), "config");
+  const evidence = await readBoundedJson(evidenceArg.slice("--evidence=".length), "evidence");
+  const result = await runOperationalSync(config, evidence, { dryRun: process.argv.includes("--dry-run") });
+  console.log(JSON.stringify({ ok: result.ok, dryRun: result.dryRun, model: result.model, environment: result.environment, records: result.records }, null, 2));
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
+}

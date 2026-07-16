@@ -84,8 +84,23 @@ node integrations/saas_prometheus_sync.mjs --config=integrations/saas_prometheus
 
 Príkladové PromQL názvy s prefixom `arcigy_` sú kontrakt, nie tvrdenie, že exportery sú už nasadené. Ostrý beh povoľte až po kontrole dvoch dry-run výstupov, source reconciliation a uložení Odoo API key v schválenom secret store.
 
+### Backup, restore, load a data-quality dôkazy
+
+`integrations/saas_operational_sync.mjs` posiela do Odoo iba striktne povolené skalárne polia pre `saas.backup.run`, `saas.restore.test`, `saas.load.test` a `saas.data.quality.run`. Odmieta raw logy, neznáme polia, URL s credentials, nezabezpečený transport a external keys bez prefixu `develop:` alebo `main:`.
+
+Najprv vždy spustite no-write validáciu:
+
+```powershell
+node integrations/saas_operational_sync.mjs `
+  --config=integrations/saas_operational_sync.example.json `
+  --evidence=integrations/saas_operational_evidence.example.json `
+  --dry-run
+```
+
+Ostrý beh vyžaduje `ARCIGY_ODOO_API_KEY` zo schváleného secret store. Reálny artifact držte mimo repozitára alebo ako `integrations/*.local.json` (gitignored). Najprv sa overuje Develop, potom Main; príkladový evidence súbor nikdy nepoužívajte ako reálny dôkaz.
+
 ## CapRover nasadenie
 
 Canonical repo teraz obsahuje aj zachovaný `geotherm_drive`, CapRover `captain-definition`, produkčné Python dependencies a riadené `ODOO_INIT_MODULES`/`ODOO_UPDATE_MODULES`. Presný backup, smoke a rollback postup je v `docs/SAAS_CONTROL_CENTER_DEPLOY_RUNBOOK.md`.
 
-Aktuálny live server bol pri read-only audite na 97 % zaplnenia. Pred buildom alebo deployom treba samostatne schváliť bezpečnú image-retention úpravu, ktorá zachová aktívny aj predchádzajúci funkčný image každej služby.
+Aktuálny read-only audit ukazuje 44 % využitie root filesystemu. Pred veľkým buildom stav znovu zmerajte a vždy zachovajte aktívny aj predchádzajúci funkčný image každej služby.

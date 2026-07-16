@@ -1,0 +1,20 @@
+{
+  "model": "saas.backup.run",
+  "environment": "develop",
+  "source_updated_at": "2026-07-16T12:05:00Z",
+  "items": [
+    {
+      "external_key": "develop:backup:2026-07-16T12:00:00Z",
+      "name": "Encrypted off-host backup",
+      "started_at": "2026-07-16T12:00:00Z",
+      "finished_at": "2026-07-16T12:04:00Z",
+      "status": "success",
+      "backup_type": "full",
+      "size_bytes": 1048576,
+      "checksum": "sha256:replace-with-real-checksum",
+      "encrypted": true,
+      "off_host": true,
+      "drilldown_url": "https://evidence.example.test/backups/replace-me"
+    }
+  ]
+}
