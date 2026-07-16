@@ -147,6 +147,19 @@ node integrations/saas_operational_sync.mjs `
 
 Adapter neprijíma raw zákaznícke záznamy, credentials ani neznáme typy reconciliation. Rozdiel je `comparison_value - authoritative_value`; authoritative source a tolerancia musia byť schválené ownerom danej metriky pred ostrým použitím.
 
+### Business KPI bridge
+
+`integrations/saas_business_sync.mjs` je striktne allowlistovaný JSON-2 bridge pre 80 existujúcich KPI z produktového funnelu, engagementu, tenant health, revenue/billing, marketing/CRM, supportu a FinOps. Prijíma iba agregované scalar hodnoty za uzavretý UTC deň alebo kalendárny mesiac. Každý historický kľúč musí obsahovať správny `develop`/`main` a source prefix; dimenzované hodnoty musia mať samostatný non-global scope.
+
+```powershell
+node integrations/saas_business_sync.mjs `
+  --config=integrations/saas_business_sync.example.json `
+  --evidence=integrations/saas_business_evidence.example.json `
+  --dry-run
+```
+
+Bridge odmieta raw customer payloady, neznáme KPI, vysokokardinalitné user/object identifikátory, cross-environment keys, neuzavreté obdobia, insecure URLs a credentials. Príklad je iba syntetický kontrakt a nesmie sa ingestovať ako reálny business dôkaz. Ostrý zápis povoľte až po schválení authoritative source, definície metriky, tolerancií a source reconciliation.
+
 ### GitHub CI/CD a security
 
 `integrations/saas_github_sync.mjs` číta iba agregovateľné metadata z GitHub Actions, Dependabot a Secret Scanning. Do Odoo neposiela kód, mená vývojárov, raw alerty ani literalne secrets (`hide_secret=true`). Develop a Main sú viazané na samostatné branche a repository-wide security stav sa smie priradiť iba jednému prostrediu.

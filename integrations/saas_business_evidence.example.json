@@ -1,0 +1,19 @@
+{
+  "environment": "develop",
+  "source_code": "billing-provider",
+  "source_updated_at": "2026-07-16T00:05:00Z",
+  "metrics": [
+    {
+      "code": "mrr",
+      "value": 1000,
+      "status": "unknown",
+      "measured_at": "2026-07-16T00:00:00Z",
+      "sample_count": 10,
+      "scope_key": "global",
+      "external_key": "develop:business:billing-provider:mrr:20260715",
+      "period_start": "2026-07-15T00:00:00Z",
+      "period_end": "2026-07-16T00:00:00Z",
+      "granularity": "day"
+    }
+  ]
+}
