@@ -1,0 +1,24 @@
+{
+  "model": "saas.dr.drill",
+  "environment": "develop",
+  "source_updated_at": "2026-07-16T12:05:00Z",
+  "items": [
+    {
+      "external_key": "develop:dr-drill:2026-07-16T11:00:00Z",
+      "name": "Complete disaster recovery drill",
+      "started_at": "2026-07-16T11:00:00Z",
+      "finished_at": "2026-07-16T12:00:00Z",
+      "status": "success",
+      "dr_contract_complete": true,
+      "failover_duration_seconds": 600,
+      "failback_duration_seconds": 1200,
+      "dns_propagation_duration_seconds": 180,
+      "unavailable_dependency_count": 0,
+      "runbook_accuracy_rate": 100,
+      "open_remediation_action_count": 0,
+      "owner_team": "Engineering",
+      "next_drill_at": "2026-10-16T11:00:00Z",
+      "evidence_url": "https://evidence.example.test/drills/replace-me"
+    }
+  ]
+}

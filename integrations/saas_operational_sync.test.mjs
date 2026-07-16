@@ -32,6 +32,14 @@ function backupEvidence(environment = "develop") {
         checksum: "sha256:example",
         encrypted: true,
         off_host: true,
+        backup_contract_complete: true,
+        failure_count_24h: 0,
+        snapshot_count: 7,
+        pitr_enabled: true,
+        pitr_window_seconds: 86400,
+        wal_archive_status: "healthy",
+        secondary_copy_status: "healthy",
+        storage_cost_monthly_eur: 42.5,
         drilldown_url: "https://evidence.example.test/backup/123",
       },
     ],
@@ -77,6 +85,31 @@ test("accepts only environment-prefixed, scalar operational evidence", () => {
   assert.equal(result.environment, "develop");
   assert.equal(result.items.length, 1);
   assert.equal(result.items[0].encrypted, true);
+  assert.equal(result.items[0].backup_contract_complete, true);
+});
+
+test("fails closed on incomplete or internally inconsistent complete backup evidence", () => {
+  const missingSnapshotCount = backupEvidence();
+  delete missingSnapshotCount.items[0].snapshot_count;
+  assert.throws(
+    () => validateOperationalEvidence(missingSnapshotCount),
+    /complete backup evidence requires snapshot_count/,
+  );
+
+  const disabledPitrWithArchive = backupEvidence();
+  disabledPitrWithArchive.items[0].pitr_enabled = false;
+  disabledPitrWithArchive.items[0].pitr_window_seconds = 0;
+  assert.throws(
+    () => validateOperationalEvidence(disabledPitrWithArchive),
+    /disabled PITR requires a zero window and not_applicable WAL\/archive status/,
+  );
+
+  const falseSuccess = backupEvidence();
+  falseSuccess.items[0].secondary_copy_status = "unhealthy";
+  assert.throws(
+    () => validateOperationalEvidence(falseSuccess),
+    /successful complete backup requires size, checksum, encryption, off-host storage and a healthy secondary copy/,
+  );
 });
 
 test("rejects cross-environment keys and unsupported raw fields", () => {
@@ -395,6 +428,95 @@ test("validates restore and load evidence without accepting raw test output", ()
   assert.equal(normalizedLoad.items[0].representative, true);
   assert.equal(normalizedLoad.items[0].architecture_version, "architecture-v1");
   assert.throws(() => validateOperationalEvidence(load), /unsupported fields: raw_results/);
+});
+
+test("validates complete restore and disaster-recovery contracts", () => {
+  const restore = {
+    model: "saas.restore.test",
+    environment: "develop",
+    source_updated_at: "2026-07-16T12:05:00Z",
+    items: [
+      {
+        external_key: "develop:restore:complete:2026-07-16T12:00:00Z",
+        name: "Complete isolated restore drill",
+        started_at: "2026-07-16T12:00:00Z",
+        finished_at: "2026-07-16T12:04:00Z",
+        status: "success",
+        restore_contract_complete: true,
+        actual_rpo_seconds: 0,
+        actual_rto_seconds: 240,
+        rpo_measured: true,
+        rto_measured: true,
+        checksum_valid: true,
+        application_smoke_passed: true,
+        tenant_isolation_passed: true,
+        missing_record_count: 0,
+        owner_team: "Engineering",
+        next_test_at: "2026-08-16T12:00:00Z",
+      },
+    ],
+  };
+  const normalizedRestore = validateOperationalEvidence(
+    restore,
+    Date.parse("2026-07-16T12:05:00Z"),
+  );
+  assert.equal(normalizedRestore.items[0].restore_contract_complete, true);
+  assert.equal(normalizedRestore.items[0].missing_record_count, 0);
+
+  const missingOwner = structuredClone(restore);
+  delete missingOwner.items[0].owner_team;
+  assert.throws(
+    () => validateOperationalEvidence(missingOwner),
+    /complete restore evidence requires owner_team/,
+  );
+
+  const missingRecords = structuredClone(restore);
+  missingRecords.items[0].missing_record_count = 1;
+  assert.throws(
+    () => validateOperationalEvidence(missingRecords),
+    /successful complete restore cannot have missing records/,
+  );
+
+  const dr = {
+    model: "saas.dr.drill",
+    environment: "main",
+    source_updated_at: "2026-07-16T12:05:00Z",
+    items: [
+      {
+        external_key: "main:dr-drill:2026-07-16T11:00:00Z",
+        name: "Complete Main DR drill",
+        started_at: "2026-07-16T11:00:00Z",
+        finished_at: "2026-07-16T12:00:00Z",
+        status: "success",
+        dr_contract_complete: true,
+        failover_duration_seconds: 600,
+        failback_duration_seconds: 1200,
+        dns_propagation_duration_seconds: 180,
+        unavailable_dependency_count: 0,
+        runbook_accuracy_rate: 100,
+        open_remediation_action_count: 0,
+        owner_team: "Engineering",
+        next_drill_at: "2026-10-16T11:00:00Z",
+      },
+    ],
+  };
+  const normalizedDr = validateOperationalEvidence(dr, Date.parse("2026-07-16T12:05:00Z"));
+  assert.equal(normalizedDr.model, "saas.dr.drill");
+  assert.equal(normalizedDr.items[0].runbook_accuracy_rate, 100);
+
+  const inaccurate = structuredClone(dr);
+  inaccurate.items[0].runbook_accuracy_rate = 100.1;
+  assert.throws(
+    () => validateOperationalEvidence(inaccurate),
+    /runbook_accuracy_rate cannot exceed 100/,
+  );
+
+  const invalidNextDrill = structuredClone(dr);
+  invalidNextDrill.items[0].next_drill_at = "2026-07-16T12:00:00Z";
+  assert.throws(
+    () => validateOperationalEvidence(invalidNextDrill),
+    /next_drill_at must be after finished_at/,
+  );
 });
 
 test("requires explicit restore measurements and representative load evidence", () => {

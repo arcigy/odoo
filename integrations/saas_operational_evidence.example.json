@@ -14,6 +14,14 @@
       "checksum": "sha256:replace-with-real-checksum",
       "encrypted": true,
       "off_host": true,
+      "backup_contract_complete": true,
+      "failure_count_24h": 0,
+      "snapshot_count": 7,
+      "pitr_enabled": true,
+      "pitr_window_seconds": 86400,
+      "wal_archive_status": "healthy",
+      "secondary_copy_status": "healthy",
+      "storage_cost_monthly_eur": 42.5,
       "drilldown_url": "https://evidence.example.test/backups/replace-me"
     }
   ]

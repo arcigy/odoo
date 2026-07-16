@@ -165,3 +165,8 @@ access_saas_region_support,saas.region support,model_saas_region,group_saas_supp
 access_saas_region_engineering,saas.region engineering,model_saas_region,group_saas_engineering,1,0,0,0
 access_saas_region_security,saas.region security,model_saas_region,group_saas_security,1,0,0,0
 access_saas_region_bot,saas.region bot,model_saas_region,group_saas_integration_bot,1,0,0,0
+access_saas_dr_drill_admin,saas.dr.drill admin,model_saas_dr_drill,group_saas_administrator,1,1,1,1
+access_saas_dr_drill_executive,saas.dr.drill executive,model_saas_dr_drill,group_saas_executive,1,0,0,0
+access_saas_dr_drill_engineering,saas.dr.drill engineering,model_saas_dr_drill,group_saas_engineering,1,0,0,0
+access_saas_dr_drill_security,saas.dr.drill security,model_saas_dr_drill,group_saas_security,1,0,0,0
+access_saas_dr_drill_bot,saas.dr.drill bot,model_saas_dr_drill,group_saas_integration_bot,1,0,0,0

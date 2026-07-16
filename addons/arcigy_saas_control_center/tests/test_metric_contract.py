@@ -191,6 +191,7 @@ class TestSaasMetricContract(TransactionCase):
             "saas.metric.timeseries",
             "saas.backup.run",
             "saas.restore.test",
+            "saas.dr.drill",
             "saas.load.test",
             "saas.sync.run",
         ]
@@ -213,7 +214,7 @@ class TestSaasMetricContract(TransactionCase):
 
     def test_every_seeded_metric_has_complete_definition_contract(self):
         definitions = self.env["saas.metric.definition"].search([])
-        self.assertEqual(len(definitions), 270)
+        self.assertEqual(len(definitions), 295)
         for definition in definitions:
             self.assertTrue(definition.code)
             self.assertTrue(definition.name)
@@ -268,6 +269,19 @@ class TestSaasMetricContract(TransactionCase):
             "unexpected_zero_value_count", "unexpected_volume_spike_count",
             "numerator_denominator_violation_count", "negative_value_violation_count",
             "missing_dimension_count",
+            "backup_duration_seconds", "backup_size_bytes",
+            "backup_failure_count_24h", "backup_snapshot_count",
+            "backup_pitr_enabled_status", "backup_pitr_window_seconds",
+            "backup_wal_archive_health_status", "backup_secondary_copy_status",
+            "backup_encryption_status", "backup_storage_cost_monthly_eur",
+            "restore_duration_seconds", "restore_checksum_status",
+            "restore_missing_record_count", "restore_application_smoke_status",
+            "restore_tenant_isolation_status", "restore_next_test_overdue_seconds",
+            "dr_drill_age_seconds", "dr_drill_success_status",
+            "dr_failover_duration_seconds", "dr_failback_duration_seconds",
+            "dr_dns_propagation_duration_seconds", "dr_unavailable_dependency_count",
+            "dr_runbook_accuracy_rate", "dr_open_remediation_action_count",
+            "dr_next_drill_overdue_seconds",
             "odoo_sync_attempt_age_seconds", "odoo_sync_duration_seconds",
             "odoo_sync_records_read_count", "odoo_sync_records_created_count",
             "odoo_sync_records_updated_count", "odoo_sync_records_skipped_count",
@@ -523,6 +537,62 @@ class TestSaasMetricContract(TransactionCase):
         )
         self.assertEqual(len(alert), 1)
         self.assertEqual(alert.severity, "p1")
+
+    def test_failed_dr_ingest_is_idempotent_and_success_resolves_alert(self):
+        dr_model = self.env["saas.dr.drill"]
+        item = {
+            "external_key": "develop:dr-drill:2026-07-16T12:00:00Z",
+            "name": "Develop disaster recovery drill",
+            "started_at": "2026-07-16T11:00:00Z",
+            "finished_at": "2026-07-16T12:00:00Z",
+            "status": "failed",
+            "dr_contract_complete": True,
+            "failover_duration_seconds": 900,
+            "failback_duration_seconds": 1800,
+            "dns_propagation_duration_seconds": 300,
+            "unavailable_dependency_count": 1,
+            "runbook_accuracy_rate": 90,
+            "open_remediation_action_count": 2,
+            "owner_team": "Engineering",
+            "next_drill_at": "2026-08-16T11:00:00Z",
+            "evidence_url": "https://evidence.example.test/drills/develop",
+        }
+        payload = {
+            "environment": "develop",
+            "source_updated_at": "2026-07-16T12:05:00Z",
+            "items": [item],
+        }
+        first = dr_model.with_user(self.bot).ingest_operational_batch(payload)
+        second = dr_model.with_user(self.bot).ingest_operational_batch(payload)
+        self.assertEqual(first["created"], 1)
+        self.assertEqual(second["updated"], 1)
+        self.assertEqual(
+            dr_model.search_count(
+                [("external_key", "=", "develop:dr-drill:2026-07-16T12:00:00Z")]
+            ),
+            1,
+        )
+        alert = self.env["saas.alert"].sudo().search(
+            [
+                ("environment_id", "=", self.develop.id),
+                ("scope_key", "=", "saas.dr.drill"),
+            ],
+            limit=1,
+        )
+        self.assertEqual(alert.severity, "p1")
+        self.assertTrue(alert.incident_id)
+
+        item.update(
+            {
+                "status": "success",
+                "unavailable_dependency_count": 0,
+                "runbook_accuracy_rate": 100,
+                "open_remediation_action_count": 0,
+            }
+        )
+        recovered = dr_model.with_user(self.bot).ingest_operational_batch(payload)
+        self.assertEqual(recovered["updated"], 1)
+        self.assertEqual(alert.status, "resolved")
 
     def test_complete_data_quality_ingest_requires_every_event_count(self):
         payload = {

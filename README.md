@@ -103,7 +103,7 @@ Príkladové PromQL názvy s prefixom `arcigy_` sú kontrakt, nie tvrdenie, že 
 
 ### Backup, restore, load a data-quality dôkazy
 
-`integrations/saas_operational_sync.mjs` posiela do Odoo iba striktne povolené skalárne polia pre `saas.backup.run`, `saas.restore.test`, `saas.load.test` a `saas.data.quality.run`. Odmieta raw logy, neznáme polia, URL s credentials, nezabezpečený transport a external keys bez prefixu `develop:` alebo `main:`.
+`integrations/saas_operational_sync.mjs` posiela do Odoo iba striktne povolené skalárne polia pre `saas.backup.run`, `saas.restore.test`, `saas.dr.drill`, `saas.load.test`, `saas.data.quality.run` a `saas.sync.run`. Odmieta raw logy, neznáme polia, URL s credentials, nezabezpečený transport a external keys bez prefixu `develop:` alebo `main:`.
 
 Úspešný restore musí niesť checksum, aplikačný smoke, tenant-isolation a
 explicitné RPO/RTO measurement markery. Reprezentatívny load test musí mať
@@ -133,6 +133,13 @@ počty, rozpad API chýb, retry, backlog a `oldest_unsynced_at`. `error_code` m�
 byť iba krátky symbolický kód, nie raw provider odpoveď. Existujúce interné Odoo
 ingest behy zostávajú kompatibilné, ale bez `sync_contract_complete=true` sa z
 nich nesmú odvodiť kompletné sync/backlog KPI.
+
+Backup, restore a disaster-recovery dôkazy používajú samostatné explicitné
+complete-contract markery. Len úplné kontrakty môžu vytvoriť KPI pre trvanie,
+veľkosť, PITR/WAL, sekundárnu kópiu, šifrovanie, restore checksum a smoke,
+chýbajúce záznamy, failover/failback, DNS, runbook a otvorené remediation kroky.
+Staré záznamy bez markerov zostávajú kompatibilné, ale tieto nové KPI z nich
+nevzniknú. DR príklad je v `integrations/saas_dr_evidence.example.json`.
 
 Najprv vždy spustite no-write validáciu:
 

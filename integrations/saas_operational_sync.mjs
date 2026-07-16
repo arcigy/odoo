@@ -29,6 +29,14 @@ const OPERATIONAL_MODELS = Object.freeze({
       checksum: stringField(),
       encrypted: booleanField(),
       off_host: booleanField(),
+      backup_contract_complete: booleanField(),
+      failure_count_24h: numberField(true),
+      snapshot_count: numberField(true),
+      pitr_enabled: booleanField(),
+      pitr_window_seconds: numberField(true),
+      wal_archive_status: selectionField(["healthy", "unhealthy", "not_applicable"]),
+      secondary_copy_status: selectionField(["healthy", "unhealthy"]),
+      storage_cost_monthly_eur: numberField(),
       drilldown_url: urlField(),
     },
   },
@@ -45,6 +53,28 @@ const OPERATIONAL_MODELS = Object.freeze({
       checksum_valid: booleanField(),
       application_smoke_passed: booleanField(),
       tenant_isolation_passed: booleanField(),
+      restore_contract_complete: booleanField(),
+      missing_record_count: numberField(true),
+      owner_team: stringField(false, 128),
+      next_test_at: dateField(),
+      evidence_url: urlField(),
+    },
+  },
+  "saas.dr.drill": {
+    fields: {
+      name: stringField(true),
+      started_at: dateField(true),
+      finished_at: dateField(),
+      status: selectionField(["running", "success", "partial", "failed"], true),
+      dr_contract_complete: booleanField(),
+      failover_duration_seconds: numberField(),
+      failback_duration_seconds: numberField(),
+      dns_propagation_duration_seconds: numberField(),
+      unavailable_dependency_count: numberField(true),
+      runbook_accuracy_rate: numberField(),
+      open_remediation_action_count: numberField(true),
+      owner_team: stringField(false, 128),
+      next_drill_at: dateField(),
       evidence_url: urlField(),
     },
   },
@@ -250,6 +280,57 @@ export function validateOperationalEvidence(raw, now = Date.now()) {
         throw new Error(`evidence.items[${index}].${fieldName} is too far in the future.`);
       }
     }
+    if (model === "saas.backup.run" && normalized.backup_contract_complete === true) {
+      const requiredFields = [
+        "name",
+        "started_at",
+        "finished_at",
+        "status",
+        "backup_type",
+        "size_bytes",
+        "checksum",
+        "encrypted",
+        "off_host",
+        "failure_count_24h",
+        "snapshot_count",
+        "pitr_enabled",
+        "pitr_window_seconds",
+        "wal_archive_status",
+        "secondary_copy_status",
+        "storage_cost_monthly_eur",
+      ];
+      for (const fieldName of requiredFields) {
+        if (normalized[fieldName] === undefined) {
+          throw new Error(`evidence.items[${index}] complete backup evidence requires ${fieldName}.`);
+        }
+      }
+      if (normalized.status === "running") {
+        throw new Error(`evidence.items[${index}] complete backup evidence requires a completed status.`);
+      }
+      if (normalized.pitr_enabled) {
+        if (!(normalized.pitr_window_seconds > 0) || normalized.wal_archive_status === "not_applicable") {
+          throw new Error(
+            `evidence.items[${index}] enabled PITR requires a positive window and applicable WAL/archive health.`,
+          );
+        }
+      } else if (normalized.pitr_window_seconds !== 0 || normalized.wal_archive_status !== "not_applicable") {
+        throw new Error(
+          `evidence.items[${index}] disabled PITR requires a zero window and not_applicable WAL/archive status.`,
+        );
+      }
+      if (
+        normalized.status === "success"
+        && (!(normalized.size_bytes > 0)
+          || !normalized.checksum
+          || normalized.encrypted !== true
+          || normalized.off_host !== true
+          || normalized.secondary_copy_status !== "healthy")
+      ) {
+        throw new Error(
+          `evidence.items[${index}] successful complete backup requires size, checksum, encryption, off-host storage and a healthy secondary copy.`,
+        );
+      }
+    }
     if (model === "saas.restore.test") {
       for (const [marker, measurement] of [
         ["rpo_measured", "actual_rpo_seconds"],
@@ -277,6 +358,72 @@ export function validateOperationalEvidence(raw, now = Date.now()) {
             throw new Error(`evidence.items[${index}] successful restore requires ${fieldName}=true.`);
           }
         }
+      }
+      if (normalized.restore_contract_complete === true) {
+        const requiredFields = [
+          "name",
+          "started_at",
+          "finished_at",
+          "status",
+          "actual_rpo_seconds",
+          "actual_rto_seconds",
+          "rpo_measured",
+          "rto_measured",
+          "checksum_valid",
+          "application_smoke_passed",
+          "tenant_isolation_passed",
+          "missing_record_count",
+          "owner_team",
+          "next_test_at",
+        ];
+        for (const fieldName of requiredFields) {
+          if (normalized[fieldName] === undefined) {
+            throw new Error(`evidence.items[${index}] complete restore evidence requires ${fieldName}.`);
+          }
+        }
+        if (normalized.status === "running") {
+          throw new Error(`evidence.items[${index}] complete restore evidence requires a completed status.`);
+        }
+        if (Date.parse(normalized.next_test_at) <= Date.parse(normalized.finished_at)) {
+          throw new Error(`evidence.items[${index}].next_test_at must be after finished_at.`);
+        }
+        if (normalized.status === "success" && normalized.missing_record_count !== 0) {
+          throw new Error(`evidence.items[${index}] successful complete restore cannot have missing records.`);
+        }
+      }
+    }
+    if (
+      model === "saas.dr.drill"
+      && normalized.runbook_accuracy_rate !== undefined
+      && normalized.runbook_accuracy_rate > 100
+    ) {
+      throw new Error(`evidence.items[${index}].runbook_accuracy_rate cannot exceed 100.`);
+    }
+    if (model === "saas.dr.drill" && normalized.dr_contract_complete === true) {
+      const requiredFields = [
+        "name",
+        "started_at",
+        "finished_at",
+        "status",
+        "failover_duration_seconds",
+        "failback_duration_seconds",
+        "dns_propagation_duration_seconds",
+        "unavailable_dependency_count",
+        "runbook_accuracy_rate",
+        "open_remediation_action_count",
+        "owner_team",
+        "next_drill_at",
+      ];
+      for (const fieldName of requiredFields) {
+        if (normalized[fieldName] === undefined) {
+          throw new Error(`evidence.items[${index}] complete DR drill evidence requires ${fieldName}.`);
+        }
+      }
+      if (normalized.status === "running") {
+        throw new Error(`evidence.items[${index}] complete DR drill evidence requires a completed status.`);
+      }
+      if (Date.parse(normalized.next_drill_at) <= Date.parse(normalized.finished_at)) {
+        throw new Error(`evidence.items[${index}].next_drill_at must be after finished_at.`);
       }
     }
     if (model === "saas.load.test") {

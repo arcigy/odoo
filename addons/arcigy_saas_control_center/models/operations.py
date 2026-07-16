@@ -26,12 +26,23 @@ OPERATIONAL_ALLOWED_FIELDS = {
     },
     "saas.backup.run": {
         "name", "started_at", "finished_at", "status", "backup_type", "size_bytes",
-        "checksum", "encrypted", "off_host", "drilldown_url",
+        "checksum", "encrypted", "off_host", "backup_contract_complete",
+        "failure_count_24h", "snapshot_count", "pitr_enabled", "pitr_window_seconds",
+        "wal_archive_status", "secondary_copy_status", "storage_cost_monthly_eur",
+        "drilldown_url",
     },
     "saas.restore.test": {
         "name", "started_at", "finished_at", "status", "actual_rpo_seconds",
         "actual_rto_seconds", "rpo_measured", "rto_measured", "checksum_valid",
-        "application_smoke_passed", "tenant_isolation_passed", "evidence_url",
+        "application_smoke_passed", "tenant_isolation_passed", "restore_contract_complete",
+        "missing_record_count", "owner_team", "next_test_at", "evidence_url",
+    },
+    "saas.dr.drill": {
+        "name", "started_at", "finished_at", "status", "dr_contract_complete",
+        "failover_duration_seconds", "failback_duration_seconds",
+        "dns_propagation_duration_seconds", "unavailable_dependency_count",
+        "runbook_accuracy_rate", "open_remediation_action_count", "owner_team",
+        "next_drill_at", "evidence_url",
     },
     "saas.load.test": {
         "name", "started_at", "finished_at", "test_type", "status", "concurrent_users",
@@ -74,6 +85,10 @@ class SaasOperationalIngestMixin(models.AbstractModel):
     _name = "saas.operational.ingest.mixin"
     _description = "Shared safe operational ingest"
 
+    _complete_contract_marker = False
+    _complete_contract_fields = set()
+    _complete_contract_label = "operational"
+
     external_key = fields.Char(required=True, index=True)
     source_updated_at = fields.Datetime(required=True, default=fields.Datetime.now)
 
@@ -83,11 +98,30 @@ class SaasOperationalIngestMixin(models.AbstractModel):
 
     @api.model_create_multi
     def create(self, vals_list):
+        marker = self._complete_contract_marker
+        if marker:
+            for values in vals_list:
+                if values.get(marker) is True:
+                    missing = self._complete_contract_fields - set(values)
+                    if missing:
+                        raise ValidationError(
+                            f"Complete {self._complete_contract_label} evidence requires every "
+                            f"contract field: {', '.join(sorted(missing))}."
+                        )
         records = super().create(vals_list)
         records._sync_operational_alerts()
         return records
 
     def write(self, values):
+        marker = self._complete_contract_marker
+        if marker and values.get(marker) is True:
+            for record in self.filtered(lambda item: not item[marker]):
+                missing = self._complete_contract_fields - set(values)
+                if missing:
+                    raise ValidationError(
+                        f"Completing {self._complete_contract_label} evidence requires every "
+                        f"contract field: {', '.join(sorted(missing))}."
+                    )
         result = super().write(values)
         self._sync_operational_alerts()
         return result
@@ -104,6 +138,10 @@ class SaasOperationalIngestMixin(models.AbstractModel):
             if record._name in {"saas.backup.run", "saas.restore.test"}:
                 unhealthy = record.status == "failed"
                 severity = "p1"
+                recovered = record.status == "success"
+            elif record._name == "saas.dr.drill":
+                unhealthy = record.status in {"partial", "failed"}
+                severity = "p1" if record.status == "failed" else "p2"
                 recovered = record.status == "success"
             elif record._name == "saas.load.test":
                 unhealthy = record.status in {"not_ready", "ready_with_risk"}
@@ -217,6 +255,14 @@ class SaasOperationalIngestMixin(models.AbstractModel):
                     raise ValidationError(
                         "Complete metric-quality evidence requires all quality fields: "
                         f"{', '.join(sorted(missing))}."
+                    )
+            marker = model._complete_contract_marker
+            if marker and raw_item.get(marker) is True:
+                missing = model._complete_contract_fields - set(raw_item)
+                if missing:
+                    raise ValidationError(
+                        f"Complete {model._complete_contract_label} evidence requires every "
+                        f"contract field: {', '.join(sorted(missing))}."
                     )
             values = {
                 "environment_id": environment.id,
@@ -493,6 +539,27 @@ class SaasBackupRun(models.Model):
     _description = "SaaS backup run"
     _order = "started_at desc, id desc"
 
+    _complete_contract_marker = "backup_contract_complete"
+    _complete_contract_label = "backup"
+    _complete_contract_fields = {
+        "name",
+        "started_at",
+        "finished_at",
+        "status",
+        "backup_type",
+        "size_bytes",
+        "checksum",
+        "encrypted",
+        "off_host",
+        "failure_count_24h",
+        "snapshot_count",
+        "pitr_enabled",
+        "pitr_window_seconds",
+        "wal_archive_status",
+        "secondary_copy_status",
+        "storage_cost_monthly_eur",
+    }
+
     name = fields.Char(required=True)
     environment_id = fields.Many2one(
         "saas.environment", required=True, ondelete="restrict", index=True
@@ -512,7 +579,90 @@ class SaasBackupRun(models.Model):
     checksum = fields.Char()
     encrypted = fields.Boolean()
     off_host = fields.Boolean()
+    backup_contract_complete = fields.Boolean(
+        help="True only when the full backup, PITR, secondary-copy and cost contract is measured."
+    )
+    failure_count_24h = fields.Integer()
+    snapshot_count = fields.Integer()
+    pitr_enabled = fields.Boolean()
+    pitr_window_seconds = fields.Integer()
+    wal_archive_status = fields.Selection(
+        [
+            ("healthy", "Healthy"),
+            ("unhealthy", "Unhealthy"),
+            ("not_applicable", "Not applicable"),
+        ]
+    )
+    secondary_copy_status = fields.Selection(
+        [("healthy", "Healthy"), ("unhealthy", "Unhealthy")]
+    )
+    storage_cost_monthly_eur = fields.Float()
     drilldown_url = fields.Char()
+
+    @api.constrains(
+        "started_at",
+        "finished_at",
+        "status",
+        "size_bytes",
+        "checksum",
+        "encrypted",
+        "off_host",
+        "backup_contract_complete",
+        "failure_count_24h",
+        "snapshot_count",
+        "pitr_enabled",
+        "pitr_window_seconds",
+        "wal_archive_status",
+        "secondary_copy_status",
+        "storage_cost_monthly_eur",
+    )
+    def _check_backup_evidence_contract(self):
+        for record in self:
+            if record.finished_at and record.finished_at <= record.started_at:
+                raise ValidationError("Backup finish must be after its start.")
+            if any(
+                value < 0
+                for value in (
+                    record.size_bytes,
+                    record.failure_count_24h,
+                    record.snapshot_count,
+                    record.pitr_window_seconds,
+                    record.storage_cost_monthly_eur,
+                )
+            ):
+                raise ValidationError("Backup counts, size, PITR window and cost cannot be negative.")
+            if not math.isfinite(record.storage_cost_monthly_eur):
+                raise ValidationError("Backup storage cost must be finite.")
+            if not record.backup_contract_complete:
+                continue
+            if (
+                not record.finished_at
+                or record.finished_at <= record.started_at
+                or record.status == "running"
+            ):
+                raise ValidationError(
+                    "Complete backup evidence requires a completed run with valid timestamps."
+                )
+            if record.pitr_enabled:
+                if record.pitr_window_seconds <= 0 or record.wal_archive_status == "not_applicable":
+                    raise ValidationError(
+                        "Enabled PITR requires a positive window and applicable WAL/archive health."
+                    )
+            elif record.pitr_window_seconds or record.wal_archive_status != "not_applicable":
+                raise ValidationError(
+                    "Disabled PITR requires a zero window and not-applicable WAL/archive status."
+                )
+            if record.status == "success" and (
+                record.size_bytes <= 0
+                or not (record.checksum or "").strip()
+                or not record.encrypted
+                or not record.off_host
+                or record.secondary_copy_status != "healthy"
+            ):
+                raise ValidationError(
+                    "A successful complete backup requires size, checksum, encryption, off-host "
+                    "storage and a healthy secondary copy."
+                )
 
     @api.constrains("drilldown_url")
     def _check_drilldown_url(self):
@@ -524,6 +674,25 @@ class SaasRestoreTest(models.Model):
     _inherit = "saas.operational.ingest.mixin"
     _description = "SaaS restore test"
     _order = "started_at desc, id desc"
+
+    _complete_contract_marker = "restore_contract_complete"
+    _complete_contract_label = "restore"
+    _complete_contract_fields = {
+        "name",
+        "started_at",
+        "finished_at",
+        "status",
+        "actual_rpo_seconds",
+        "actual_rto_seconds",
+        "rpo_measured",
+        "rto_measured",
+        "checksum_valid",
+        "application_smoke_passed",
+        "tenant_isolation_passed",
+        "missing_record_count",
+        "owner_team",
+        "next_test_at",
+    }
 
     name = fields.Char(required=True)
     environment_id = fields.Many2one(
@@ -543,6 +712,12 @@ class SaasRestoreTest(models.Model):
     checksum_valid = fields.Boolean()
     application_smoke_passed = fields.Boolean()
     tenant_isolation_passed = fields.Boolean()
+    restore_contract_complete = fields.Boolean(
+        help="True only when the full restore result, ownership and next-test contract is measured."
+    )
+    missing_record_count = fields.Integer()
+    owner_team = fields.Char(size=128)
+    next_test_at = fields.Datetime()
     evidence_url = fields.Char()
     owner_id = fields.Many2one("res.users", required=True, default=lambda self: self.env.user)
 
@@ -561,6 +736,10 @@ class SaasRestoreTest(models.Model):
         "checksum_valid",
         "application_smoke_passed",
         "tenant_isolation_passed",
+        "restore_contract_complete",
+        "missing_record_count",
+        "owner_team",
+        "next_test_at",
     )
     def _check_restore_evidence(self):
         for record in self:
@@ -568,6 +747,8 @@ class SaasRestoreTest(models.Model):
                 raise ValidationError("Restore finish must be after its start.")
             if record.actual_rpo_seconds < 0 or record.actual_rto_seconds < 0:
                 raise ValidationError("Restore RPO and RTO cannot be negative.")
+            if record.missing_record_count < 0:
+                raise ValidationError("Restore missing-record count cannot be negative.")
             if not record.rpo_measured and record.actual_rpo_seconds:
                 raise ValidationError("RPO requires explicit measured evidence.")
             if not record.rto_measured and record.actual_rto_seconds:
@@ -585,6 +766,140 @@ class SaasRestoreTest(models.Model):
             ):
                 raise ValidationError(
                     "A successful restore requires checksum, smoke, tenant isolation, RPO and RTO evidence."
+                )
+            if not record.restore_contract_complete:
+                continue
+            if (
+                not record.finished_at
+                or record.finished_at <= record.started_at
+                or record.status == "running"
+            ):
+                raise ValidationError(
+                    "Complete restore evidence requires a completed test with valid timestamps."
+                )
+            if not (record.owner_team or "").strip():
+                raise ValidationError("Complete restore evidence requires an owner team.")
+            if not record.next_test_at or record.next_test_at <= record.finished_at:
+                raise ValidationError(
+                    "Complete restore evidence requires a next test after the completed test."
+                )
+            if record.status == "success" and record.missing_record_count:
+                raise ValidationError("A successful complete restore cannot have missing records.")
+
+
+class SaasDrDrill(models.Model):
+    _name = "saas.dr.drill"
+    _inherit = "saas.operational.ingest.mixin"
+    _description = "SaaS disaster recovery drill"
+    _order = "started_at desc, id desc"
+
+    _complete_contract_marker = "dr_contract_complete"
+    _complete_contract_label = "disaster-recovery drill"
+    _complete_contract_fields = {
+        "name",
+        "started_at",
+        "finished_at",
+        "status",
+        "failover_duration_seconds",
+        "failback_duration_seconds",
+        "dns_propagation_duration_seconds",
+        "unavailable_dependency_count",
+        "runbook_accuracy_rate",
+        "open_remediation_action_count",
+        "owner_team",
+        "next_drill_at",
+    }
+
+    name = fields.Char(required=True)
+    environment_id = fields.Many2one(
+        "saas.environment", required=True, ondelete="restrict", index=True
+    )
+    started_at = fields.Datetime(required=True, index=True)
+    finished_at = fields.Datetime()
+    status = fields.Selection(
+        [
+            ("running", "Running"),
+            ("success", "Success"),
+            ("partial", "Partial"),
+            ("failed", "Failed"),
+        ],
+        required=True,
+        index=True,
+    )
+    dr_contract_complete = fields.Boolean(
+        help="True only when failover, failback, DNS, dependencies, runbook and remediation are measured."
+    )
+    failover_duration_seconds = fields.Float()
+    failback_duration_seconds = fields.Float()
+    dns_propagation_duration_seconds = fields.Float()
+    unavailable_dependency_count = fields.Integer()
+    runbook_accuracy_rate = fields.Float()
+    open_remediation_action_count = fields.Integer()
+    owner_team = fields.Char(size=128)
+    next_drill_at = fields.Datetime()
+    evidence_url = fields.Char()
+
+    @api.constrains("evidence_url")
+    def _check_evidence_url(self):
+        _validate_http_urls(self, ("evidence_url",))
+
+    @api.constrains(
+        "started_at",
+        "finished_at",
+        "status",
+        "dr_contract_complete",
+        "failover_duration_seconds",
+        "failback_duration_seconds",
+        "dns_propagation_duration_seconds",
+        "unavailable_dependency_count",
+        "runbook_accuracy_rate",
+        "open_remediation_action_count",
+        "owner_team",
+        "next_drill_at",
+    )
+    def _check_dr_evidence_contract(self):
+        for record in self:
+            if record.finished_at and record.finished_at <= record.started_at:
+                raise ValidationError("DR drill finish must be after its start.")
+            if any(
+                value < 0
+                for value in (
+                    record.failover_duration_seconds,
+                    record.failback_duration_seconds,
+                    record.dns_propagation_duration_seconds,
+                    record.unavailable_dependency_count,
+                    record.runbook_accuracy_rate,
+                    record.open_remediation_action_count,
+                )
+            ):
+                raise ValidationError("DR drill measurements cannot be negative.")
+            if not all(
+                math.isfinite(value)
+                for value in (
+                    record.failover_duration_seconds,
+                    record.failback_duration_seconds,
+                    record.dns_propagation_duration_seconds,
+                    record.runbook_accuracy_rate,
+                )
+            ):
+                raise ValidationError("DR drill duration and accuracy measurements must be finite.")
+            if record.runbook_accuracy_rate > 100:
+                raise ValidationError("DR drill runbook accuracy cannot exceed 100 percent.")
+            if not record.dr_contract_complete:
+                continue
+            if (
+                not record.finished_at
+                or record.finished_at <= record.started_at
+                or record.status == "running"
+            ):
+                raise ValidationError(
+                    "Complete DR drill evidence requires a completed drill with valid timestamps."
+                )
+            if not (record.owner_team or "").strip():
+                raise ValidationError("Complete DR drill evidence requires an owner team.")
+            if not record.next_drill_at or record.next_drill_at <= record.finished_at:
+                raise ValidationError(
+                    "Complete DR drill evidence requires a next drill after the completed drill."
                 )
 
 

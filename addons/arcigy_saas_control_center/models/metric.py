@@ -405,6 +405,46 @@ class SaasMetricCurrent(models.Model):
                 "model": "saas.backup.run",
                 "drilldown": f"{base_url}/web#model=saas.backup.run&view_type=list",
             },
+            "backup_duration_seconds": {
+                "model": "saas.backup.run",
+                "drilldown": f"{base_url}/web#model=saas.backup.run&view_type=list",
+            },
+            "backup_size_bytes": {
+                "model": "saas.backup.run",
+                "drilldown": f"{base_url}/web#model=saas.backup.run&view_type=list",
+            },
+            "backup_failure_count_24h": {
+                "model": "saas.backup.run",
+                "drilldown": f"{base_url}/web#model=saas.backup.run&view_type=list",
+            },
+            "backup_snapshot_count": {
+                "model": "saas.backup.run",
+                "drilldown": f"{base_url}/web#model=saas.backup.run&view_type=list",
+            },
+            "backup_pitr_enabled_status": {
+                "model": "saas.backup.run",
+                "drilldown": f"{base_url}/web#model=saas.backup.run&view_type=list",
+            },
+            "backup_pitr_window_seconds": {
+                "model": "saas.backup.run",
+                "drilldown": f"{base_url}/web#model=saas.backup.run&view_type=list",
+            },
+            "backup_wal_archive_health_status": {
+                "model": "saas.backup.run",
+                "drilldown": f"{base_url}/web#model=saas.backup.run&view_type=list",
+            },
+            "backup_secondary_copy_status": {
+                "model": "saas.backup.run",
+                "drilldown": f"{base_url}/web#model=saas.backup.run&view_type=list",
+            },
+            "backup_encryption_status": {
+                "model": "saas.backup.run",
+                "drilldown": f"{base_url}/web#model=saas.backup.run&view_type=list",
+            },
+            "backup_storage_cost_monthly_eur": {
+                "model": "saas.backup.run",
+                "drilldown": f"{base_url}/web#model=saas.backup.run&view_type=list",
+            },
             "restore_test_age_seconds": {
                 "model": "saas.restore.test",
                 "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
@@ -420,6 +460,66 @@ class SaasMetricCurrent(models.Model):
             "actual_rto_seconds": {
                 "model": "saas.restore.test",
                 "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
+            },
+            "restore_duration_seconds": {
+                "model": "saas.restore.test",
+                "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
+            },
+            "restore_checksum_status": {
+                "model": "saas.restore.test",
+                "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
+            },
+            "restore_missing_record_count": {
+                "model": "saas.restore.test",
+                "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
+            },
+            "restore_application_smoke_status": {
+                "model": "saas.restore.test",
+                "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
+            },
+            "restore_tenant_isolation_status": {
+                "model": "saas.restore.test",
+                "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
+            },
+            "restore_next_test_overdue_seconds": {
+                "model": "saas.restore.test",
+                "drilldown": f"{base_url}/web#model=saas.restore.test&view_type=list",
+            },
+            "dr_drill_age_seconds": {
+                "model": "saas.dr.drill",
+                "drilldown": f"{base_url}/web#model=saas.dr.drill&view_type=list",
+            },
+            "dr_drill_success_status": {
+                "model": "saas.dr.drill",
+                "drilldown": f"{base_url}/web#model=saas.dr.drill&view_type=list",
+            },
+            "dr_failover_duration_seconds": {
+                "model": "saas.dr.drill",
+                "drilldown": f"{base_url}/web#model=saas.dr.drill&view_type=list",
+            },
+            "dr_failback_duration_seconds": {
+                "model": "saas.dr.drill",
+                "drilldown": f"{base_url}/web#model=saas.dr.drill&view_type=list",
+            },
+            "dr_dns_propagation_duration_seconds": {
+                "model": "saas.dr.drill",
+                "drilldown": f"{base_url}/web#model=saas.dr.drill&view_type=list",
+            },
+            "dr_unavailable_dependency_count": {
+                "model": "saas.dr.drill",
+                "drilldown": f"{base_url}/web#model=saas.dr.drill&view_type=list",
+            },
+            "dr_runbook_accuracy_rate": {
+                "model": "saas.dr.drill",
+                "drilldown": f"{base_url}/web#model=saas.dr.drill&view_type=list",
+            },
+            "dr_open_remediation_action_count": {
+                "model": "saas.dr.drill",
+                "drilldown": f"{base_url}/web#model=saas.dr.drill&view_type=list",
+            },
+            "dr_next_drill_overdue_seconds": {
+                "model": "saas.dr.drill",
+                "drilldown": f"{base_url}/web#model=saas.dr.drill&view_type=list",
             },
             "odoo_sync_freshness_seconds": {
                 "model": "saas.sync.run",
@@ -644,6 +744,43 @@ class SaasMetricCurrent(models.Model):
             )
             if backup:
                 values["backup_age_seconds"] = age_seconds(backup)
+            backup_evidence = self.env["saas.backup.run"].search(
+                [
+                    ("environment_id", "=", environment.id),
+                    ("backup_contract_complete", "=", True),
+                    ("finished_at", "!=", False),
+                ],
+                order="finished_at desc, id desc",
+                limit=1,
+            )
+            if backup_evidence:
+                backup_values = {
+                    "backup_duration_seconds": (
+                        backup_evidence.finished_at - backup_evidence.started_at
+                    ).total_seconds(),
+                    "backup_size_bytes": backup_evidence.size_bytes,
+                    "backup_failure_count_24h": backup_evidence.failure_count_24h,
+                    "backup_snapshot_count": backup_evidence.snapshot_count,
+                    "backup_pitr_enabled_status": 1 if backup_evidence.pitr_enabled else 0,
+                    "backup_pitr_window_seconds": backup_evidence.pitr_window_seconds,
+                    "backup_secondary_copy_status": (
+                        1 if backup_evidence.secondary_copy_status == "healthy" else 0
+                    ),
+                    "backup_encryption_status": 1 if backup_evidence.encrypted else 0,
+                    "backup_storage_cost_monthly_eur": (
+                        backup_evidence.storage_cost_monthly_eur
+                    ),
+                }
+                if backup_evidence.wal_archive_status != "not_applicable":
+                    backup_values["backup_wal_archive_health_status"] = (
+                        1 if backup_evidence.wal_archive_status == "healthy" else 0
+                    )
+                for code, value in backup_values.items():
+                    values[code] = value
+                    details[code] = {
+                        "sample_count": 1,
+                        "source_record": backup_evidence,
+                    }
             latest_restore = self.env["saas.restore.test"].search(
                 [
                     ("environment_id", "=", environment.id),
@@ -686,6 +823,73 @@ class SaasMetricCurrent(models.Model):
                 if restore.rto_measured:
                     values["actual_rto_seconds"] = restore.actual_rto_seconds
                     details["actual_rto_seconds"] = {"source_record": restore}
+            restore_evidence = self.env["saas.restore.test"].search(
+                [
+                    ("environment_id", "=", environment.id),
+                    ("restore_contract_complete", "=", True),
+                    ("finished_at", "!=", False),
+                ],
+                order="finished_at desc, id desc",
+                limit=1,
+            )
+            if restore_evidence:
+                restore_values = {
+                    "restore_duration_seconds": (
+                        restore_evidence.finished_at - restore_evidence.started_at
+                    ).total_seconds(),
+                    "restore_checksum_status": 1 if restore_evidence.checksum_valid else 0,
+                    "restore_missing_record_count": restore_evidence.missing_record_count,
+                    "restore_application_smoke_status": (
+                        1 if restore_evidence.application_smoke_passed else 0
+                    ),
+                    "restore_tenant_isolation_status": (
+                        1 if restore_evidence.tenant_isolation_passed else 0
+                    ),
+                    "restore_next_test_overdue_seconds": max(
+                        (now - restore_evidence.next_test_at).total_seconds(), 0
+                    ),
+                }
+                for code, value in restore_values.items():
+                    values[code] = value
+                    details[code] = {
+                        "sample_count": 1,
+                        "source_record": restore_evidence,
+                    }
+            dr_drill = self.env["saas.dr.drill"].search(
+                [
+                    ("environment_id", "=", environment.id),
+                    ("dr_contract_complete", "=", True),
+                    ("finished_at", "!=", False),
+                ],
+                order="finished_at desc, id desc",
+                limit=1,
+            )
+            if dr_drill:
+                dr_values = {
+                    "dr_drill_age_seconds": age_seconds(dr_drill),
+                    "dr_drill_success_status": 1 if dr_drill.status == "success" else 0,
+                    "dr_failover_duration_seconds": dr_drill.failover_duration_seconds,
+                    "dr_failback_duration_seconds": dr_drill.failback_duration_seconds,
+                    "dr_dns_propagation_duration_seconds": (
+                        dr_drill.dns_propagation_duration_seconds
+                    ),
+                    "dr_unavailable_dependency_count": (
+                        dr_drill.unavailable_dependency_count
+                    ),
+                    "dr_runbook_accuracy_rate": dr_drill.runbook_accuracy_rate,
+                    "dr_open_remediation_action_count": (
+                        dr_drill.open_remediation_action_count
+                    ),
+                    "dr_next_drill_overdue_seconds": max(
+                        (now - dr_drill.next_drill_at).total_seconds(), 0
+                    ),
+                }
+                for code, value in dr_values.items():
+                    values[code] = value
+                    details[code] = {
+                        "sample_count": 1,
+                        "source_record": dr_drill,
+                    }
             sync_run = self.env["saas.sync.run"].search(
                 [
                     ("environment_id", "=", environment.id),

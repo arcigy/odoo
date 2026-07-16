@@ -29,7 +29,7 @@ class TestInternalOperationalMetrics(TransactionCase):
     def test_refresh_emits_true_zero_incident_counts_but_omits_missing_ages(self):
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 2)
-        self.assertEqual(len(result["omitted"]), 100)
+        self.assertEqual(len(result["omitted"]), 150)
 
         metric = self.env.ref(
             "arcigy_saas_control_center.metric_open_critical_incidents"
@@ -154,7 +154,7 @@ class TestInternalOperationalMetrics(TransactionCase):
 
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 11)
-        self.assertEqual(len(result["omitted"]), 91)
+        self.assertEqual(len(result["omitted"]), 141)
         by_code = {
             record.metric_id.code: record
             for record in self.current.search(
@@ -306,7 +306,7 @@ class TestInternalOperationalMetrics(TransactionCase):
 
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 26)
-        self.assertEqual(len(result["omitted"]), 76)
+        self.assertEqual(len(result["omitted"]), 126)
         develop_values = {
             record.metric_id.code: record
             for record in self.current.search(
@@ -441,7 +441,7 @@ class TestInternalOperationalMetrics(TransactionCase):
 
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 21)
-        self.assertEqual(len(result["omitted"]), 81)
+        self.assertEqual(len(result["omitted"]), 131)
         develop_values = {
             record.metric_id.code: record
             for record in self.current.search(
@@ -550,7 +550,7 @@ class TestInternalOperationalMetrics(TransactionCase):
 
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 18)
-        self.assertEqual(len(result["omitted"]), 84)
+        self.assertEqual(len(result["omitted"]), 134)
         sync_codes = {
             "odoo_sync_attempt_age_seconds",
             "odoo_sync_duration_seconds",
@@ -630,6 +630,209 @@ class TestInternalOperationalMetrics(TransactionCase):
             ),
             history_count,
         )
+
+    def test_refresh_derives_complete_backup_restore_and_dr_evidence(self):
+        now = fields.Datetime.now()
+        for index, environment in enumerate((self.develop, self.main)):
+            pitr_enabled = environment == self.develop
+            self.env["saas.backup.run"].create(
+                {
+                    "name": f"Complete {environment.name} backup",
+                    "environment_id": environment.id,
+                    "started_at": now - timedelta(minutes=10 - index),
+                    "finished_at": now - timedelta(minutes=8 - index),
+                    "status": "success",
+                    "backup_type": "full",
+                    "size_bytes": 1048576 + index,
+                    "checksum": f"sha256:{environment.code}",
+                    "encrypted": True,
+                    "off_host": True,
+                    "backup_contract_complete": True,
+                    "failure_count_24h": index,
+                    "snapshot_count": 7 - index,
+                    "pitr_enabled": pitr_enabled,
+                    "pitr_window_seconds": 86400 if pitr_enabled else 0,
+                    "wal_archive_status": "healthy" if pitr_enabled else "not_applicable",
+                    "secondary_copy_status": "healthy",
+                    "storage_cost_monthly_eur": 42.5 + index,
+                    "external_key": f"{environment.code}:test:complete-backup",
+                    "source_updated_at": now - timedelta(minutes=7 - index),
+                }
+            )
+            self.env["saas.restore.test"].create(
+                {
+                    "name": f"Complete {environment.name} restore",
+                    "environment_id": environment.id,
+                    "started_at": now - timedelta(minutes=30 - index),
+                    "finished_at": now - timedelta(minutes=20 - index),
+                    "status": "success",
+                    "actual_rpo_seconds": index,
+                    "actual_rto_seconds": 600 + index,
+                    "rpo_measured": True,
+                    "rto_measured": True,
+                    "checksum_valid": True,
+                    "application_smoke_passed": True,
+                    "tenant_isolation_passed": True,
+                    "restore_contract_complete": True,
+                    "missing_record_count": 0,
+                    "owner_team": "Engineering",
+                    "next_test_at": now + timedelta(days=30),
+                    "external_key": f"{environment.code}:test:complete-restore",
+                    "source_updated_at": now - timedelta(minutes=19 - index),
+                }
+            )
+            self.env["saas.dr.drill"].create(
+                {
+                    "name": f"Complete {environment.name} DR drill",
+                    "environment_id": environment.id,
+                    "started_at": now - timedelta(minutes=60 - index),
+                    "finished_at": now - timedelta(minutes=40 - index),
+                    "status": "success",
+                    "dr_contract_complete": True,
+                    "failover_duration_seconds": 600 + index,
+                    "failback_duration_seconds": 1200 + index,
+                    "dns_propagation_duration_seconds": 180 + index,
+                    "unavailable_dependency_count": 0,
+                    "runbook_accuracy_rate": 100,
+                    "open_remediation_action_count": 0,
+                    "owner_team": "Engineering",
+                    "next_drill_at": now + timedelta(days=90),
+                    "external_key": f"{environment.code}:test:complete-dr-drill",
+                    "source_updated_at": now - timedelta(minutes=39 - index),
+                }
+            )
+
+        result = self.current._cron_refresh_internal_operational_metrics()
+        self.assertEqual(result["refreshed"], 61)
+        self.assertEqual(len(result["omitted"]), 91)
+
+        backup_codes = {
+            "backup_duration_seconds",
+            "backup_size_bytes",
+            "backup_failure_count_24h",
+            "backup_snapshot_count",
+            "backup_pitr_enabled_status",
+            "backup_pitr_window_seconds",
+            "backup_wal_archive_health_status",
+            "backup_secondary_copy_status",
+            "backup_encryption_status",
+            "backup_storage_cost_monthly_eur",
+        }
+        restore_codes = {
+            "restore_duration_seconds",
+            "restore_checksum_status",
+            "restore_missing_record_count",
+            "restore_application_smoke_status",
+            "restore_tenant_isolation_status",
+            "restore_next_test_overdue_seconds",
+        }
+        dr_codes = {
+            "dr_drill_age_seconds",
+            "dr_drill_success_status",
+            "dr_failover_duration_seconds",
+            "dr_failback_duration_seconds",
+            "dr_dns_propagation_duration_seconds",
+            "dr_unavailable_dependency_count",
+            "dr_runbook_accuracy_rate",
+            "dr_open_remediation_action_count",
+            "dr_next_drill_overdue_seconds",
+        }
+        new_codes = backup_codes | restore_codes | dr_codes
+        develop_values = {
+            record.metric_id.code: record.current_value
+            for record in self.current.search(
+                [
+                    ("environment_id", "=", self.develop.id),
+                    ("metric_id.code", "in", list(new_codes)),
+                ]
+            )
+        }
+        main_values = {
+            record.metric_id.code: record.current_value
+            for record in self.current.search(
+                [
+                    ("environment_id", "=", self.main.id),
+                    ("metric_id.code", "in", list(new_codes)),
+                ]
+            )
+        }
+        self.assertEqual(set(develop_values), new_codes)
+        self.assertEqual(set(main_values), new_codes - {"backup_wal_archive_health_status"})
+        self.assertEqual(develop_values["backup_duration_seconds"], 120)
+        self.assertEqual(develop_values["backup_pitr_enabled_status"], 1)
+        self.assertEqual(develop_values["backup_wal_archive_health_status"], 1)
+        self.assertEqual(main_values["backup_pitr_enabled_status"], 0)
+        self.assertEqual(main_values["backup_pitr_window_seconds"], 0)
+        self.assertEqual(develop_values["restore_duration_seconds"], 600)
+        self.assertEqual(develop_values["restore_missing_record_count"], 0)
+        self.assertEqual(develop_values["restore_checksum_status"], 1)
+        self.assertEqual(develop_values["restore_next_test_overdue_seconds"], 0)
+        self.assertGreaterEqual(develop_values["dr_drill_age_seconds"], 2400)
+        self.assertEqual(develop_values["dr_drill_success_status"], 1)
+        self.assertEqual(develop_values["dr_failover_duration_seconds"], 600)
+        self.assertEqual(develop_values["dr_runbook_accuracy_rate"], 100)
+        self.assertEqual(develop_values["dr_next_drill_overdue_seconds"], 0)
+
+    def test_complete_backup_restore_and_dr_contracts_fail_closed(self):
+        now = fields.Datetime.now()
+        with self.assertRaisesRegex(ValidationError, "requires every contract field"):
+            self.env["saas.backup.run"].create(
+                {
+                    "name": "Incomplete backup claim",
+                    "environment_id": self.develop.id,
+                    "started_at": now - timedelta(minutes=5),
+                    "finished_at": now - timedelta(minutes=4),
+                    "status": "success",
+                    "backup_type": "full",
+                    "backup_contract_complete": True,
+                    "external_key": "develop:test:incomplete-backup-claim",
+                    "source_updated_at": now - timedelta(minutes=4),
+                }
+            )
+        with self.assertRaisesRegex(ValidationError, "next test after the completed test"):
+            self.env["saas.restore.test"].create(
+                {
+                    "name": "Invalid complete restore schedule",
+                    "environment_id": self.develop.id,
+                    "started_at": now - timedelta(minutes=5),
+                    "finished_at": now - timedelta(minutes=4),
+                    "status": "success",
+                    "actual_rpo_seconds": 0,
+                    "actual_rto_seconds": 60,
+                    "rpo_measured": True,
+                    "rto_measured": True,
+                    "checksum_valid": True,
+                    "application_smoke_passed": True,
+                    "tenant_isolation_passed": True,
+                    "restore_contract_complete": True,
+                    "missing_record_count": 0,
+                    "owner_team": "Engineering",
+                    "next_test_at": now - timedelta(minutes=4),
+                    "external_key": "develop:test:invalid-restore-schedule",
+                    "source_updated_at": now - timedelta(minutes=3),
+                }
+            )
+        with self.assertRaisesRegex(ValidationError, "cannot exceed 100 percent"):
+            self.env["saas.dr.drill"].create(
+                {
+                    "name": "Invalid DR accuracy",
+                    "environment_id": self.develop.id,
+                    "started_at": now - timedelta(hours=1),
+                    "finished_at": now - timedelta(minutes=30),
+                    "status": "partial",
+                    "dr_contract_complete": True,
+                    "failover_duration_seconds": 600,
+                    "failback_duration_seconds": 1200,
+                    "dns_propagation_duration_seconds": 180,
+                    "unavailable_dependency_count": 1,
+                    "runbook_accuracy_rate": 101,
+                    "open_remediation_action_count": 1,
+                    "owner_team": "Engineering",
+                    "next_drill_at": now + timedelta(days=30),
+                    "external_key": "develop:test:invalid-dr-accuracy",
+                    "source_updated_at": now - timedelta(minutes=29),
+                }
+            )
 
     def test_invalid_restore_and_capacity_claims_fail_closed(self):
         now = fields.Datetime.now()
