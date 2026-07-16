@@ -29,7 +29,7 @@ class TestInternalOperationalMetrics(TransactionCase):
     def test_refresh_emits_true_zero_incident_counts_but_omits_missing_ages(self):
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 2)
-        self.assertEqual(len(result["omitted"]), 18)
+        self.assertEqual(len(result["omitted"]), 38)
 
         metric = self.env.ref(
             "arcigy_saas_control_center.metric_open_critical_incidents"
@@ -154,7 +154,7 @@ class TestInternalOperationalMetrics(TransactionCase):
 
         result = self.current._cron_refresh_internal_operational_metrics()
         self.assertEqual(result["refreshed"], 11)
-        self.assertEqual(len(result["omitted"]), 9)
+        self.assertEqual(len(result["omitted"]), 29)
         by_code = {
             record.metric_id.code: record
             for record in self.current.search(
@@ -250,6 +250,121 @@ class TestInternalOperationalMetrics(TransactionCase):
         self.assertEqual(by_code["actual_rpo_seconds"].current_value, 0)
         self.assertEqual(by_code["actual_rto_seconds"].current_value, 300)
         self.assertGreaterEqual(by_code["restore_test_age_seconds"].current_value, 7200)
+
+    def test_refresh_derives_only_complete_event_stream_evidence(self):
+        now = fields.Datetime.now()
+        self.env["saas.data.quality.run"].create(
+            {
+                "name": "Complete Develop event stream",
+                "environment_id": self.develop.id,
+                "started_at": now - timedelta(minutes=5),
+                "finished_at": now - timedelta(minutes=1),
+                "status": "warning",
+                "event_stream_complete": True,
+                "events_sent": 100,
+                "events_received": 97,
+                "events_processed": 97,
+                "events_rejected": 0,
+                "retry_adjustment_count": 2,
+                "duplicate_count": 1,
+                "schema_failure_count": 0,
+                "missing_field_count": 0,
+                "late_event_count": 1,
+                "unknown_tenant_count": 0,
+                "external_key": "develop:test:complete-event-stream",
+                "source_updated_at": now - timedelta(minutes=1),
+            }
+        )
+        self.env["saas.data.quality.run"].create(
+            {
+                "name": "Complete empty Main event stream",
+                "environment_id": self.main.id,
+                "started_at": now - timedelta(minutes=5),
+                "finished_at": now - timedelta(minutes=1),
+                "status": "valid",
+                "event_stream_complete": True,
+                "events_sent": 0,
+                "events_received": 0,
+                "events_processed": 0,
+                "events_rejected": 0,
+                "retry_adjustment_count": 0,
+                "duplicate_count": 0,
+                "schema_failure_count": 0,
+                "missing_field_count": 0,
+                "late_event_count": 0,
+                "unknown_tenant_count": 0,
+                "external_key": "main:test:complete-empty-event-stream",
+                "source_updated_at": now - timedelta(minutes=1),
+            }
+        )
+
+        result = self.current._cron_refresh_internal_operational_metrics()
+        self.assertEqual(result["refreshed"], 20)
+        self.assertEqual(len(result["omitted"]), 20)
+        develop_values = {
+            record.metric_id.code: record
+            for record in self.current.search(
+                [("environment_id", "=", self.develop.id)]
+            )
+        }
+        self.assertEqual(develop_values["events_sent_count"].current_value, 100)
+        self.assertEqual(develop_values["events_received_count"].current_value, 97)
+        self.assertEqual(develop_values["events_processed_count"].current_value, 97)
+        self.assertEqual(develop_values["events_rejected_count"].current_value, 0)
+        self.assertEqual(develop_values["event_loss_estimate"].current_value, 1)
+        self.assertAlmostEqual(
+            develop_values["event_duplicate_rate"].current_value,
+            100 / 97,
+        )
+        self.assertEqual(develop_values["event_duplicate_rate"].numerator, 1)
+        self.assertEqual(develop_values["event_duplicate_rate"].denominator, 97)
+        self.assertAlmostEqual(develop_values["late_event_rate"].current_value, 100 / 97)
+        self.assertEqual(
+            develop_values["unknown_tenant_mapping_count"].current_value,
+            0,
+        )
+        self.assertFalse(
+            self.current.search(
+                [
+                    ("environment_id", "=", self.main.id),
+                    (
+                        "metric_id.code",
+                        "in",
+                        ["event_duplicate_rate", "late_event_rate"],
+                    ),
+                ]
+            )
+        )
+        history_count = self.env["saas.metric.timeseries"].search_count([])
+        self.current._cron_refresh_internal_operational_metrics()
+        self.assertEqual(
+            self.env["saas.metric.timeseries"].search_count([]),
+            history_count,
+        )
+
+    def test_complete_event_stream_rejects_inconsistent_counts(self):
+        now = fields.Datetime.now()
+        with self.assertRaisesRegex(
+            ValidationError,
+            "Processed and rejected events cannot exceed received events",
+        ):
+            self.env["saas.data.quality.run"].create(
+                {
+                    "name": "Inconsistent event stream",
+                    "environment_id": self.develop.id,
+                    "started_at": now - timedelta(minutes=5),
+                    "finished_at": now - timedelta(minutes=1),
+                    "status": "invalid",
+                    "event_stream_complete": True,
+                    "events_sent": 10,
+                    "events_received": 9,
+                    "events_processed": 9,
+                    "events_rejected": 1,
+                    "retry_adjustment_count": 1,
+                    "external_key": "develop:test:inconsistent-event-stream",
+                    "source_updated_at": now - timedelta(minutes=1),
+                }
+            )
 
     def test_invalid_restore_and_capacity_claims_fail_closed(self):
         now = fields.Datetime.now()

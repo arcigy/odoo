@@ -12,7 +12,8 @@ SCOPE_KEY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,120}$")
 OPERATIONAL_ALLOWED_FIELDS = {
     "saas.data.quality.run": {
         "name", "started_at", "finished_at", "status", "events_sent", "events_received",
-        "events_processed", "events_rejected", "duplicate_count", "schema_failure_count",
+        "events_processed", "events_rejected", "event_stream_complete",
+        "retry_adjustment_count", "duplicate_count", "schema_failure_count",
         "missing_field_count", "late_event_count", "unknown_tenant_count",
         "reconciliation_difference", "oldest_unsynced_at", "drilldown_url",
     },
@@ -182,6 +183,16 @@ class SaasOperationalIngestMixin(models.AbstractModel):
             external_key = _operation_text(raw_item.get("external_key"), "external_key", 255)
             if not external_key or not external_key.startswith(f"{environment_code}:"):
                 raise ValidationError("external_key must be environment-prefixed.")
+            if self._name == "saas.data.quality.run" and raw_item.get(
+                "event_stream_complete"
+            ) is True:
+                complete_fields = model._complete_event_count_fields
+                missing = complete_fields - set(raw_item)
+                if missing:
+                    raise ValidationError(
+                        "Complete event-stream evidence requires all event counts: "
+                        f"{', '.join(sorted(missing))}."
+                    )
             values = {
                 "environment_id": environment.id,
                 "external_key": external_key,

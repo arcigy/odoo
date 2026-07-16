@@ -110,6 +110,13 @@ explicitné RPO/RTO measurement markery. Reprezentatívny load test musí mať
 ukončenie, pozitívnu concurrency a verziu architektúry; p99 nesmie byť nižšie
 ako p95 a error rate musí zostať v rozsahu 0–100 %.
 
+Event-pipeline KPI sa odvodzujú iba z uzavretého data-quality záznamu s
+`event_stream_complete=true` a úplným scalar kontraktom. Odhad straty je
+`max(events_sent - events_received - retry_adjustment_count, 0)`. Počty,
+deduplikácia, schema failures, chýbajúce polia, late events a unknown tenant
+mapping musia byť navzájom konzistentné; duplicate a late rate sa pri nulovom
+počte prijatých eventov vynechajú namiesto falošnej nuly.
+
 Najprv vždy spustite no-write validáciu:
 
 ```powershell

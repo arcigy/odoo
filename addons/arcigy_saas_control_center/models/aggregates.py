@@ -550,6 +550,12 @@ class SaasDataQualityRun(models.Model):
     events_received = fields.Integer()
     events_processed = fields.Integer()
     events_rejected = fields.Integer()
+    event_stream_complete = fields.Boolean(
+        help="True only when the evidence covers the complete event stream window."
+    )
+    retry_adjustment_count = fields.Integer(
+        help="Retry attempts already included in events sent and excluded from event loss."
+    )
     duplicate_count = fields.Integer()
     schema_failure_count = fields.Integer()
     missing_field_count = fields.Integer()
@@ -559,21 +565,98 @@ class SaasDataQualityRun(models.Model):
     oldest_unsynced_at = fields.Datetime()
     drilldown_url = fields.Char()
 
+    _complete_event_count_fields = {
+        "events_sent",
+        "events_received",
+        "events_processed",
+        "events_rejected",
+        "retry_adjustment_count",
+        "duplicate_count",
+        "schema_failure_count",
+        "missing_field_count",
+        "late_event_count",
+        "unknown_tenant_count",
+    }
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for values in vals_list:
+            if values.get("event_stream_complete") is True:
+                missing = self._complete_event_count_fields - set(values)
+                if missing:
+                    raise ValidationError(
+                        "Complete event-stream evidence requires all event counts: "
+                        f"{', '.join(sorted(missing))}."
+                    )
+        return super().create(vals_list)
+
+    def write(self, values):
+        if values.get("event_stream_complete") is True:
+            for record in self.filtered(lambda item: not item.event_stream_complete):
+                missing = self._complete_event_count_fields - set(values)
+                if missing:
+                    raise ValidationError(
+                        "Completing event-stream evidence requires all event counts: "
+                        f"{', '.join(sorted(missing))}."
+                    )
+        return super().write(values)
+
     @api.constrains(
         "events_sent",
         "events_received",
         "events_processed",
         "events_rejected",
+        "event_stream_complete",
+        "retry_adjustment_count",
         "duplicate_count",
+        "schema_failure_count",
+        "missing_field_count",
+        "late_event_count",
+        "unknown_tenant_count",
+        "started_at",
+        "finished_at",
     )
-    def _check_non_negative_counts(self):
+    def _check_event_stream_contract(self):
         for record in self:
             values = [
                 record.events_sent,
                 record.events_received,
                 record.events_processed,
                 record.events_rejected,
+                record.retry_adjustment_count,
                 record.duplicate_count,
+                record.schema_failure_count,
+                record.missing_field_count,
+                record.late_event_count,
+                record.unknown_tenant_count,
             ]
             if any(value < 0 for value in values):
                 raise ValidationError("Data quality counts cannot be negative.")
+            if not record.event_stream_complete:
+                continue
+            if not record.finished_at or record.finished_at <= record.started_at:
+                raise ValidationError(
+                    "Complete event-stream evidence requires finished_at after started_at."
+                )
+            if record.events_processed + record.events_rejected > record.events_received:
+                raise ValidationError(
+                    "Processed and rejected events cannot exceed received events."
+                )
+            received_bounded_counts = [
+                record.duplicate_count,
+                record.schema_failure_count,
+                record.missing_field_count,
+                record.late_event_count,
+                record.unknown_tenant_count,
+            ]
+            if any(value > record.events_received for value in received_bounded_counts):
+                raise ValidationError(
+                    "Event-quality issue counts cannot exceed received events."
+                )
+            maximum_retry_adjustment = max(
+                record.events_sent - record.events_received, 0
+            )
+            if record.retry_adjustment_count > maximum_retry_adjustment:
+                raise ValidationError(
+                    "Retry adjustment cannot exceed the sent/received difference."
+                )

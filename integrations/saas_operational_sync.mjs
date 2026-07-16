@@ -79,6 +79,8 @@ const OPERATIONAL_MODELS = Object.freeze({
       events_received: numberField(true),
       events_processed: numberField(true),
       events_rejected: numberField(true),
+      event_stream_complete: booleanField(),
+      retry_adjustment_count: numberField(true),
       duplicate_count: numberField(true),
       schema_failure_count: numberField(true),
       missing_field_count: numberField(true),
@@ -256,6 +258,57 @@ export function validateOperationalEvidence(raw, now = Date.now()) {
             `evidence.items[${index}] representative load evidence requires architecture_version and positive concurrent_users.`,
           );
         }
+      }
+    }
+    if (model === "saas.data.quality.run" && normalized.event_stream_complete === true) {
+      if (!normalized.finished_at) {
+        throw new Error(`evidence.items[${index}] complete event-stream evidence requires finished_at.`);
+      }
+      const completeCountFields = [
+        "events_sent",
+        "events_received",
+        "events_processed",
+        "events_rejected",
+        "retry_adjustment_count",
+        "duplicate_count",
+        "schema_failure_count",
+        "missing_field_count",
+        "late_event_count",
+        "unknown_tenant_count",
+      ];
+      for (const fieldName of completeCountFields) {
+        if (normalized[fieldName] === undefined) {
+          throw new Error(
+            `evidence.items[${index}] complete event-stream evidence requires ${fieldName}.`,
+          );
+        }
+      }
+      if (normalized.events_processed + normalized.events_rejected > normalized.events_received) {
+        throw new Error(
+          `evidence.items[${index}] processed and rejected events cannot exceed received events.`,
+        );
+      }
+      for (const fieldName of [
+        "duplicate_count",
+        "schema_failure_count",
+        "missing_field_count",
+        "late_event_count",
+        "unknown_tenant_count",
+      ]) {
+        if (normalized[fieldName] > normalized.events_received) {
+          throw new Error(
+            `evidence.items[${index}].${fieldName} cannot exceed events_received.`,
+          );
+        }
+      }
+      const maximumRetryAdjustment = Math.max(
+        normalized.events_sent - normalized.events_received,
+        0,
+      );
+      if (normalized.retry_adjustment_count > maximumRetryAdjustment) {
+        throw new Error(
+          `evidence.items[${index}].retry_adjustment_count exceeds the sent/received difference.`,
+        );
       }
     }
     return normalized;

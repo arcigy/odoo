@@ -180,6 +180,7 @@
                 <field name="started_at"/><field name="finished_at"/><field name="environment_id"/>
                 <field name="name"/><field name="status"/><field name="events_sent"/>
                 <field name="events_received"/><field name="events_processed"/><field name="events_rejected"/>
+                <field name="event_stream_complete"/><field name="retry_adjustment_count"/>
                 <field name="duplicate_count"/><field name="schema_failure_count"/><field name="missing_field_count"/>
                 <field name="late_event_count"/><field name="unknown_tenant_count"/>
                 <field name="reconciliation_difference"/><field name="oldest_unsynced_at"/>

@@ -145,6 +145,62 @@ test("accepts a signed reconciliation difference without broadening the schema",
   assert.equal(result.items[0].reconciliation_difference, -2);
 });
 
+test("requires a complete and internally consistent event-stream contract", () => {
+  const evidence = {
+    model: "saas.data.quality.run",
+    environment: "develop",
+    source_updated_at: "2026-07-16T12:05:00Z",
+    items: [
+      {
+        external_key: "develop:event-stream:2026-07-16T12:00:00Z",
+        name: "Complete event stream",
+        started_at: "2026-07-16T12:00:00Z",
+        finished_at: "2026-07-16T12:04:00Z",
+        status: "warning",
+        event_stream_complete: true,
+        events_sent: 100,
+        events_received: 97,
+        events_processed: 96,
+        events_rejected: 1,
+        retry_adjustment_count: 2,
+        duplicate_count: 1,
+        schema_failure_count: 1,
+        missing_field_count: 0,
+        late_event_count: 1,
+        unknown_tenant_count: 0,
+      },
+    ],
+  };
+  const normalized = validateOperationalEvidence(
+    evidence,
+    Date.parse("2026-07-16T12:05:00Z"),
+  );
+  assert.equal(normalized.items[0].event_stream_complete, true);
+  assert.equal(normalized.items[0].retry_adjustment_count, 2);
+
+  const missingCount = structuredClone(evidence);
+  delete missingCount.items[0].retry_adjustment_count;
+  assert.throws(
+    () => validateOperationalEvidence(missingCount),
+    /complete event-stream evidence requires retry_adjustment_count/,
+  );
+
+  const inconsistent = structuredClone(evidence);
+  inconsistent.items[0].events_processed = 97;
+  inconsistent.items[0].events_rejected = 1;
+  assert.throws(
+    () => validateOperationalEvidence(inconsistent),
+    /processed and rejected events cannot exceed received events/,
+  );
+
+  const excessiveRetryAdjustment = structuredClone(evidence);
+  excessiveRetryAdjustment.items[0].retry_adjustment_count = 4;
+  assert.throws(
+    () => validateOperationalEvidence(excessiveRetryAdjustment),
+    /retry_adjustment_count exceeds the sent\/received difference/,
+  );
+});
+
 test("validates restore and load evidence without accepting raw test output", () => {
   const restore = validateOperationalEvidence(
     {

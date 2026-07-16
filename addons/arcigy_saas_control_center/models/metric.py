@@ -425,6 +425,46 @@ class SaasMetricCurrent(models.Model):
                 "model": "saas.sync.run",
                 "drilldown": f"{base_url}/web#model=saas.sync.run&view_type=list",
             },
+            "events_sent_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "events_received_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "events_processed_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "events_rejected_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "event_loss_estimate": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "event_duplicate_rate": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "schema_validation_failure_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "missing_required_field_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "late_event_rate": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
+            "unknown_tenant_mapping_count": {
+                "model": "saas.data.quality.run",
+                "drilldown": f"{base_url}/web#model=saas.data.quality.run&view_type=list",
+            },
             "tested_concurrent_users": {
                 "model": "saas.load.test",
                 "drilldown": f"{base_url}/web#model=saas.load.test&view_type=list",
@@ -533,6 +573,65 @@ class SaasMetricCurrent(models.Model):
             )
             if sync_run:
                 values["odoo_sync_freshness_seconds"] = age_seconds(sync_run)
+
+            data_quality = self.env["saas.data.quality.run"].search(
+                [
+                    ("environment_id", "=", environment.id),
+                    ("event_stream_complete", "=", True),
+                    ("finished_at", "!=", False),
+                ],
+                order="finished_at desc, id desc",
+                limit=1,
+            )
+            if data_quality:
+                received = data_quality.events_received
+                direct_values = {
+                    "events_sent_count": (data_quality.events_sent, data_quality.events_sent),
+                    "events_received_count": (received, received),
+                    "events_processed_count": (data_quality.events_processed, received),
+                    "events_rejected_count": (data_quality.events_rejected, received),
+                    "schema_validation_failure_count": (
+                        data_quality.schema_failure_count,
+                        received,
+                    ),
+                    "missing_required_field_count": (
+                        data_quality.missing_field_count,
+                        received,
+                    ),
+                    "unknown_tenant_mapping_count": (
+                        data_quality.unknown_tenant_count,
+                        received,
+                    ),
+                }
+                for code, (value, sample_count) in direct_values.items():
+                    values[code] = value
+                    details[code] = {
+                        "sample_count": sample_count,
+                        "source_record": data_quality,
+                    }
+                values["event_loss_estimate"] = max(
+                    data_quality.events_sent
+                    - received
+                    - data_quality.retry_adjustment_count,
+                    0,
+                )
+                details["event_loss_estimate"] = {
+                    "sample_count": data_quality.events_sent,
+                    "source_record": data_quality,
+                }
+                if received > 0:
+                    ratio_values = {
+                        "event_duplicate_rate": data_quality.duplicate_count,
+                        "late_event_rate": data_quality.late_event_count,
+                    }
+                    for code, numerator in ratio_values.items():
+                        values[code] = numerator / received * 100
+                        details[code] = {
+                            "numerator": numerator,
+                            "denominator": received,
+                            "sample_count": received,
+                            "source_record": data_quality,
+                        }
 
             latest_load = self.env["saas.load.test"].search(
                 [

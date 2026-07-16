@@ -213,7 +213,7 @@ class TestSaasMetricContract(TransactionCase):
 
     def test_every_seeded_metric_has_complete_definition_contract(self):
         definitions = self.env["saas.metric.definition"].search([])
-        self.assertEqual(len(definitions), 232)
+        self.assertEqual(len(definitions), 240)
         for definition in definitions:
             self.assertTrue(definition.code)
             self.assertTrue(definition.name)
@@ -256,6 +256,10 @@ class TestSaasMetricContract(TransactionCase):
             "cost_per_active_tenant", "slo_availability",
             "error_budget_remaining", "backup_age_seconds",
             "restore_test_age_seconds", "odoo_sync_freshness_seconds",
+            "events_sent_count", "events_received_count", "events_processed_count",
+            "events_rejected_count", "event_loss_estimate", "event_duplicate_rate",
+            "schema_validation_failure_count", "missing_required_field_count",
+            "late_event_rate", "unknown_tenant_mapping_count",
         }
         actual_metrics = set(
             self.env["saas.metric.definition"].search([]).mapped("code")
@@ -503,6 +507,38 @@ class TestSaasMetricContract(TransactionCase):
         )
         self.assertEqual(len(alert), 1)
         self.assertEqual(alert.severity, "p1")
+
+    def test_complete_data_quality_ingest_requires_every_event_count(self):
+        payload = {
+            "environment": "develop",
+            "source_updated_at": "2026-07-16T12:00:00Z",
+            "items": [
+                {
+                    "external_key": "develop:data-quality:complete-missing-count",
+                    "name": "Incomplete event-stream claim",
+                    "started_at": "2026-07-16T11:55:00Z",
+                    "finished_at": "2026-07-16T12:00:00Z",
+                    "status": "valid",
+                    "event_stream_complete": True,
+                    "events_sent": 0,
+                    "events_received": 0,
+                    "events_processed": 0,
+                    "events_rejected": 0,
+                    "retry_adjustment_count": 0,
+                    "duplicate_count": 0,
+                    "schema_failure_count": 0,
+                    "missing_field_count": 0,
+                    "late_event_count": 0,
+                }
+            ],
+        }
+        with self.assertRaisesRegex(
+            ValidationError,
+            "Complete event-stream evidence requires all event counts",
+        ):
+            self.env["saas.data.quality.run"].with_user(
+                self.bot
+            ).ingest_operational_batch(payload)
 
     def test_delayed_delivery_does_not_replace_newer_current_value(self):
         as_bot = self.current_model.with_user(self.bot)
