@@ -182,6 +182,30 @@ class TestSaasMetricContract(TransactionCase):
             self.env["saas.security.daily"].with_user(self.security).search_count([]), 0
         )
 
+    def test_integration_bot_cannot_mutate_business_or_operational_records(self):
+        protected_models = [
+            "res.partner",
+            "crm.lead",
+            "saas.incident",
+            "saas.metric.current",
+            "saas.metric.timeseries",
+            "saas.backup.run",
+            "saas.restore.test",
+            "saas.load.test",
+            "saas.sync.run",
+        ]
+        if "account.move" in self.env:
+            protected_models.append("account.move")
+
+        for model_name in protected_models:
+            model = self.env[model_name].with_user(self.bot)
+            for operation in ("create", "write", "unlink"):
+                with self.assertRaises(
+                    AccessError,
+                    msg=f"Integration bot unexpectedly has {operation} access to {model_name}",
+                ):
+                    model.check_access(operation)
+
     def test_retention_is_preview_only_without_destructive_approval(self):
         preview = self.env["saas.metric.timeseries"].retention_preview()
         self.assertFalse(preview["destructiveActionEnabled"])
