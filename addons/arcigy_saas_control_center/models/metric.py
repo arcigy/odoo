@@ -259,17 +259,19 @@ class SaasMetricCurrent(models.Model):
     def _compute_freshness_status(self):
         now = fields.Datetime.now()
         for record in self:
-            if not record.fresh_until or now <= record.fresh_until:
-                record.freshness_status = "fresh"
-                continue
             cadence = max(
                 (record.fresh_until - record.measured_at).total_seconds()
-                if record.measured_at
+                if record.measured_at and record.fresh_until
                 else record.metric_id.freshness_seconds,
                 1,
             )
             age = (now - record.measured_at).total_seconds() if record.measured_at else cadence * 4
-            record.freshness_status = "delayed" if age <= cadence * 3 else "stale"
+            if age <= cadence * 1.5:
+                record.freshness_status = "fresh"
+            elif age <= cadence * 3:
+                record.freshness_status = "delayed"
+            else:
+                record.freshness_status = "stale"
 
     def _sync_status_alert(self):
         self.ensure_one()
@@ -452,6 +454,43 @@ class SaasMetricCurrent(models.Model):
             "countries": options("res.country"),
             "currencies": options("res.currency"),
         }
+
+    @api.model
+    def _dashboard_freshness_summary(self, definitions, current_values):
+        expected_count = len(definitions)
+        expected_refresh_seconds = min(definitions.mapped("freshness_seconds"), default=0)
+        status_rank = {"fresh": 0, "delayed": 1, "stale": 2}
+        summary = {}
+        for environment_code in ("develop", "main"):
+            points = current_values.filtered(
+                lambda value: value.environment_id.code == environment_code
+            )
+            observed_statuses = points.mapped("freshness_status")
+            worst_observed = max(
+                observed_statuses,
+                key=lambda status: status_rank.get(status, 2),
+                default="missing",
+            )
+            complete = bool(expected_count) and len(points) == expected_count
+            measured_at = min(points.mapped("measured_at"), default=False)
+            newest_measured_at = max(points.mapped("measured_at"), default=False)
+            summary[environment_code] = {
+                "status": worst_observed if complete else "missing",
+                "worstObservedStatus": worst_observed,
+                "measuredAt": fields.Datetime.to_string(measured_at) if measured_at else None,
+                "newestMeasuredAt": (
+                    fields.Datetime.to_string(newest_measured_at)
+                    if newest_measured_at
+                    else None
+                ),
+                "expectedRefreshSeconds": expected_refresh_seconds or None,
+                "presentMetricCount": len(points),
+                "expectedMetricCount": expected_count,
+                "completenessPercent": (
+                    round(len(points) / expected_count * 100, 2) if expected_count else 0
+                ),
+            }
+        return summary
 
     @api.model
     def dashboard_payload(self, dashboard_code=None, scope_key="global", filters=None):
@@ -660,6 +699,9 @@ class SaasMetricCurrent(models.Model):
             "scopeKey": scope_key,
             "environments": ["develop", "main"],
             "appliedFilters": normalized_filters,
+            "freshnessSummary": self._dashboard_freshness_summary(
+                definitions, current_values
+            ),
             "sections": sections,
         }
 

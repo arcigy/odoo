@@ -15,6 +15,10 @@ export class ArcigySaasDashboard extends Component {
             loading: true,
             error: null,
             generatedAt: null,
+            freshnessSummary: {
+                develop: { status: "missing", presentMetricCount: 0, expectedMetricCount: 0 },
+                main: { status: "missing", presentMetricCount: 0, expectedMetricCount: 0 },
+            },
             sections: [],
             selectedDashboard: "founder",
             filterOptions: {
@@ -55,6 +59,7 @@ export class ArcigySaasDashboard extends Component {
             });
             this.state.sections = payload.sections;
             this.state.generatedAt = payload.generatedAt;
+            this.state.freshnessSummary = payload.freshnessSummary;
             this.state.error = null;
         } catch (error) {
             this.state.error = error.message || String(error);
@@ -97,6 +102,31 @@ export class ArcigySaasDashboard extends Component {
 
     kpis(section) {
         return section.rows.slice(0, 8);
+    }
+
+    freshnessFor(environment) {
+        return this.state.freshnessSummary[environment] || {
+            status: "missing", presentMetricCount: 0, expectedMetricCount: 0,
+        };
+    }
+
+    freshnessLabel(environment) {
+        const status = this.freshnessFor(environment).status;
+        return { fresh: "FRESH", delayed: "DELAYED", stale: "STALE", missing: "NO DATA" }[status]
+            || "UNKNOWN";
+    }
+
+    freshnessClass(environment) {
+        return `o_arcigy_saas_freshness_card o_arcigy_saas_freshness_card--${this.freshnessFor(environment).status}`;
+    }
+
+    cadenceFor(environment) {
+        const seconds = this.freshnessFor(environment).expectedRefreshSeconds;
+        if (!seconds) return "—";
+        if (seconds % 86400 === 0) return `${seconds / 86400} d`;
+        if (seconds % 3600 === 0) return `${seconds / 3600} h`;
+        if (seconds % 60 === 0) return `${seconds / 60} min`;
+        return `${seconds} s`;
     }
 
     valueFor(row, environment) {

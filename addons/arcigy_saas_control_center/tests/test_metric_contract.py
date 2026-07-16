@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from odoo import fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import TransactionCase
@@ -118,6 +120,34 @@ class TestSaasMetricContract(TransactionCase):
         )
         self.assertEqual(row["develop"]["value"], 99.2)
         self.assertEqual(row["main"]["value"], 99.8)
+
+    def test_dashboard_freshness_summary_is_paired_and_honest_about_missing_data(self):
+        payload = self.current_model.with_user(self.executive).dashboard_payload(
+            "live_operations"
+        )
+        self.assertEqual(set(payload["freshnessSummary"]), {"develop", "main"})
+        expected = len(payload["sections"][0]["rows"])
+        for environment in ("develop", "main"):
+            summary = payload["freshnessSummary"][environment]
+            self.assertEqual(summary["status"], "missing")
+            self.assertEqual(summary["expectedMetricCount"], expected)
+            self.assertLess(summary["presentMetricCount"], expected)
+
+    def test_freshness_uses_one_and_a_half_times_cadence(self):
+        now = fields.Datetime.now()
+        record = self.current_model.sudo().create(
+            {
+                "metric_id": self.metric.id,
+                "environment_id": self.develop.id,
+                "scope_key": "freshness:test",
+                "status": "healthy",
+                "current_value": 1,
+                "measured_at": now - timedelta(seconds=72),
+                "fresh_until": now - timedelta(seconds=12),
+                "source_updated_at": now,
+            }
+        )
+        self.assertEqual(record.freshness_status, "fresh")
 
     def test_every_dashboard_row_has_develop_and_main_columns(self):
         dashboards = self.env["saas.dashboard"].search([("active", "=", True)])

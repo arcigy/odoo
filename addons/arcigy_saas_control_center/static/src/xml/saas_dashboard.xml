@@ -16,9 +16,16 @@
                     <button type="button" class="btn btn-primary" t-on-click="refresh">Obnoviť</button>
                 </div>
             </header>
-            <div class="o_arcigy_saas_freshness">
-                Dáta zobrazené k: <strong><t t-esc="state.generatedAt or '—'"/></strong> · automatický refresh každých 60 sekúnd
+            <div class="o_arcigy_saas_freshness_grid">
+                <t t-foreach="['develop', 'main']" t-as="environment" t-key="environment">
+                    <article t-att-class="freshnessClass(environment)">
+                        <div><strong><t t-esc="environment === 'develop' ? 'Develop' : 'Main'"/></strong><span><t t-esc="freshnessLabel(environment)"/></span></div>
+                        <small>Dáta aktuálne k: <t t-esc="freshnessFor(environment).measuredAt or '—'"/></small>
+                        <small>Očakávaný refresh: <t t-esc="cadenceFor(environment)"/> · úplnosť <t t-esc="freshnessFor(environment).presentMetricCount"/>/<t t-esc="freshnessFor(environment).expectedMetricCount"/></small>
+                    </article>
+                </t>
             </div>
+            <div class="o_arcigy_saas_freshness">Dashboard načítaný: <strong><t t-esc="state.generatedAt or '—'"/></strong> · automatický refresh každých 60 sekúnd</div>
             <details class="o_arcigy_saas_filters">
                 <summary>Globálne filtre</summary>
                 <div class="o_arcigy_saas_filter_grid">
