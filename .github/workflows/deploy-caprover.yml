@@ -3,16 +3,19 @@ name: Deploy Odoo to CapRover
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 concurrency:
-  group: geotherm-odoo-production
+  group: geotherm-odoo-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  deploy:
+  validate:
+    name: Validate Odoo
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -72,6 +75,14 @@ jobs:
         run: |
           docker rm -f geotherm-odoo-ci-db >/dev/null 2>&1 || true
           docker network rm geotherm-odoo-ci >/dev/null 2>&1 || true
+
+  deploy:
+    name: Deploy Odoo to CapRover
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Create deployment archive
         shell: bash
         run: |
