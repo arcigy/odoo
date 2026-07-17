@@ -18,8 +18,11 @@ jobs:
   validate:
     name: Validate Odoo
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: Validate Odoo addon sources
         shell: bash
         run: |
@@ -76,35 +79,23 @@ jobs:
         run: |
           docker rm -f geotherm-odoo-ci-db >/dev/null 2>&1 || true
           docker network rm geotherm-odoo-ci >/dev/null 2>&1 || true
+      - name: Validate immutable deployment archive
+        shell: bash
+        run: bash integrations/create_odoo_deploy_archive.sh validation-deploy.tar "$GITHUB_SHA"
 
   deploy:
     name: Deploy Odoo to CapRover
     needs: validate
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: Create deployment archive
         shell: bash
-        run: |
-          tar \
-            --exclude='./.git' \
-            --exclude='./.github' \
-            --exclude='./.env' \
-            --exclude='*.env' \
-            --exclude='*.tar' \
-            --exclude='__pycache__' \
-            --exclude='*.pyc' \
-            -cf deploy.tar .
-          tar -tf deploy.tar > deploy-files.txt
-          grep -Fxq './captain-definition' deploy-files.txt
-          grep -Fxq './addons/geotherm_chatbot/__manifest__.py' deploy-files.txt
-          grep -Fxq './addons/geotherm_drive/__manifest__.py' deploy-files.txt
-          grep -Fxq './addons/arcigy_saas_control_center/__manifest__.py' deploy-files.txt
-          if grep -Eq '(^|/)(\.env|[^/]*\.env)$' deploy-files.txt; then
-            echo 'Deployment archive contains an environment file.' >&2
-            exit 1
-          fi
+        run: bash integrations/create_odoo_deploy_archive.sh deploy.tar "$GITHUB_SHA"
       - name: Deploy to CapRover
         shell: bash
         env:
