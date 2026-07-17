@@ -571,7 +571,18 @@ class TestSaasMetricContract(TransactionCase):
             self.current_model.with_user(self.bot).ingest_metric_batch(payload)
 
     def test_ingest_rejects_future_or_non_integer_measurement_metadata(self):
-        before = self.env["saas.sync.run"].search_count([])
+        residue_models = (
+            "saas.sync.run",
+            "saas.release",
+            "saas.metric.current",
+            "saas.metric.timeseries",
+            "saas.alert",
+            "saas.incident",
+        )
+        before = {
+            model_name: self.env[model_name].search_count([])
+            for model_name in residue_models
+        }
         payload = self._payload("develop", 99)
         payload["metrics"][0]["measured_at"] = "2026-07-16T10:06:00Z"
         with self.assertRaisesRegex(ValidationError, "newer than the source watermark"):
@@ -591,7 +602,13 @@ class TestSaasMetricContract(TransactionCase):
         payload["metrics"][0]["raw_request"] = {"authorization": "forbidden"}
         with self.assertRaisesRegex(ValidationError, "Unsupported metric item fields: raw_request"):
             self.current_model.with_user(self.bot).ingest_metric_batch(payload)
-        self.assertEqual(self.env["saas.sync.run"].search_count([]), before)
+        self.assertEqual(
+            {
+                model_name: self.env[model_name].search_count([])
+                for model_name in residue_models
+            },
+            before,
+        )
 
     def test_dimension_filters_keep_develop_and_main_paired(self):
         as_bot = self.current_model.with_user(self.bot)

@@ -1609,6 +1609,15 @@ class SaasMetricCurrent(models.Model):
         ):
             raise AccessError("Only the SaaS integration bot can ingest metrics.")
         self = self.sudo()
+        # Keep direct model calls as atomic as JSON-RPC requests.  Validation can
+        # legitimately happen after the audit run and release have been prepared;
+        # a rejected batch must not leave those records, current values, history,
+        # alerts, or incidents behind in the caller's transaction.
+        with self.env.cr.savepoint():
+            return self._ingest_metric_batch(payload)
+
+    @api.model
+    def _ingest_metric_batch(self, payload):
         if not isinstance(payload, dict):
             raise ValidationError("payload must be an object.")
         unknown_payload_fields = set(payload) - METRIC_BATCH_FIELDS
