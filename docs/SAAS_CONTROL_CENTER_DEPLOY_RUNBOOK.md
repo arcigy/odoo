@@ -189,6 +189,23 @@ unauthenticated 401. Image tags 36 and 35 remain available as rollback evidence,
 and the host still has 19 GB free. No Arcigy credential, schedule, source write,
 database, storage or `kitchen_app` change was made.
 
+### Controlled Control Center module upgrade
+
+On 2026-07-17, a fresh encrypted off-host Odoo backup completed successfully
+before the module upgrade. Its transfer checksum, archive structure and
+decryption round-trip were verified; the corresponding bounded attempt ledger
+record and encrypted artifact were present, and no plaintext archive remained.
+
+The live Odoo service was then restarted once with the single temporary setting
+`ODOO_UPDATE_MODULES=arcigy_saas_control_center`. Direct read-only database
+queries confirmed that the installed module moved from `19.0.1.14.0` to
+`19.0.1.15.0`, active definitions from 376 to 439, and Security-dashboard links
+from 38 to 101. The baseline remained unchanged: zero CRM leads, 88 pricebook
+products, 47 attachments, five monthly costs and 24 dashboards. The temporary
+setting was removed and a normal service restart returned the application to
+1/1. Login returned 200 and unauthenticated protected health returned 401.
+No Arcigy credential, schedule, source scrape or source write was created.
+
 ### Live Odoo backup-evidence ingest
 
 On 2026-07-17, the dedicated Odoo service user `saas_integration_bot` was
