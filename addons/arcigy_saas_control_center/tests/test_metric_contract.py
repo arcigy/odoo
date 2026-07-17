@@ -477,6 +477,32 @@ class TestSaasMetricContract(TransactionCase):
         with self.assertRaises(ValidationError):
             self.current_model.with_user(self.bot).ingest_metric_batch(payload)
 
+    def test_ingest_resolves_inactive_currency_without_activating_it(self):
+        currency = self.env["res.currency"].with_context(active_test=False).create(
+            {
+                "name": "ZZZ",
+                "symbol": "Z",
+                "rounding": 0.01,
+                "decimal_places": 2,
+                "active": False,
+            }
+        )
+        payload = self._payload("develop", 99)
+        payload["metrics"][0]["currency_code"] = currency.name
+
+        result = self.current_model.with_user(self.bot).ingest_metric_batch(payload)
+
+        self.assertEqual(result["created"], 1)
+        current = self.current_model.search(
+            [
+                ("metric_id", "=", self.metric.id),
+                ("environment_id", "=", self.develop.id),
+                ("currency_id", "=", currency.id),
+            ]
+        )
+        self.assertEqual(len(current), 1)
+        self.assertFalse(currency.active)
+
     def test_dashboard_rejects_unbounded_filter(self):
         with self.assertRaises(ValidationError):
             self.current_model.with_user(self.executive).dashboard_payload(

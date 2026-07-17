@@ -1666,11 +1666,14 @@ class SaasMetricCurrent(models.Model):
         created = updated = stale_skipped = history_created = history_updated = 0
         alerts_opened = alerts_resolved = 0
 
-        def dimension_record(model_name, code, field_name="code"):
+        def dimension_record(model_name, code, field_name="code", include_inactive=False):
             normalized = _bounded_text(code, field_name)
             if not normalized:
                 return self.env[model_name]
-            record = self.env[model_name].search([(field_name, "=", normalized)], limit=1)
+            model = self.env[model_name]
+            if include_inactive:
+                model = model.with_context(active_test=False)
+            record = model.search([(field_name, "=", normalized)], limit=1)
             if not record:
                 raise ValidationError(f"Unknown {model_name} {field_name}: {normalized}.")
             return record
@@ -1744,7 +1747,7 @@ class SaasMetricCurrent(models.Model):
                 or False,
                 "country_id": country.id or False,
                 "currency_id": dimension_record(
-                    "res.currency", item.get("currency_code"), "name"
+                    "res.currency", item.get("currency_code"), "name", include_inactive=True
                 ).id
                 or False,
                 "tenant_size_band": size_band or False,
