@@ -49,7 +49,7 @@ test("off-host runner uses strict SSH, AES-256 CMS and deletes plaintext only af
   assert.match(runner, /\.attempt\.json/);
   assert.match(runner, /Get-BackupFailureClass/);
   assert.match(runner, /Backup attempt ledger requires operator review/);
-  assert.match(runner, /failure_class = \$FailureClass/);
+  assert.match(runner, /failure_class = if \(\[string\]::IsNullOrWhiteSpace\(\$FailureClass\)\) \{ \$null \} else \{ \$FailureClass \}/);
   assert.doesNotMatch(runner, /kitchen_app|ARCIGY_ODOO_API_KEY|saas\.backup\.run|Invoke-RestMethod/);
   assert.doesNotMatch(runner, /Remove-Item.+-Recurse|docker system prune|docker volume prune/);
 });

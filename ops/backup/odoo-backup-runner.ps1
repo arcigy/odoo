@@ -132,7 +132,7 @@ function Write-BackupAttemptRecord {
         source_app_service = "srv-captain--geotherm-odoo"
         source_db_service = "srv-captain--geotherm-odoo-db"
         status = $Status
-        failure_class = $FailureClass
+        failure_class = if ([string]::IsNullOrWhiteSpace($FailureClass)) { $null } else { $FailureClass }
         odoo_metric_write_performed = $false
     }
     $temporaryPath = "$Path.$([Guid]::NewGuid().ToString('N')).tmp"
