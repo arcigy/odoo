@@ -2,7 +2,51 @@
 <odoo>
     <record id="view_saas_alert_list" model="ir.ui.view">
         <field name="name">saas.alert.list</field><field name="model">saas.alert</field>
-        <field name="arch" type="xml"><list decoration-danger="severity == 'p0'" decoration-warning="severity == 'p1'" default_order="detected_at desc"><field name="detected_at"/><field name="severity" widget="badge"/><field name="status" widget="badge"/><field name="name"/><field name="environment_id"/><field name="scope_key"/><field name="service_id"/><field name="tenant_id"/><field name="incident_id"/><field name="owner_id"/></list></field>
+        <field name="arch" type="xml"><list decoration-danger="severity == 'p0'" decoration-warning="severity == 'p1'" default_order="detected_at desc"><field name="detected_at"/><field name="severity" widget="badge"/><field name="status" widget="badge"/><field name="name"/><field name="metric_id"/><field name="environment_id"/><field name="scope_key"/><field name="current_value"/><field name="threshold"/><field name="service_id"/><field name="tenant_id"/><field name="release_id" optional="hide"/><field name="incident_id"/><field name="owner_id"/></list></field>
+    </record>
+    <record id="view_saas_alert_form" model="ir.ui.view">
+        <field name="name">saas.alert.form</field><field name="model">saas.alert</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_acknowledge" type="object" string="Acknowledge" class="btn-primary" invisible="status != 'open'"/>
+                    <button name="action_resolve" type="object" string="Resolve" invisible="status == 'resolved'"/>
+                    <field name="status" widget="statusbar" statusbar_visible="open,acknowledged,resolved"/>
+                </header>
+                <sheet>
+                    <div class="oe_title"><h1><field name="name"/></h1></div>
+                    <group>
+                        <group string="Signal">
+                            <field name="severity"/>
+                            <field name="metric_id"/>
+                            <field name="environment_id"/>
+                            <field name="scope_key"/>
+                            <field name="current_value"/>
+                            <field name="threshold"/>
+                        </group>
+                        <group string="Ownership and time">
+                            <field name="owner_id"/>
+                            <field name="detected_at"/>
+                            <field name="acknowledged_at" readonly="1"/>
+                            <field name="resolved_at" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Affected scope">
+                        <field name="service_id"/>
+                        <field name="tenant_id"/>
+                        <field name="release_id"/>
+                        <field name="incident_id" readonly="1"/>
+                    </group>
+                    <group string="Action">
+                        <field name="recovery_condition"/>
+                        <field name="runbook_url" widget="url"/>
+                        <field name="drilldown_url" widget="url"/>
+                    </group>
+                    <field name="deduplication_key" readonly="1" groups="arcigy_saas_control_center.group_saas_administrator"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
     </record>
     <record id="view_saas_incident_list" model="ir.ui.view">
         <field name="name">saas.incident.list</field><field name="model">saas.incident</field>

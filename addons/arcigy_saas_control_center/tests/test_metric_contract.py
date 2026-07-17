@@ -545,6 +545,51 @@ class TestSaasMetricContract(TransactionCase):
         self.assertEqual(recovered["alerts_resolved"], 1)
         self.assertEqual(alert.status, "resolved")
 
+    def test_actionable_alert_form_and_state_actions_cover_required_contract(self):
+        required_fields = {
+            "severity", "metric_id", "scope_key", "current_value", "threshold",
+            "detected_at", "status", "owner_id", "service_id", "tenant_id",
+            "release_id", "runbook_url", "drilldown_url", "incident_id",
+            "acknowledged_at", "resolved_at", "recovery_condition",
+        }
+        arch = self.env.ref(
+            "arcigy_saas_control_center.view_saas_alert_form"
+        ).arch_db
+        for field_name in required_fields:
+            self.assertIn(f'name="{field_name}"', arch)
+        self.assertIn('name="action_acknowledge"', arch)
+        self.assertIn('name="action_resolve"', arch)
+
+        payload = self._payload("develop", 80)
+        payload["metrics"][0]["status"] = "critical"
+        self.current_model.with_user(self.bot).ingest_metric_batch(payload)
+        alert = self.env["saas.alert"].sudo().search(
+            [
+                ("metric_id", "=", self.metric.id),
+                ("environment_id", "=", self.develop.id),
+                ("scope_key", "=", "global"),
+            ],
+            limit=1,
+        )
+        self.assertTrue(alert)
+        alert.action_acknowledge()
+        acknowledged_at = alert.acknowledged_at
+        self.assertEqual(alert.status, "acknowledged")
+        self.assertTrue(acknowledged_at)
+        self.assertEqual(alert.incident_id.status, "acknowledged")
+        self.assertEqual(alert.incident_id.acknowledged_at, acknowledged_at)
+        alert.action_acknowledge()
+        self.assertEqual(alert.acknowledged_at, acknowledged_at)
+
+        alert.action_resolve()
+        self.assertEqual(alert.status, "resolved")
+        self.assertTrue(alert.resolved_at)
+        self.assertEqual(alert.incident_id.status, "mitigated")
+        self.assertEqual(alert.incident_id.mitigated_at, alert.resolved_at)
+        resolved_at = alert.resolved_at
+        alert.action_resolve()
+        self.assertEqual(alert.resolved_at, resolved_at)
+
     def test_aggregate_ingest_is_idempotent_and_direct_bot_create_is_denied(self):
         endpoint_model = self.env["saas.endpoint.hourly"]
         item = {

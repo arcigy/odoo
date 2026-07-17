@@ -445,6 +445,18 @@ class SaasAlert(models.Model):
                 )
         return result
 
+    def action_acknowledge(self):
+        self.filtered(lambda alert: alert.status == "open").write(
+            {"status": "acknowledged"}
+        )
+        return True
+
+    def action_resolve(self):
+        self.filtered(lambda alert: alert.status != "resolved").write(
+            {"status": "resolved"}
+        )
+        return True
+
 
 class SaasIncident(models.Model):
     _name = "saas.incident"
