@@ -79,6 +79,6 @@ test('critical Odoo delivery surfaces have an explicit Arcigy owner', () => {
   );
   assert.deepEqual(
     rules,
-    new Set(['* @arcigy', '/.github/ @arcigy', '/addons/ @arcigy', '/integrations/ @arcigy']),
+    new Set(['* @arcigy', '/.github/ @arcigy', '/addons/ @arcigy', '/integrations/ @arcigy', '/ops/ @arcigy']),
   );
 });

@@ -343,4 +343,10 @@ populations. The included input is synthetic and is not production evidence.
 
 Canonical repo teraz obsahuje aj zachovaný `geotherm_drive`, CapRover `captain-definition`, produkčné Python dependencies a riadené `ODOO_INIT_MODULES`/`ODOO_UPDATE_MODULES`. Presný backup, smoke a rollback postup je v `docs/SAAS_CONTROL_CENTER_DEPLOY_RUNBOOK.md`.
 
+## Automatizovaný Odoo off-host backup
+
+`ops/backup/create-odoo-backup.sh` vytvorí mode-0600 PostgreSQL, filestore a service-definition archív priamo na CapRover hoste a overí `pg_restore -l`, tar štruktúru a SHA-256. `ops/backup/odoo-backup-runner.ps1` ho cez strict-host-key SSH prenesie na samostatný Windows host, zašifruje cez CMS/AES-256-CBC certifikát s neexportovateľným privátnym kľúčom, overí dešifrovací checksum roundtrip a odstráni dočasný plaintext na oboch hostoch.
+
+Samostatný task `Geotherm Odoo Encrypted Off-host Backup` beží denne o 04:15, `StartWhenAvailable`, s 5 GiB free-space guardom. Nepoužíva ani nemení Arcigy `kitchen_app` backup tasky a neposiela backup metriku do Odoo. Config a artefakty ostávajú mimo Gitu pod `C:\Users\laube\Downloads\CAPROVER\backups`. Obnova plaintextu vyžaduje explicitné `-AllowPlaintextOutput` v `ops/backup/decrypt-odoo-backup.ps1`.
+
 Aktuálny read-only audit ukazuje 44 % využitie root filesystemu. Pred veľkým buildom stav znovu zmerajte a vždy zachovajte aktívny aj predchádzajúci funkčný image každej služby.
