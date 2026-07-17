@@ -257,7 +257,7 @@ node integrations/saas_github_sync.mjs `
   --dry-run
 ```
 
-Fine-grained GitHub token potrebuje iba repository permissions `Actions: read`, `Pull requests: read`, `Dependabot alerts: read` a `Secret scanning alerts: read`; nepotrebuje Contents write ani administračné mutácie. Adapter pravdivo počíta completed build/deployment count, success rate, p95 trvanie a queue wait, deployment frequency, lead time, otvorené PR a otvorené critical/secret-scan nálezy. Chýbajúce alebo chronologicky neplatné timing samples vynechá namiesto falošnej nuly. `change_failure_rate` ani `release_rollback_rate` neodhaduje z failed workflow; vyžadujú dôkaz incidentu alebo rollbacku. Ostrý zápis navyše vyžaduje `ARCIGY_ODOO_API_KEY`.
+Fine-grained GitHub token potrebuje iba repository permissions `Actions: read`, `Pull requests: read`, `Dependabot alerts: read` a `Secret scanning alerts: read`; nepotrebuje Contents write ani administračné mutácie. Adapter pravdivo počíta completed build/deployment count, success rate, p95 trvanie a queue wait, deployment frequency, lead time, otvorené a stale PR, median PR cycle time, priemernú veľkosť diffu/súborov a otvorené critical/secret-scan nálezy. Stale hranica je explicitný bounded `github.stalePullRequestDays` kontrakt. Chýbajúce, chronologicky neplatné alebo príliš veľké populácie vynechá alebo odmietne namiesto falošnej nuly. `change_failure_rate` ani `release_rollback_rate` neodhaduje z failed workflow; vyžadujú dôkaz incidentu alebo rollbacku. Ostrý zápis navyše vyžaduje `ARCIGY_ODOO_API_KEY`.
 
 ### AI-assisted change risk
 
