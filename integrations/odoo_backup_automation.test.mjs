@@ -6,6 +6,8 @@ const remoteScript = await readFile(new URL("../ops/backup/create-odoo-backup.sh
 const runner = await readFile(new URL("../ops/backup/odoo-backup-runner.ps1", import.meta.url), "utf8");
 const installer = await readFile(new URL("../ops/backup/install-odoo-backup-task.ps1", import.meta.url), "utf8");
 const decryptor = await readFile(new URL("../ops/backup/decrypt-odoo-backup.ps1", import.meta.url), "utf8");
+const evidenceRunner = await readFile(new URL("../ops/backup/odoo-backup-evidence-runner.ps1", import.meta.url), "utf8");
+const evidenceInstaller = await readFile(new URL("../ops/backup/install-odoo-backup-evidence-task.ps1", import.meta.url), "utf8");
 
 test("remote Odoo backup is fail-closed, structurally verified and bounded to exact services", () => {
   assert.match(remoteScript, /set -Eeuo pipefail/);
@@ -63,4 +65,24 @@ test("restore decryptor requires explicit plaintext approval and verifies both c
   assert.match(decryptor, /tar\.exe -tzf/);
   assert.match(decryptor, /inheritance:r/);
   assert.doesNotMatch(decryptor, /Remove-Item.+-Recurse|Unregister-ScheduledTask|kitchen_app/);
+});
+
+test("evidence task compiles and validates backups without a secret or live Odoo write", () => {
+  assert.match(evidenceRunner, /saas_odoo_backup_rollup\.mjs/);
+  assert.match(evidenceRunner, /saas_operational_sync\.mjs/);
+  assert.match(evidenceRunner, /"--dry-run"/);
+  assert.match(evidenceRunner, /mode=dry-run/);
+  assert.match(evidenceRunner, /output must stay inside the approved backup directory/);
+  assert.match(evidenceRunner, /icacls\.exe/);
+  assert.doesNotMatch(evidenceRunner, /ARCIGY_ODOO_API_KEY|Authorization|Bearer|Invoke-RestMethod|kitchen_app/);
+
+  assert.match(evidenceInstaller, /Geotherm Odoo Backup Evidence Compile/);
+  assert.match(evidenceInstaller, /New-ScheduledTaskTrigger -Daily/);
+  assert.match(evidenceInstaller, /StartWhenAvailable/);
+  assert.match(evidenceInstaller, /MultipleInstances IgnoreNew/);
+  assert.match(evidenceInstaller, /Does not write Odoo or alter Arcigy tasks/);
+  assert.doesNotMatch(
+    evidenceInstaller,
+    /ARCIGY_ODOO_API_KEY|Arcigy Production Encrypted Backup|Arcigy Weekly Isolated Restore Verification|Unregister-ScheduledTask/,
+  );
 });

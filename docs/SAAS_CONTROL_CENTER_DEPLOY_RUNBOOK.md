@@ -77,6 +77,8 @@ Two approved 2026-07-17 runs succeeded, including one launched through the actua
 
 The independent `integrations/saas_odoo_backup_rollup.mjs` compiler now converts those artifacts into bounded `saas.backup.run` evidence only after re-reading and hashing every physical encrypted file. The approved real run reconciled two evidence files to two `.p7m` files, emitted two Main records, removed local paths and certificate metadata, and passed `saas_operational_sync.mjs --dry-run` twice. It deliberately emitted `backup_contract_complete=false`: the current success-only files do not prove a complete 24-hour attempt population and no storage-cost allocation has been approved. No API key or Odoo row was created; live `saas.backup.run` and `res.users.apikeys` both remained zero after the secret-handling boundary stopped automated temporary-key transfer.
 
+`ops/backup/odoo-backup-evidence-runner.ps1` and `install-odoo-backup-evidence-task.ps1` provide a separate daily 04:30 compile/dry-run task. Its config has no credential, its output must remain a `.local.json` file inside the approved backup directory, and the runner cannot omit `--dry-run`. Keep this task independent from both the encrypted backup task and every Arcigy task.
+
 This proves an automated off-host copy for Odoo, not the Arcigy Develop/Main SaaS backup producer. The task uses an interactive Windows principal with `StartWhenAvailable`; a powered-off or logged-out workstation delays the copy. Automatic retention deletion remains disabled until an explicit retention and certificate-recovery policy is approved. At the current observed size, storage grows by about 12.4 MB per successful daily artifact.
 
 ## Isolated restore drill
