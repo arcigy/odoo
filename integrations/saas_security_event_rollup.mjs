@@ -16,6 +16,51 @@ const PRIVILEGED_EVENTS = new Set([
   "sensitive_export_completed",
 ]);
 const SIGNATURE_FAILURE_REASONS = new Set(["signature_verification_failed", "invalid_signature", "signature_missing"]);
+const EVENT_COUNTER_FIELDS = new Map([
+  ["login_succeeded", "successful_login_count"],
+  ["login_failed", "login_failures"],
+  ["rate_limit_triggered", "rate_limit_events"],
+  ["suspicious_login_detected", "suspicious_login_count"],
+  ["brute_force_detected", "brute_force_detection_count"],
+  ["credential_stuffing_detected", "credential_stuffing_detection_count"],
+  ["password_reset_requested", "password_reset_request_count"],
+  ["password_reset_completed", "password_reset_completion_count"],
+  ["password_reset_abuse_detected", "password_reset_abuse_count"],
+  ["mfa_challenge_failed", "mfa_challenge_failure_count"],
+  ["suspicious_session_detected", "suspicious_session_count"],
+  ["session_revoked", "session_revocation_count"],
+  ["admin_action_performed", "admin_action_count"],
+  ["role_changed", "role_change_count"],
+  ["owner_changed", "owner_change_count"],
+  ["privileged_account_created", "privileged_account_create_count"],
+  ["privileged_account_deleted", "privileged_account_delete_count"],
+  ["permission_check_failed", "failed_permission_check_count"],
+  ["api_key_created", "api_key_created_count"],
+  ["api_key_revoked", "api_key_revoked_count"],
+  ["token_refresh_failed", "token_refresh_failure_count"],
+  ["oauth_error", "oauth_error_count"],
+  ["blocked_ip", "blocked_ip_count"],
+  ["blocked_tenant", "blocked_tenant_count"],
+  ["bot_traffic_detected", "bot_traffic_count"],
+  ["scraping_attempt_detected", "scraping_attempt_count"],
+  ["signup_abuse_detected", "signup_abuse_count"],
+  ["invite_abuse_detected", "invite_abuse_count"],
+  ["email_sms_abuse_detected", "email_sms_abuse_count"],
+  ["export_abuse_detected", "export_abuse_count"],
+  ["unusual_download_volume_detected", "unusual_download_volume_count"],
+  ["sql_injection_detected", "sql_injection_detection_count"],
+  ["xss_csp_violation", "xss_csp_violation_count"],
+  ["csrf_failed", "csrf_failure_count"],
+  ["ssrf_blocked", "ssrf_block_count"],
+  ["path_traversal_detected", "path_traversal_attempt_count"],
+  ["invalid_file_type_detected", "invalid_file_type_count"],
+  ["malware_detected", "malware_detection_count"],
+  ["decompression_bomb_detected", "decompression_bomb_detection_count"],
+  ["invalid_redirect_detected", "invalid_redirect_count"],
+  ["security_incident_detected", "security_incident_count"],
+  ["security_incident_without_postmortem", "security_incident_without_postmortem_count"],
+  ["security_remediation_action_opened", "security_open_remediation_action_count"],
+]);
 
 function plainObject(value, name) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${name} must be an object.`);
@@ -61,12 +106,13 @@ function dayBounds(timestamp) {
 }
 
 function emptyBucket(period) {
+  const counters = Object.fromEntries(
+    [...new Set(EVENT_COUNTER_FIELDS.values())].map((field) => [field, 0]),
+  );
   return {
     ...period,
+    ...counters,
     login_attempts: 0,
-    login_failures: 0,
-    rate_limit_events: 0,
-    suspicious_login_count: 0,
     cross_tenant_denied_count: 0,
     confirmed_cross_tenant_exposure_count: 0,
     privileged_action_count: 0,
@@ -93,9 +139,8 @@ export function rollupSecurityEvents(rawConfig, rawExport) {
     }
     const bucket = days.get(period.day) || emptyBucket(period);
     if (event.event_name === "login_succeeded" || event.event_name === "login_failed") bucket.login_attempts += 1;
-    if (event.event_name === "login_failed") bucket.login_failures += 1;
-    if (event.event_name === "rate_limit_triggered") bucket.rate_limit_events += 1;
-    if (event.event_name === "suspicious_login_detected") bucket.suspicious_login_count += 1;
+    const counterField = EVENT_COUNTER_FIELDS.get(event.event_name);
+    if (counterField) bucket[counterField] += 1;
     if (event.event_name === "cross_tenant_access_denied") bucket.cross_tenant_denied_count += 1;
     if (event.event_name === "cross_tenant_exposure_confirmed") bucket.confirmed_cross_tenant_exposure_count += 1;
     if (PRIVILEGED_EVENTS.has(event.event_name)) bucket.privileged_action_count += 1;

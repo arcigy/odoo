@@ -51,7 +51,14 @@ test("rolls complete server security events into anonymous daily evidence", () =
   ];
   const result = rollupSecurityEvents(config, exported(events));
   assert.equal(result.evidence.items.length, 1);
-  assert.deepEqual(result.evidence.items[0], {
+  assert.deepEqual(
+    Object.fromEntries([
+      "external_key", "period_start", "period_end", "status", "data_quality_status",
+      "login_attempts", "login_failures", "rate_limit_events", "suspicious_login_count",
+      "cross_tenant_denied_count", "confirmed_cross_tenant_exposure_count",
+      "privileged_action_count", "webhook_signature_failure_count", "audit_delivery_failure_count",
+    ].map((key) => [key, result.evidence.items[0][key]])),
+    {
     external_key: "develop:security:event-rollup-v1:2026-07-15",
     period_start: "2026-07-15T00:00:00.000Z",
     period_end: "2026-07-16T00:00:00.000Z",
@@ -66,11 +73,29 @@ test("rolls complete server security events into anonymous daily evidence", () =
     privileged_action_count: 1,
     webhook_signature_failure_count: 1,
     audit_delivery_failure_count: 1,
-  });
+    },
+  );
   assert.equal(validateAggregateEvidence(result.evidence).items.length, 1);
   const serialized = JSON.stringify(result.evidence);
   assert.equal(serialized.includes("tenant-opaque"), false);
   assert.equal(serialized.includes(hashA), false);
+});
+
+test("rolls newly contracted credential and application-security events without identities", () => {
+  const events = [
+    event({ event_id: "key-created", event_name: "api_key_created", outcome: "completed", failure_reason: null }),
+    event({ event_id: "key-revoked", event_name: "api_key_revoked", outcome: "completed", failure_reason: null }),
+    event({ event_id: "oauth", event_name: "oauth_error", outcome: "failed", failure_reason: "provider_rejected" }),
+    event({ event_id: "sql", event_name: "sql_injection_detected", outcome: "blocked", failure_reason: "rule_match" }),
+    event({ event_id: "download", event_name: "unusual_download_volume_detected", outcome: "blocked", failure_reason: "policy" }),
+  ];
+  const item = rollupSecurityEvents(config, exported(events)).evidence.items[0];
+  assert.equal(item.api_key_created_count, 1);
+  assert.equal(item.api_key_revoked_count, 1);
+  assert.equal(item.oauth_error_count, 1);
+  assert.equal(item.sql_injection_detection_count, 1);
+  assert.equal(item.unusual_download_volume_count, 1);
+  assert.equal(JSON.stringify(item).includes("tenant-opaque"), false);
 });
 
 test("emits explicit zero security counts only for a declared complete stream", () => {

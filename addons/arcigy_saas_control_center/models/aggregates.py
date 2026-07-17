@@ -66,6 +66,30 @@ AGGREGATE_ALLOWED_FIELDS = {
         "privileged_action_count", "webhook_signature_failure_count",
         "critical_vulnerability_count", "high_vulnerability_count", "secret_finding_count",
         "audit_delivery_failure_count",
+        "successful_login_count", "failed_login_unique_ip_count", "brute_force_detection_count",
+        "credential_stuffing_detection_count", "password_reset_request_count",
+        "password_reset_completion_count", "password_reset_abuse_count",
+        "mfa_enabled_user_count", "mfa_eligible_user_count", "mfa_challenge_failure_count",
+        "suspicious_session_count", "session_revocation_count", "admin_action_count",
+        "role_change_count", "owner_change_count", "privileged_account_create_count",
+        "privileged_account_delete_count", "failed_permission_check_count",
+        "api_key_created_count", "api_key_revoked_count", "active_api_key_count",
+        "api_key_without_recent_use_count", "api_key_rotation_overdue_count",
+        "token_refresh_failure_count", "oauth_error_count", "expiring_credential_count",
+        "blocked_ip_count", "blocked_tenant_count", "bot_traffic_count",
+        "scraping_attempt_count", "signup_abuse_count", "invite_abuse_count",
+        "email_sms_abuse_count", "export_abuse_count", "unusual_download_volume_count",
+        "sql_injection_detection_count", "xss_csp_violation_count", "csrf_failure_count",
+        "ssrf_block_count", "path_traversal_attempt_count", "invalid_file_type_count",
+        "malware_detection_count", "decompression_bomb_detection_count", "invalid_redirect_count",
+        "medium_vulnerability_count", "vulnerability_age_days", "vulnerability_over_sla_count",
+        "unmaintained_dependency_count", "dependency_lockfile_integrity_failure_count",
+        "exposed_secret_count", "unpinned_ci_action_count", "sbom_age_seconds",
+        "certificate_expiring_count", "database_encryption_status", "security_incident_count",
+        "security_incident_detect_p95_seconds", "security_incident_contain_p95_seconds",
+        "credential_revocation_p95_seconds", "security_incident_affected_tenant_count",
+        "security_incident_affected_record_count", "security_incident_without_postmortem_count",
+        "security_open_remediation_action_count",
     },
     "saas.capacity.daily": {
         "peak_rps", "tested_safe_rps", "current_concurrent_users", "tested_concurrent_users",
@@ -509,6 +533,68 @@ class SaasSecurityDaily(models.Model):
     high_vulnerability_count = fields.Integer()
     secret_finding_count = fields.Integer()
     audit_delivery_failure_count = fields.Integer()
+    successful_login_count = fields.Integer()
+    failed_login_unique_ip_count = fields.Integer()
+    brute_force_detection_count = fields.Integer()
+    credential_stuffing_detection_count = fields.Integer()
+    password_reset_request_count = fields.Integer()
+    password_reset_completion_count = fields.Integer()
+    password_reset_abuse_count = fields.Integer()
+    mfa_enabled_user_count = fields.Integer()
+    mfa_eligible_user_count = fields.Integer()
+    mfa_challenge_failure_count = fields.Integer()
+    suspicious_session_count = fields.Integer()
+    session_revocation_count = fields.Integer()
+    admin_action_count = fields.Integer()
+    role_change_count = fields.Integer()
+    owner_change_count = fields.Integer()
+    privileged_account_create_count = fields.Integer()
+    privileged_account_delete_count = fields.Integer()
+    failed_permission_check_count = fields.Integer()
+    api_key_created_count = fields.Integer()
+    api_key_revoked_count = fields.Integer()
+    active_api_key_count = fields.Integer()
+    api_key_without_recent_use_count = fields.Integer()
+    api_key_rotation_overdue_count = fields.Integer()
+    token_refresh_failure_count = fields.Integer()
+    oauth_error_count = fields.Integer()
+    expiring_credential_count = fields.Integer()
+    blocked_ip_count = fields.Integer()
+    blocked_tenant_count = fields.Integer()
+    bot_traffic_count = fields.Integer()
+    scraping_attempt_count = fields.Integer()
+    signup_abuse_count = fields.Integer()
+    invite_abuse_count = fields.Integer()
+    email_sms_abuse_count = fields.Integer()
+    export_abuse_count = fields.Integer()
+    unusual_download_volume_count = fields.Integer()
+    sql_injection_detection_count = fields.Integer()
+    xss_csp_violation_count = fields.Integer()
+    csrf_failure_count = fields.Integer()
+    ssrf_block_count = fields.Integer()
+    path_traversal_attempt_count = fields.Integer()
+    invalid_file_type_count = fields.Integer()
+    malware_detection_count = fields.Integer()
+    decompression_bomb_detection_count = fields.Integer()
+    invalid_redirect_count = fields.Integer()
+    medium_vulnerability_count = fields.Integer()
+    vulnerability_age_days = fields.Integer()
+    vulnerability_over_sla_count = fields.Integer()
+    unmaintained_dependency_count = fields.Integer()
+    dependency_lockfile_integrity_failure_count = fields.Integer()
+    exposed_secret_count = fields.Integer()
+    unpinned_ci_action_count = fields.Integer()
+    sbom_age_seconds = fields.Integer()
+    certificate_expiring_count = fields.Integer()
+    database_encryption_status = fields.Integer()
+    security_incident_count = fields.Integer()
+    security_incident_detect_p95_seconds = fields.Float()
+    security_incident_contain_p95_seconds = fields.Float()
+    credential_revocation_p95_seconds = fields.Float()
+    security_incident_affected_tenant_count = fields.Integer()
+    security_incident_affected_record_count = fields.Integer()
+    security_incident_without_postmortem_count = fields.Integer()
+    security_open_remediation_action_count = fields.Integer()
 
 
 class SaasCapacityDaily(models.Model):

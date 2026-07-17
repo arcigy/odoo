@@ -144,7 +144,7 @@ def validate_seed_catalogue(xml_files: dict[Path, ElementTree.Element]) -> tuple
     metric_path = CONTROL_CENTER / "data" / "saas.metric.definition.csv"
     with metric_path.open(encoding="utf-8", newline="") as handle:
         metrics = list(csv.DictReader(handle))
-    require(len(metrics) == 376, f"Expected 376 metrics, found {len(metrics)}.")
+    require(len(metrics) == 439, f"Expected 439 metrics, found {len(metrics)}.")
     codes = [row["code"] for row in metrics]
     require(len(codes) == len(set(codes)), "Metric catalogue contains duplicate codes.")
 
