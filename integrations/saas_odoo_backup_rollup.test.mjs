@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import {
+  validateBackupAttemptEvidence,
   collectBackupRunEvidence,
   validateBackupRunEvidence,
 } from "./saas_odoo_backup_rollup.mjs";
@@ -45,6 +46,20 @@ function rawEvidence(directory, backupId, artifact) {
     remote_plaintext_removed: true,
     odoo_metric_write_performed: false,
     status: "success",
+  };
+}
+
+function rawAttempt(backupId, status = "success") {
+  return {
+    schema_version: 1,
+    backup_id: backupId,
+    started_at_utc: "2026-07-17T10:56:57.142Z",
+    completed_at_utc: "2026-07-17T10:58:10.507Z",
+    source_app_service: "srv-captain--geotherm-odoo",
+    source_db_service: "srv-captain--geotherm-odoo-db",
+    status,
+    failure_class: status === "failed" ? "remote" : null,
+    odoo_metric_write_performed: false,
   };
 }
 
@@ -133,4 +148,55 @@ test("is deterministic and keeps the full contract false when cost and attempt c
     await readFile(join(source.directory, `${source.backupId}.evidence.json`), "utf8"),
   );
   assert.equal(persisted.odoo_metric_write_performed, false);
+});
+
+test("records failed backup attempts without inventing a complete failure metric", async () => {
+  const source = await fixture();
+  const failedId = "geotherm-odoo-20260717T110000Z-aabbcc";
+  await writeFile(
+    join(source.directory, `${failedId}.attempt.json`),
+    JSON.stringify(rawAttempt(failedId, "failed")),
+  );
+
+  const result = await collectBackupRunEvidence(source.directory, options);
+  const normalized = validateOperationalEvidence(result, options.now);
+  assert.equal(normalized.items.length, 2);
+  const failed = normalized.items.find((item) => item.external_key === `main:backup:${failedId}`);
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.size_bytes, 0);
+  assert.equal(failed.encrypted, false);
+  assert.equal(failed.off_host, false);
+  assert.equal(failed.backup_contract_complete, false);
+  assert.equal("failure_count_24h" in failed, false);
+});
+
+test("requires safe, internally consistent backup attempt records", async () => {
+  const failedId = "geotherm-odoo-20260717T110000Z-aabbcc";
+  const unknown = rawAttempt(failedId, "failed");
+  unknown.error_message = "raw remote output must never enter Odoo";
+  assert.throws(() => validateBackupAttemptEvidence(unknown, options), /unsupported fields: error_message/);
+
+  const invalidClass = rawAttempt(failedId, "failed");
+  invalidClass.failure_class = "ssh password";
+  assert.throws(() => validateBackupAttemptEvidence(invalidClass, options), /approved failure_class/);
+
+  const successWithoutArtifact = await fixture();
+  await writeFile(
+    join(successWithoutArtifact.directory, "geotherm-odoo-20260717T110001Z-aabbcd.attempt.json"),
+    JSON.stringify(rawAttempt("geotherm-odoo-20260717T110001Z-aabbcd")),
+  );
+  await assert.rejects(
+    () => collectBackupRunEvidence(successWithoutArtifact.directory, options),
+    /lacks validated artifact evidence/,
+  );
+
+  const conflict = await fixture();
+  await writeFile(
+    join(conflict.directory, `${conflict.backupId}.attempt.json`),
+    JSON.stringify(rawAttempt(conflict.backupId, "failed")),
+  );
+  await assert.rejects(
+    () => collectBackupRunEvidence(conflict.directory, options),
+    /conflicts with validated artifact evidence/,
+  );
 });

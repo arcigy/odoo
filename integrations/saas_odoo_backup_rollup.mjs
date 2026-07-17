@@ -36,6 +36,26 @@ const INPUT_FIELDS = new Set([
   "odoo_metric_write_performed",
   "status",
 ]);
+const ATTEMPT_FIELDS = new Set([
+  "schema_version",
+  "backup_id",
+  "started_at_utc",
+  "completed_at_utc",
+  "source_app_service",
+  "source_db_service",
+  "status",
+  "failure_class",
+  "odoo_metric_write_performed",
+]);
+const FAILURE_CLASSES = new Set([
+  "storage",
+  "certificate",
+  "remote",
+  "validation",
+  "encryption",
+  "cleanup",
+  "unknown",
+]);
 
 function plainObject(value, name) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -157,6 +177,43 @@ export function validateBackupRunEvidence(raw, options = {}) {
   };
 }
 
+export function validateBackupAttemptEvidence(raw, options = {}) {
+  const normalizedOptions = normalizeOptions(options);
+  const attempt = plainObject(raw, "backup attempt evidence");
+  rejectUnknownKeys(attempt, ATTEMPT_FIELDS, "backup attempt evidence");
+  if (attempt.schema_version !== 1) throw new Error("backup attempt evidence schema_version must be 1.");
+
+  const backupId = requiredString(attempt.backup_id, "backup attempt evidence backup_id", SAFE_BACKUP_ID);
+  const startedAt = validDate(attempt.started_at_utc, "backup attempt evidence started_at_utc");
+  const completedAt = validDate(attempt.completed_at_utc, "backup attempt evidence completed_at_utc");
+  if (Date.parse(completedAt) <= Date.parse(startedAt)) {
+    throw new Error("backup attempt evidence completed_at_utc must be after started_at_utc.");
+  }
+  if (Date.parse(completedAt) > normalizedOptions.now + 5 * 60_000) {
+    throw new Error("backup attempt evidence completed_at_utc is too far in the future.");
+  }
+  if (attempt.source_app_service !== normalizedOptions.expectedAppService) {
+    throw new Error("backup attempt evidence source_app_service does not match the approved service.");
+  }
+  if (attempt.source_db_service !== normalizedOptions.expectedDbService) {
+    throw new Error("backup attempt evidence source_db_service does not match the approved service.");
+  }
+  if (!new Set(["success", "failed"]).has(attempt.status)) {
+    throw new Error("backup attempt evidence status must be success or failed.");
+  }
+  if (attempt.status === "success") {
+    if (attempt.failure_class !== null) throw new Error("successful backup attempt must not include failure_class.");
+  } else if (!FAILURE_CLASSES.has(attempt.failure_class)) {
+    throw new Error("failed backup attempt must include an approved failure_class.");
+  }
+  requiredBoolean(
+    attempt.odoo_metric_write_performed,
+    false,
+    "backup attempt evidence odoo_metric_write_performed",
+  );
+  return { backupId, startedAt, completedAt, status: attempt.status };
+}
+
 async function readBoundedJson(path) {
   const info = await lstat(path);
   if (!info.isFile() || info.isSymbolicLink()) throw new Error(`Evidence must be a regular file: ${basename(path)}.`);
@@ -172,8 +229,8 @@ async function sha256File(path) {
   return hash.digest("hex");
 }
 
-function compileItems(runs, environment, snapshotCount) {
-  return runs
+function compileItems(runs, attempts, environment, snapshotCount) {
+  const completeRuns = runs
     .slice()
     .sort((left, right) => Date.parse(left.startedAt) - Date.parse(right.startedAt))
     .map((run) => ({
@@ -194,6 +251,28 @@ function compileItems(runs, environment, snapshotCount) {
       wal_archive_status: "not_applicable",
       secondary_copy_status: "healthy",
     }));
+  const failedAttempts = attempts
+    .filter((attempt) => attempt.status === "failed")
+    .sort((left, right) => Date.parse(left.startedAt) - Date.parse(right.startedAt))
+    .map((attempt) => ({
+      external_key: `${environment}:backup:${attempt.backupId}`,
+      name: "Encrypted off-host Odoo backup",
+      started_at: attempt.startedAt,
+      finished_at: attempt.completedAt,
+      status: "failed",
+      backup_type: "full",
+      size_bytes: 0,
+      encrypted: false,
+      off_host: false,
+      backup_contract_complete: false,
+      snapshot_count: snapshotCount,
+      pitr_enabled: false,
+      pitr_window_seconds: 0,
+      wal_archive_status: "not_applicable",
+      secondary_copy_status: "unhealthy",
+    }));
+  return [...completeRuns, ...failedAttempts]
+    .sort((left, right) => Date.parse(left.started_at) - Date.parse(right.started_at));
 }
 
 export async function collectBackupRunEvidence(inputDirectory, options = {}) {
@@ -213,7 +292,6 @@ export async function collectBackupRunEvidence(inputDirectory, options = {}) {
   const evidenceEntries = entries
     .filter((entry) => entry.isFile() && entry.name.endsWith(".evidence.json"))
     .sort((left, right) => left.name.localeCompare(right.name));
-  if (!evidenceEntries.length) throw new Error("Backup directory contains no evidence files.");
   if (evidenceEntries.length > MAX_EVIDENCE_FILES) {
     throw new Error(`Backup directory exceeds ${MAX_EVIDENCE_FILES} evidence files.`);
   }
@@ -252,18 +330,44 @@ export async function collectBackupRunEvidence(inputDirectory, options = {}) {
     runs.push(run);
   }
 
+  const attemptEntries = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".attempt.json"))
+    .sort((left, right) => left.name.localeCompare(right.name));
+  if (attemptEntries.length > MAX_EVIDENCE_FILES) {
+    throw new Error(`Backup directory exceeds ${MAX_EVIDENCE_FILES} attempt files.`);
+  }
+  if (!runs.length && !attemptEntries.length) {
+    throw new Error("Backup directory contains no evidence or attempt files.");
+  }
+  const attempts = [];
+  const seenAttemptIds = new Set();
+  for (const entry of attemptEntries) {
+    const attempt = validateBackupAttemptEvidence(await readBoundedJson(resolve(directory, entry.name)), normalizedOptions);
+    if (seenAttemptIds.has(attempt.backupId)) throw new Error(`Duplicate backup attempt ID: ${attempt.backupId}.`);
+    seenAttemptIds.add(attempt.backupId);
+    attempts.push(attempt);
+  }
+  const runIds = new Set(runs.map((run) => run.backupId));
+  for (const attempt of attempts) {
+    if (attempt.status === "success" && !runIds.has(attempt.backupId)) {
+      throw new Error(`Successful backup attempt lacks validated artifact evidence: ${attempt.backupId}.`);
+    }
+    if (attempt.status === "failed" && runIds.has(attempt.backupId)) {
+      throw new Error(`Failed backup attempt conflicts with validated artifact evidence: ${attempt.backupId}.`);
+    }
+  }
+
   const expectedArtifacts = new Set(runs.map((run) => run.expectedArtifactName));
   const orphanArtifacts = [...artifactNames].filter((name) => !expectedArtifacts.has(name));
   if (orphanArtifacts.length) throw new Error("Backup directory contains artifacts without validated evidence.");
 
-  const sourceUpdatedAt = runs
-    .map((run) => run.completedAt)
+  const sourceUpdatedAt = [...runs.map((run) => run.completedAt), ...attempts.map((attempt) => attempt.completedAt)]
     .sort((left, right) => Date.parse(right) - Date.parse(left))[0];
   return {
     model: "saas.backup.run",
     environment: normalizedOptions.environment,
     source_updated_at: sourceUpdatedAt,
-    items: compileItems(runs, normalizedOptions.environment, expectedArtifacts.size),
+    items: compileItems(runs, attempts, normalizedOptions.environment, expectedArtifacts.size),
   };
 }
 

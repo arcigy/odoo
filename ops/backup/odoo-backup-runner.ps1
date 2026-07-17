@@ -98,6 +98,53 @@ function Confirm-Aes256CmsCipher {
     }
 }
 
+function Get-BackupFailureClass {
+    param([string]$Message)
+
+    $normalized = [string]$Message
+    if ($normalized -match 'free-space|destination|artifact already exists') { return "storage" }
+    if ($normalized -match 'certificate') { return "certificate" }
+    if ($normalized -match 'ssh\.exe|scp\.exe|Remote backup') { return "remote" }
+    if ($normalized -match 'transfer checksum|structural validation|checksum mismatch') { return "validation" }
+    if ($normalized -match 'CMS|Encrypted backup') { return "encryption" }
+    if ($normalized -match 'cleanup') { return "cleanup" }
+    return "unknown"
+}
+
+function Write-BackupAttemptRecord {
+    param(
+        [string]$Path,
+        [string]$BackupId,
+        [datetime]$StartedAt,
+        [string]$Status,
+        [string]$FailureClass = $null
+    )
+
+    if ($Status -notin @("success", "failed")) { throw "Backup attempt status is invalid." }
+    if ($FailureClass -and $FailureClass -notin @("storage", "certificate", "remote", "validation", "encryption", "cleanup", "unknown")) {
+        throw "Backup attempt failure class is invalid."
+    }
+    $record = [ordered]@{
+        schema_version = 1
+        backup_id = $BackupId
+        started_at_utc = $StartedAt.ToString("o")
+        completed_at_utc = [DateTime]::UtcNow.ToString("o")
+        source_app_service = "srv-captain--geotherm-odoo"
+        source_db_service = "srv-captain--geotherm-odoo-db"
+        status = $Status
+        failure_class = $FailureClass
+        odoo_metric_write_performed = $false
+    }
+    $temporaryPath = "$Path.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        [IO.File]::WriteAllText($temporaryPath, ($record | ConvertTo-Json -Depth 3), [Text.UTF8Encoding]::new($false))
+        Move-Item -LiteralPath $temporaryPath -Destination $Path -Force
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporaryPath) { Remove-Item -LiteralPath $temporaryPath -Force }
+    }
+}
+
 $config = Read-BackupConfig -Path $ConfigPath
 $allowedKeys = @(
     "ODOO_BACKUP_SSH_HOST",
@@ -164,6 +211,7 @@ $remoteArchivePath = "/root/arcigy-backups/transfers/$requestedBackupId.tar.gz"
 $rawLocalPath = $null
 $encryptedPath = $null
 $evidencePath = $null
+$attemptPath = Join-Path $localDirectory "$requestedBackupId.attempt.json"
 $completed = $false
 $startedAt = [DateTime]::UtcNow
 
@@ -248,11 +296,26 @@ try {
         status = "success"
     }
     [IO.File]::WriteAllText($evidencePath, ($evidence | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+    try {
+        Write-BackupAttemptRecord -Path $attemptPath -BackupId $result.backup_id -StartedAt $startedAt -Status "success"
+    }
+    catch {
+        Write-Warning "Backup attempt ledger requires operator review."
+    }
     $completed = $true
     Write-Output "backup_id=$($result.backup_id)"
     Write-Output "status=success"
     Write-Output "artifact=$encryptedPath"
     Write-Output "evidence=$evidencePath"
+}
+catch {
+    try {
+        Write-BackupAttemptRecord -Path $attemptPath -BackupId $requestedBackupId -StartedAt $startedAt -Status "failed" -FailureClass (Get-BackupFailureClass -Message $_.Exception.Message)
+    }
+    catch {
+        Write-Warning "Backup attempt ledger requires operator review."
+    }
+    throw
 }
 finally {
     if ($rawLocalPath -and (Test-Path -LiteralPath $rawLocalPath)) {
