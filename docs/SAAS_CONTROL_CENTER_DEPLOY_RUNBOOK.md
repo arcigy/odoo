@@ -157,6 +157,18 @@ browser-console errors or warnings. Operations, Metrics, Aggregates and
 Configuration navigation was visible to the signed-in administrator. No form,
 record, credential or source value was created, edited or deleted.
 
+### Documentation-only image 37 deployment
+
+PR `#13` merged commit `f2abc6194c4a84c5a193725b8e2c3e18b4bdad19` after the
+required pull-request validation. Main run `29586725340` repeated addon-source,
+127-contract, isolated PostgreSQL/Odoo 19 and immutable-archive checks before the
+automatic CapRover deployment. The deployed archive contained documentation
+changes only. Image 37 reached 1/1 alongside the unchanged database service;
+`/web/login` returned 200 and the protected health endpoint returned the expected
+unauthenticated 401. Image tags 36 and 35 remain available as rollback evidence,
+and the host still has 19 GB free. No Arcigy credential, schedule, source write,
+database, storage or `kitchen_app` change was made.
+
 ## Rollback
 
 1. Stop the sync schedule first.
