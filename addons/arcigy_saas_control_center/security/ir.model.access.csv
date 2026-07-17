@@ -82,6 +82,7 @@ access_saas_cache_hourly_engineering,saas.cache.hourly engineering,model_saas_ca
 access_saas_queue_hourly_engineering,saas.queue.hourly engineering,model_saas_queue_hourly,group_saas_engineering,1,0,0,0
 access_saas_dependency_hourly_engineering,saas.dependency.hourly engineering,model_saas_dependency_hourly,group_saas_engineering,1,0,0,0
 access_saas_product_daily_engineering,saas.product.daily engineering,model_saas_product_daily,group_saas_engineering,1,0,0,0
+access_saas_security_daily_engineering,saas.security.daily engineering,model_saas_security_daily,group_saas_engineering,1,0,0,0
 access_saas_capacity_daily_engineering,saas.capacity.daily engineering,model_saas_capacity_daily,group_saas_engineering,1,0,0,0
 access_saas_data_quality_run_engineering,saas.data.quality.run engineering,model_saas_data_quality_run,group_saas_engineering,1,0,0,0
 access_saas_environment_finance,saas.environment finance,model_saas_environment,group_saas_finance,1,0,0,0
@@ -96,6 +97,7 @@ access_saas_metric_definition_finance,saas.metric.definition finance,model_saas_
 access_saas_metric_current_finance,saas.metric.current finance,model_saas_metric_current,group_saas_finance,1,0,0,0
 access_saas_metric_timeseries_finance,saas.metric.timeseries finance,model_saas_metric_timeseries,group_saas_finance,1,0,0,0
 access_saas_tenant_daily_finance,saas.tenant.daily finance,model_saas_tenant_daily,group_saas_finance,1,0,0,0
+access_saas_dependency_hourly_finance,saas.dependency.hourly finance,model_saas_dependency_hourly,group_saas_finance,1,0,0,0
 access_saas_cost_daily_finance,saas.cost.daily finance,model_saas_cost_daily,group_saas_finance,1,1,1,0
 access_saas_environment_customer_success,saas.environment customer success,model_saas_environment,group_saas_customer_success,1,0,0,0
 access_saas_dashboard_customer_success,saas.dashboard customer success,model_saas_dashboard,group_saas_customer_success,1,0,0,0
@@ -127,6 +129,8 @@ access_saas_alert_support,saas.alert support,model_saas_alert,group_saas_support
 access_saas_incident_support,saas.incident support,model_saas_incident,group_saas_support,1,1,1,0
 access_saas_postmortem_action_support,saas.postmortem.action support,model_saas_postmortem_action,group_saas_support,1,1,1,0
 access_saas_tenant_daily_support,saas.tenant.daily support,model_saas_tenant_daily,group_saas_support,1,0,0,0
+access_saas_endpoint_hourly_support,saas.endpoint.hourly support,model_saas_endpoint_hourly,group_saas_support,1,0,0,0
+access_saas_queue_hourly_support,saas.queue.hourly support,model_saas_queue_hourly,group_saas_support,1,0,0,0
 access_saas_environment_security,saas.environment security,model_saas_environment,group_saas_security,1,0,0,0
 access_saas_dashboard_security,saas.dashboard security,model_saas_dashboard,group_saas_security,1,0,0,0
 access_saas_service_security,saas.service security,model_saas_service,group_saas_security,1,0,0,0

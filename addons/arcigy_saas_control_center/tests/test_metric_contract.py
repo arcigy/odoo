@@ -280,11 +280,26 @@ class TestSaasMetricContract(TransactionCase):
             0,
         )
         self.assertEqual(
+            self.env["saas.security.daily"].with_user(self.engineering).search_count([]),
+            0,
+        )
+        self.assertEqual(
+            self.env["saas.dependency.hourly"].with_user(self.finance).search_count([]),
+            0,
+        )
+        self.assertEqual(
             self.env["saas.product.daily"].with_user(self.customer_success).search_count([]),
             0,
         )
         self.assertEqual(
             self.env["saas.tenant.daily"].with_user(self.support).search_count([]), 0
+        )
+        self.assertEqual(
+            self.env["saas.endpoint.hourly"].with_user(self.support).search_count([]),
+            0,
+        )
+        self.assertEqual(
+            self.env["saas.queue.hourly"].with_user(self.support).search_count([]), 0
         )
         self.assertEqual(
             self.env["saas.security.daily"].with_user(self.security).search_count([]), 0
@@ -295,6 +310,62 @@ class TestSaasMetricContract(TransactionCase):
         self.assertEqual(
             self.env["saas.security.daily"].with_user(self.executive).search_count([]), 0
         )
+
+    def test_declared_role_menus_match_model_access(self):
+        menu_model = self.env["ir.ui.menu"]
+        expected_visible = [
+            (self.finance, ["menu_saas_dependency_hourly"]),
+            (self.support, ["menu_saas_endpoint_hourly", "menu_saas_queue_hourly"]),
+            (self.engineering, ["menu_saas_security_daily"]),
+        ]
+        expected_hidden = [
+            (self.finance, ["menu_saas_security_daily"]),
+            (
+                self.customer_success,
+                ["menu_saas_cost_daily", "menu_saas_security_daily"],
+            ),
+            (self.support, ["menu_saas_cost_daily", "menu_saas_security_daily"]),
+            (self.engineering, ["menu_saas_cost_daily"]),
+            (self.security, ["menu_saas_cost_daily"]),
+        ]
+
+        for user, menu_xmlids in expected_visible:
+            visible_ids = menu_model.with_user(user)._visible_menu_ids()
+            for menu_xmlid in menu_xmlids:
+                menu = self.env.ref(f"arcigy_saas_control_center.{menu_xmlid}")
+                self.assertIn(menu.id, visible_ids, f"{user.login}/{menu_xmlid}")
+
+        for user, menu_xmlids in expected_hidden:
+            visible_ids = menu_model.with_user(user)._visible_menu_ids()
+            for menu_xmlid in menu_xmlids:
+                menu = self.env.ref(f"arcigy_saas_control_center.{menu_xmlid}")
+                self.assertNotIn(menu.id, visible_ids, f"{user.login}/{menu_xmlid}")
+
+        root_menu = self.env.ref("arcigy_saas_control_center.menu_saas_control_center_root")
+        configuration_menu = self.env.ref(
+            "arcigy_saas_control_center.menu_saas_configuration"
+        )
+        human_users = [
+            self.executive,
+            self.finance,
+            self.customer_success,
+            self.support,
+            self.engineering,
+            self.security,
+            self.administrator,
+        ]
+        for user in human_users:
+            self.assertIn(root_menu.id, menu_model.with_user(user)._visible_menu_ids())
+        self.assertNotIn(root_menu.id, menu_model.with_user(self.bot)._visible_menu_ids())
+        self.assertIn(
+            configuration_menu.id,
+            menu_model.with_user(self.administrator)._visible_menu_ids(),
+        )
+        for user in human_users[:-1]:
+            self.assertNotIn(
+                configuration_menu.id,
+                menu_model.with_user(user)._visible_menu_ids(),
+            )
 
     def test_integration_bot_cannot_mutate_business_or_operational_records(self):
         protected_models = [
