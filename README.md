@@ -381,4 +381,8 @@ Secret-free kompiláciu a Odoo dry-run možno spúšťať samostatným taskom be
 
 Task `Geotherm Odoo Backup Evidence Compile` beží denne o 04:30, teda po backup tasku. Používa iba allowlisted config bez secretu, výstup drží pod backup adresárom, vynúti ACL a vždy volá operational sync s `--dry-run`. Nevie vytvoriť API key ani vykonať live Odoo zápis.
 
+Po schválení live ingestu uložte 40-znakový `rpc` API key používateľa `saas_integration_bot` iba do Windows Credential Manager cez `ops/backup/set-odoo-ingest-credential.ps1`. Potom nainštalujte samostatný task `Geotherm Odoo Backup Evidence Ingest` cez `install-odoo-backup-ingest-task.ps1`; beží denne o 04:40, najprv znovu vykoná kompiláciu a dry-run a až potom vykoná allowlisted idempotentný zápis do `saas.backup.run`. `.env` súbor obsahuje iba cestu k evidence configu a názov credential targetu, nikdy API key.
+
+API key má byť časovo obmedzený na 30 dní a rotovaný skôr, než vyprší. Pri zlyhaní kompilácie, nečerstvom evidence, chýbajúcom credentiale, nesprávnom používateľovi alebo nezhode počtu záznamov sa live zápis nevykoná. Runner odstráni `ARCIGY_ODOO_API_KEY` zo svojho procesu aj pri chybe a nemení backup ani Arcigy tasky.
+
 Aktuálny read-only audit ukazuje 44 % využitie root filesystemu. Pred veľkým buildom stav znovu zmerajte a vždy zachovajte aktívny aj predchádzajúci funkčný image každej služby.
