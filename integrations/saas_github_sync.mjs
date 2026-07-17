@@ -15,13 +15,26 @@ const SECRET_ENV_NAME = /^ARCIGY_[A-Z0-9_]+$/;
 
 const METRICS = Object.freeze({
   build_success_rate: { direction: "higher", warning: 95, critical: 90, freshnessSeconds: 86400 },
+  build_count: { direction: "neutral", freshnessSeconds: 86400 },
+  build_duration_p95_seconds: { direction: "lower", warning: 1200, critical: 2400, freshnessSeconds: 86400 },
+  build_queue_p95_seconds: { direction: "lower", warning: 300, critical: 900, freshnessSeconds: 86400 },
   deployment_frequency: { direction: "neutral", freshnessSeconds: 86400 },
+  deployment_count: { direction: "neutral", freshnessSeconds: 86400 },
+  deployment_success_rate: { direction: "higher", warning: 95, critical: 90, freshnessSeconds: 86400 },
+  deployment_duration_p95_seconds: {
+    direction: "lower",
+    warning: 1800,
+    critical: 3600,
+    freshnessSeconds: 86400,
+  },
+  deployment_queue_p95_seconds: { direction: "lower", warning: 300, critical: 900, freshnessSeconds: 86400 },
   lead_time_for_changes_seconds: {
     direction: "lower",
     warning: 259200,
     critical: 604800,
     freshnessSeconds: 86400,
   },
+  open_pr_count: { direction: "lower", warning: 10, critical: 25, freshnessSeconds: 86400 },
   critical_vulnerability_count: { direction: "lower", warning: 1, critical: 2, freshnessSeconds: 86400 },
   secret_scan_finding_count: { direction: "lower", warning: 1, critical: 2, freshnessSeconds: 86400 },
 });
@@ -67,6 +80,29 @@ function median(values) {
   const ordered = [...values].sort((a, b) => a - b);
   const middle = Math.floor(ordered.length / 2);
   return ordered.length % 2 ? ordered[middle] : (ordered[middle - 1] + ordered[middle]) / 2;
+}
+
+function percentile(values, percentileValue) {
+  if (!values.length) return undefined;
+  const ordered = [...values].sort((a, b) => a - b);
+  const rank = Math.max(1, Math.ceil(percentileValue * ordered.length));
+  return ordered[Math.min(ordered.length - 1, rank - 1)];
+}
+
+function workflowTiming(run) {
+  const queuedAt = Date.parse(run?.created_at || "");
+  const startedAt = Date.parse(run?.run_started_at || "");
+  const completedAt = Date.parse(run?.updated_at || "");
+  return {
+    duration:
+      Number.isFinite(startedAt) && Number.isFinite(completedAt) && completedAt >= startedAt
+        ? (completedAt - startedAt) / 1000
+        : undefined,
+    queue:
+      Number.isFinite(queuedAt) && Number.isFinite(startedAt) && startedAt >= queuedAt
+        ? (startedAt - queuedAt) / 1000
+        : undefined,
+  };
 }
 
 export function statusForGithubMetric(code, value) {
@@ -189,6 +225,12 @@ function workflowPath(source, workflow, createdAfter) {
   return `/repos/${repository}/actions/workflows/${encodeURIComponent(workflow)}/runs?${query}`;
 }
 
+function openPullRequestsPath(source) {
+  const repository = source.repository.split("/").map(encodeURIComponent).join("/");
+  const query = new URLSearchParams({ state: "open", base: source.branch, sort: "updated", direction: "desc" });
+  return `/repos/${repository}/pulls?${query}`;
+}
+
 function metricItem(code, value, environment, source, periodStart, periodEnd, sampleCount, extra = {}) {
   const day = periodEnd.slice(0, 10);
   const repositoryKey = source.repository.replace("/", "-");
@@ -236,9 +278,26 @@ export async function collectGithubEnvironment(
     (raw) => raw?.workflow_runs,
     requestJson,
   );
+  const openPullRequests = await pagedGithub(
+    openPullRequestsPath(source),
+    headers,
+    (raw) => raw,
+    requestJson,
+  );
   const metrics = [];
   const omitted = [];
   const eligibleBuilds = buildRuns.filter((run) => ELIGIBLE_BUILD_CONCLUSIONS.has(run?.conclusion));
+  metrics.push(
+    metricItem(
+      "build_count",
+      eligibleBuilds.length,
+      environment,
+      source,
+      periodStart,
+      periodEnd,
+      eligibleBuilds.length,
+    ),
+  );
   if (eligibleBuilds.length) {
     const successfulBuilds = eligibleBuilds.filter((run) => run.conclusion === "success").length;
     metrics.push(
@@ -257,7 +316,73 @@ export async function collectGithubEnvironment(
     omitted.push("build_success_rate:no_eligible_completed_runs");
   }
 
-  const successfulDeploys = deployRuns.filter((run) => run?.conclusion === "success");
+  const buildTimings = eligibleBuilds.map(workflowTiming);
+  const buildDurationP95 = percentile(
+    buildTimings.flatMap((timing) => (timing.duration === undefined ? [] : [timing.duration])),
+    0.95,
+  );
+  const buildQueueP95 = percentile(
+    buildTimings.flatMap((timing) => (timing.queue === undefined ? [] : [timing.queue])),
+    0.95,
+  );
+  if (buildDurationP95 === undefined) omitted.push("build_duration_p95_seconds:no_valid_completed_build_timing");
+  else {
+    metrics.push(
+      metricItem(
+        "build_duration_p95_seconds",
+        buildDurationP95,
+        environment,
+        source,
+        periodStart,
+        periodEnd,
+        buildTimings.filter((timing) => timing.duration !== undefined).length,
+      ),
+    );
+  }
+  if (buildQueueP95 === undefined) omitted.push("build_queue_p95_seconds:no_valid_completed_build_timing");
+  else {
+    metrics.push(
+      metricItem(
+        "build_queue_p95_seconds",
+        buildQueueP95,
+        environment,
+        source,
+        periodStart,
+        periodEnd,
+        buildTimings.filter((timing) => timing.queue !== undefined).length,
+      ),
+    );
+  }
+
+  const eligibleDeploys = deployRuns.filter((run) => ELIGIBLE_BUILD_CONCLUSIONS.has(run?.conclusion));
+  const successfulDeploys = eligibleDeploys.filter((run) => run?.conclusion === "success");
+  metrics.push(
+    metricItem(
+      "deployment_count",
+      eligibleDeploys.length,
+      environment,
+      source,
+      periodStart,
+      periodEnd,
+      eligibleDeploys.length,
+    ),
+  );
+  if (eligibleDeploys.length) {
+    metrics.push(
+      metricItem(
+        "deployment_success_rate",
+        (100 * successfulDeploys.length) / eligibleDeploys.length,
+        environment,
+        source,
+        periodStart,
+        periodEnd,
+        eligibleDeploys.length,
+        { numerator: successfulDeploys.length, denominator: eligibleDeploys.length },
+      ),
+    );
+  } else {
+    omitted.push("deployment_success_rate:no_eligible_completed_runs");
+  }
   metrics.push(
     metricItem(
       "deployment_frequency",
@@ -269,6 +394,45 @@ export async function collectGithubEnvironment(
       deployRuns.length,
     ),
   );
+  const deployTimings = eligibleDeploys.map(workflowTiming);
+  const deploymentDurationP95 = percentile(
+    deployTimings.flatMap((timing) => (timing.duration === undefined ? [] : [timing.duration])),
+    0.95,
+  );
+  const deploymentQueueP95 = percentile(
+    deployTimings.flatMap((timing) => (timing.queue === undefined ? [] : [timing.queue])),
+    0.95,
+  );
+  if (deploymentDurationP95 === undefined) {
+    omitted.push("deployment_duration_p95_seconds:no_valid_completed_deployment_timing");
+  } else {
+    metrics.push(
+      metricItem(
+        "deployment_duration_p95_seconds",
+        deploymentDurationP95,
+        environment,
+        source,
+        periodStart,
+        periodEnd,
+        deployTimings.filter((timing) => timing.duration !== undefined).length,
+      ),
+    );
+  }
+  if (deploymentQueueP95 === undefined) {
+    omitted.push("deployment_queue_p95_seconds:no_valid_completed_deployment_timing");
+  } else {
+    metrics.push(
+      metricItem(
+        "deployment_queue_p95_seconds",
+        deploymentQueueP95,
+        environment,
+        source,
+        periodStart,
+        periodEnd,
+        deployTimings.filter((timing) => timing.queue !== undefined).length,
+      ),
+    );
+  }
   const leadTimes = successfulDeploys.flatMap((run) => {
     const acceptedAt = Date.parse(run?.head_commit?.timestamp || "");
     const deployedAt = Date.parse(run?.updated_at || "");
@@ -291,6 +455,19 @@ export async function collectGithubEnvironment(
   } else {
     omitted.push("lead_time_for_changes_seconds:no_successful_deploy_with_commit_timestamp");
   }
+
+  metrics.push(
+    metricItem(
+      "open_pr_count",
+      openPullRequests.length,
+      environment,
+      source,
+      periodStart,
+      periodEnd,
+      openPullRequests.length,
+      { drilldown_url: `https://github.com/${source.repository}/pulls?q=is%3Apr+is%3Aopen+base%3A${encodeURIComponent(source.branch)}` },
+    ),
+  );
 
   if (source.includeSecurity) {
     const repository = source.repository.split("/").map(encodeURIComponent).join("/");
