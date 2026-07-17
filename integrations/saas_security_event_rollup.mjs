@@ -128,6 +128,11 @@ export function rollupSecurityEvents(rawConfig, rawExport) {
       environment: securityConfig.environment,
       server_sources: securityConfig.serverSources,
       meaningful_events: ["core_action_succeeded"],
+      custom_event_names: [
+        ...EVENT_COUNTER_FIELDS.keys(),
+        "webhook_signature_failed",
+        "audit_log_delivery_failed",
+      ],
     },
     rawExport,
   );

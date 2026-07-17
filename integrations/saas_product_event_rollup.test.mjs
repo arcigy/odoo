@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { rollupProductEvents, validateProductEventConfig } from "./saas_product_event_rollup.mjs";
+import {
+  REQUIRED_PRODUCT_EVENT_NAMES,
+  rollupProductEvents,
+  validateProductEventConfig,
+} from "./saas_product_event_rollup.mjs";
 import { validateAggregateEvidence } from "./saas_aggregate_sync.mjs";
 
 const userHash = `sha256:${"a".repeat(64)}`;
@@ -105,6 +109,31 @@ test("requires the complete versioned event envelope and failure reason", () => 
   assert.throws(
     () => rollupProductEvents(config, exported([event({ event_name: "core_action_failed", outcome: "failed" })])),
     /failure_reason is required/,
+  );
+});
+
+test("accepts every required event name and rejects undeclared event names", () => {
+  const allRequired = REQUIRED_PRODUCT_EVENT_NAMES.map((eventName, index) => event({
+    event_id: `required-${index}`,
+    event_name: eventName,
+  }));
+  assert.equal(REQUIRED_PRODUCT_EVENT_NAMES.length, 84);
+  assert.equal(rollupProductEvents(config, exported(allRequired)).stats.uniqueEvents, 84);
+  assert.throws(
+    () => rollupProductEvents(config, exported([event({ event_name: "login_sucess" })])),
+    /not in the registered product-event contract/,
+  );
+});
+
+test("accepts explicitly registered application-specific event names only", () => {
+  const customConfig = { ...config, custom_event_names: ["project_archived"] };
+  assert.equal(
+    rollupProductEvents(customConfig, exported([event({ event_name: "project_archived" })])).stats.uniqueEvents,
+    1,
+  );
+  assert.throws(
+    () => validateProductEventConfig({ ...config, custom_event_names: ["project_archived", "project_archived"] }),
+    /must not contain duplicates/,
   );
 });
 

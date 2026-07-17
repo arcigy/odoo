@@ -89,6 +89,31 @@ const SERVER_ONLY_EVENTS = new Set([
   "webhook_signature_failed",
   "audit_log_delivery_failed",
 ]);
+export const REQUIRED_PRODUCT_EVENT_NAMES = Object.freeze([
+  "account_signed_up", "email_verification_sent", "email_verified", "login_succeeded",
+  "login_failed", "logout_completed", "password_reset_requested", "password_reset_completed",
+  "mfa_enabled", "mfa_disabled", "session_revoked",
+  "tenant_created", "tenant_onboarding_started", "tenant_onboarding_completed", "member_invited",
+  "member_invitation_accepted", "member_removed", "member_role_changed", "tenant_owner_changed",
+  "tenant_suspended", "tenant_reactivated", "tenant_deleted",
+  "core_action_started", "core_action_succeeded", "core_action_failed", "feature_opened",
+  "feature_used", "record_created", "record_updated", "record_deleted", "search_performed",
+  "search_result_opened", "export_started", "export_completed", "export_failed", "import_started",
+  "import_completed", "import_failed", "file_uploaded", "file_processed", "file_processing_failed",
+  "integration_connection_started", "integration_connected", "integration_disconnected",
+  "integration_sync_started", "integration_sync_completed", "integration_sync_failed",
+  "integration_token_refresh_failed", "webhook_received", "webhook_processed", "webhook_rejected",
+  "trial_started", "trial_expired", "subscription_started", "subscription_upgraded",
+  "subscription_downgraded", "subscription_cancel_requested", "subscription_cancelled",
+  "subscription_reactivated", "invoice_created", "payment_succeeded", "payment_failed",
+  "payment_recovered", "refund_created", "dispute_created", "usage_recorded", "usage_invoiced",
+  "support_ticket_created", "support_ticket_resolved", "feedback_submitted", "nps_submitted",
+  "csat_submitted", "bug_reported", "api_key_created", "api_key_revoked",
+  "admin_action_performed", "permission_changed", "sensitive_export_requested",
+  "sensitive_export_completed", "data_deletion_requested", "data_deletion_completed",
+  "rate_limit_triggered", "suspicious_login_detected", "cross_tenant_access_denied",
+]);
+const REQUIRED_PRODUCT_EVENT_SET = new Set(REQUIRED_PRODUCT_EVENT_NAMES);
 const PII_PROPERTY = /email|e_mail|fullname|full_name|firstname|first_name|lastname|last_name|phone|address|password|secret|token|cookie|authorization/i;
 
 function plainObject(value, name) {
@@ -132,10 +157,10 @@ function utcTimestamp(value, name) {
   return new Date(timestamp).toISOString();
 }
 
-function stringList(value, name, fallback) {
+function stringList(value, name, fallback, maximum = 50) {
   const candidate = value === undefined ? fallback : value;
-  if (!Array.isArray(candidate) || candidate.length < 1 || candidate.length > 50) {
-    throw new Error(`${name} must contain between 1 and 50 event names.`);
+  if (!Array.isArray(candidate) || candidate.length < 1 || candidate.length > maximum) {
+    throw new Error(`${name} must contain between 1 and ${maximum} event names.`);
   }
   const normalized = candidate.map((item, index) => code(item, `${name}[${index}]`));
   if (new Set(normalized).size !== normalized.length) throw new Error(`${name} must not contain duplicates.`);
@@ -144,7 +169,11 @@ function stringList(value, name, fallback) {
 
 export function validateProductEventConfig(raw) {
   const config = plainObject(raw, "config");
-  rejectUnknownKeys(config, new Set(["environment", "server_sources", "meaningful_events"]), "config");
+  rejectUnknownKeys(
+    config,
+    new Set(["environment", "server_sources", "meaningful_events", "custom_event_names"]),
+    "config",
+  );
   const environment = String(config.environment || "").trim().toLowerCase();
   if (!ENVIRONMENTS.has(environment)) throw new Error("config.environment must be develop or main.");
   const serverSources = stringList(config.server_sources, "config.server_sources", ["server", "worker"]);
@@ -152,10 +181,16 @@ export function validateProductEventConfig(raw) {
   if (invalidServerSources.length) {
     throw new Error(`config.server_sources contains non-server sources: ${invalidServerSources.join(", ")}.`);
   }
+  const customEventNames = new Set(
+    config.custom_event_names === undefined
+      ? []
+      : stringList(config.custom_event_names, "config.custom_event_names", [], 100),
+  );
   return {
     environment,
     serverSources: new Set(serverSources),
     meaningfulEvents: new Set(stringList(config.meaningful_events, "config.meaningful_events", DEFAULT_MEANINGFUL_EVENTS)),
+    allowedEventNames: new Set([...REQUIRED_PRODUCT_EVENT_NAMES, ...customEventNames]),
   };
 }
 
@@ -199,6 +234,9 @@ function validateEvent(raw, index, config, sourceUpdatedAt) {
     throw new Error(`${name}.received_at_utc is newer than the export watermark.`);
   }
   const eventName = code(event.event_name, `${name}.event_name`);
+  if (!config.allowedEventNames.has(eventName)) {
+    throw new Error(`${name}.event_name is not in the registered product-event contract.`);
+  }
   const source = code(event.source, `${name}.source`);
   if ((BILLING_EVENTS.has(eventName) || SERVER_ONLY_EVENTS.has(eventName)) && !config.serverSources.has(source)) {
     throw new Error(`${name}.${eventName} must originate from an approved server source.`);
