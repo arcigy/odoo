@@ -40,7 +40,7 @@ This matrix distinguishes implemented contracts from live evidence. A seeded met
 
 - `preserved`: existing Arcigy editor, tenant database, projects, pricing, BOM, exports, modules and customer-specific behavior were not changed by the Odoo addon.
 - `preserved`: existing Geotherm CRM, pricebook, analytics, monthly costs, Drive OAuth/mappings and attachments are retained in the reconciled canonical package.
-- `intentionally extended`: isolated no-write evidence compilers, 376 Odoo metric definitions, standalone operational models/dashboard and a separate encrypted Odoo off-host backup task.
+- `intentionally extended`: isolated no-write evidence compilers, 439 Odoo metric definitions, standalone operational models/dashboard and a separate encrypted Odoo off-host backup task.
 - `decision required`: backup retention deletion, certificate recovery/secondary-copy policy, live Arcigy credentials, source scheduling, database writes outside local test and production load tests.
 
 ## Current P0 blockers
