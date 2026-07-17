@@ -179,6 +179,25 @@ unauthenticated 401. Image tags 36 and 35 remain available as rollback evidence,
 and the host still has 19 GB free. No Arcigy credential, schedule, source write,
 database, storage or `kitchen_app` change was made.
 
+### Live Odoo backup-evidence ingest
+
+On 2026-07-17, the dedicated Odoo service user `saas_integration_bot` was
+created with only the Control Center Integration Bot role. Its short-lived RPC
+key expires on 2026-08-16 and is stored only in Windows Credential Manager at
+`Arcigy/GeothermOdoo/SaaSIntegrationBot`; it is not present in this repository,
+a task definition, command output or configuration file.
+
+The dedicated `Geotherm Odoo Backup Evidence Ingest` task runs daily at 04:40
+under the interactive user context. It has a user-only, secret-free
+configuration file and leaves the existing Arcigy and Odoo backup tasks
+unchanged. Two direct runs and one Task Scheduler run (`LastTaskResult=0`)
+validated the encrypted off-host backup evidence again before the allowlisted,
+idempotent Main-only Odoo write. The live Backups list contains exactly three
+successful encrypted off-host Odoo backup records; retries did not duplicate
+them. A subsequent Odoo-native refresh derived three truthful backup metrics
+from that evidence. Restore, DR, load, retention, 24-hour failure coverage and
+storage-cost evidence remain separate incomplete requirements.
+
 ## Rollback
 
 1. Stop the sync schedule first.
