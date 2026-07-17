@@ -1,0 +1,66 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+const remoteScript = await readFile(new URL("../ops/backup/create-odoo-backup.sh", import.meta.url), "utf8");
+const runner = await readFile(new URL("../ops/backup/odoo-backup-runner.ps1", import.meta.url), "utf8");
+const installer = await readFile(new URL("../ops/backup/install-odoo-backup-task.ps1", import.meta.url), "utf8");
+const decryptor = await readFile(new URL("../ops/backup/decrypt-odoo-backup.ps1", import.meta.url), "utf8");
+
+test("remote Odoo backup is fail-closed, structurally verified and bounded to exact services", () => {
+  assert.match(remoteScript, /set -Eeuo pipefail/);
+  assert.match(remoteScript, /umask 077/);
+  assert.match(remoteScript, /backup_id="\$\{1:-\}"/);
+  assert.match(remoteScript, /mode="cleanup"/);
+  assert.match(remoteScript, /result_path/);
+  assert.match(remoteScript, /lock_dir/);
+  assert.match(remoteScript, /srv-captain--geotherm-odoo/);
+  assert.match(remoteScript, /srv-captain--geotherm-odoo-db/);
+  assert.match(remoteScript, /pg_dump/);
+  assert.match(remoteScript, /pg_restore -l/);
+  assert.match(remoteScript, /\/var\/lib\/odoo/);
+  assert.match(remoteScript, /service-definitions\.json/);
+  assert.match(remoteScript, /sha256sum/);
+  assert.doesNotMatch(remoteScript, /docker system prune|docker volume prune|DROP DATABASE|rm -rf \/root\/arcigy-backups/);
+});
+
+test("off-host runner uses strict SSH, AES-256 CMS and deletes plaintext only after verification", () => {
+  assert.match(runner, /StrictHostKeyChecking=yes/);
+  assert.match(runner, /"-q"/);
+  assert.match(runner, /UserKnownHostsFile=/);
+  assert.match(runner, /Protect-CmsMessage/);
+  assert.match(runner, /Unprotect-CmsMessage/);
+  assert.match(runner, /Confirm-Aes256CmsCipher/);
+  assert.match(runner, /Encrypted backup is not CMS AES-256-CBC/);
+  assert.match(runner, /Confirm-EncryptedRoundtrip/);
+  assert.match(runner, /Get-FileHash.+SHA256/s);
+  assert.match(runner, /Remote archive path is outside the approved transfer directory/);
+  assert.match(runner, /Remote backup returned a duplicate result key/);
+  assert.match(runner, /Remote backup ID does not match the requested run/);
+  assert.match(runner, /-Attempts 3/);
+  assert.match(runner, /--cleanup \$requestedBackupId/);
+  assert.match(runner, /remote_plaintext_removed = \$true/);
+  assert.match(runner, /odoo_metric_write_performed = \$false/);
+  assert.doesNotMatch(runner, /kitchen_app|ARCIGY_ODOO_API_KEY|saas\.backup\.run|Invoke-RestMethod/);
+  assert.doesNotMatch(runner, /Remove-Item.+-Recurse|docker system prune|docker volume prune/);
+});
+
+test("installer creates a separate non-exportable daily Odoo task without modifying Arcigy tasks", () => {
+  assert.match(installer, /Geotherm Odoo Encrypted Off-host Backup/);
+  assert.match(installer, /New-SelfSignedCertificate/);
+  assert.match(installer, /KeyExportPolicy\s*=\s*"NonExportable"/);
+  assert.match(installer, /New-ScheduledTaskTrigger -Daily/);
+  assert.match(installer, /StartWhenAvailable/);
+  assert.match(installer, /MultipleInstances\s*=\s*"IgnoreNew"/);
+  assert.doesNotMatch(installer, /Arcigy Production Encrypted Backup|Arcigy Weekly Isolated Restore Verification|Unregister-ScheduledTask/);
+});
+
+test("restore decryptor requires explicit plaintext approval and verifies both checksums", () => {
+  assert.match(decryptor, /AllowPlaintextOutput/);
+  assert.match(decryptor, /Encrypted archive checksum mismatch/);
+  assert.match(decryptor, /Decrypted archive checksum mismatch/);
+  assert.match(decryptor, /Unprotect-CmsMessage/);
+  assert.match(decryptor, /tar\.exe -tzf/);
+  assert.match(decryptor, /inheritance:r/);
+  assert.doesNotMatch(decryptor, /Remove-Item.+-Recurse|Unregister-ScheduledTask|kitchen_app/);
+});

@@ -63,6 +63,20 @@ chmod 600 "$backup_dir"/*
 
 Copy the verified backup off-host before the live deployment. A backup left only on the application host is not sufficient even while disk headroom is healthy.
 
+## Automated encrypted off-host backup
+
+The approved Odoo control-plane automation uses three repository-owned scripts:
+
+- `ops/backup/create-odoo-backup.sh` performs a fail-closed PostgreSQL, filestore and service-definition capture on the CapRover host;
+- `ops/backup/odoo-backup-runner.ps1` transfers the structurally verified archive through strict-host-key SSH, verifies SHA-256, encrypts it with CMS/AES-256-CBC and proves a decrypt/checksum roundtrip before removing both plaintext copies;
+- `ops/backup/decrypt-odoo-backup.ps1` requires explicit `-AllowPlaintextOutput`, evidence and both encrypted/source checksum checks before producing a mode-restricted restore archive.
+
+The separate Windows task `Geotherm Odoo Encrypted Off-host Backup` runs daily at 04:15 Europe/Bratislava, starts when the workstation becomes available, ignores overlapping starts and fails below 5 GiB free space. Its certificate private key is non-exportable in the current-user Windows certificate store. Config, certificate reference, encrypted artifacts and evidence remain outside Git. It does not use or alter the `Arcigy Production Encrypted Backup` or `Arcigy Weekly Isolated Restore Verification` tasks and never writes backup claims into live Odoo.
+
+Two approved 2026-07-17 runs succeeded, including one launched through the actual Scheduled Task. Backups `geotherm-odoo-20260717T105657Z-bcc475` and `geotherm-odoo-20260717T105825Z-b0cead` each passed source structure, transfer SHA-256, CMS AES-256 cipher inspection and decryption roundtrip. Each source archive was 6,807,746-6,807,747 bytes and each encrypted artifact was 12,421,810 bytes. The destination contained two encrypted artifacts and two evidence files, zero raw archives; server transfer/work directories were empty; the task result was `0` with the next run scheduled for 2026-07-18 04:15. Live app/database stayed image 36 at 1/1.
+
+This proves an automated off-host copy for Odoo, not the Arcigy Develop/Main SaaS backup producer. The task uses an interactive Windows principal with `StartWhenAvailable`; a powered-off or logged-out workstation delays the copy. Automatic retention deletion remains disabled until an explicit retention and certificate-recovery policy is approved. At the current observed size, storage grows by about 12.4 MB per successful daily artifact.
+
 ## Isolated restore drill
 
 Restore proof must never attach production database or Odoo volumes. Use unique temporary resource names, a Docker `--internal` network, random temporary database credentials, no published ports and the exact tested application/database images. Disable cron in the restored Odoo process and verify login plus the authenticated health endpoint from inside the isolated application container.
