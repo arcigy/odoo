@@ -202,7 +202,9 @@ export function validateBackupAttemptEvidence(raw, options = {}) {
     throw new Error("backup attempt evidence status must be success or failed.");
   }
   if (attempt.status === "success") {
-    if (attempt.failure_class !== null) throw new Error("successful backup attempt must not include failure_class.");
+    if (attempt.failure_class !== null && attempt.failure_class !== "") {
+      throw new Error("successful backup attempt must not include failure_class.");
+    }
   } else if (!FAILURE_CLASSES.has(attempt.failure_class)) {
     throw new Error("failed backup attempt must include an approved failure_class.");
   }

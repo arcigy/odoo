@@ -180,6 +180,10 @@ test("requires safe, internally consistent backup attempt records", async () => 
   invalidClass.failure_class = "ssh password";
   assert.throws(() => validateBackupAttemptEvidence(invalidClass, options), /approved failure_class/);
 
+  const legacyBlank = rawAttempt("geotherm-odoo-20260717T110001Z-aabbcd");
+  legacyBlank.failure_class = "";
+  assert.equal(validateBackupAttemptEvidence(legacyBlank, options).status, "success");
+
   const successWithoutArtifact = await fixture();
   await writeFile(
     join(successWithoutArtifact.directory, "geotherm-odoo-20260717T110001Z-aabbcd.attempt.json"),

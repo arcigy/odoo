@@ -202,11 +202,18 @@ under the interactive user context. It has a user-only, secret-free
 configuration file and leaves the existing Arcigy and Odoo backup tasks
 unchanged. Two direct runs and one Task Scheduler run (`LastTaskResult=0`)
 validated the encrypted off-host backup evidence again before the allowlisted,
-idempotent Main-only Odoo write. The live Backups list contains exactly three
+idempotent Main-only Odoo write. The live Backups list contains exactly four
 successful encrypted off-host Odoo backup records; retries did not duplicate
 them. A subsequent Odoo-native refresh derived three truthful backup metrics
 from that evidence. Restore, DR, load, retention, 24-hour failure coverage and
 storage-cost evidence remain separate incomplete requirements.
+
+The first ledger-enabled normal backup completed successfully on 2026-07-17.
+Its 420-byte attempt record contained the generated backup ID, timestamps,
+approved services, `success`, JSON `null` failure class and no metric-write
+claim. The compiler dry-run validated four Main records; the following existing
+ingest task completed with result `0` and updated the same bounded set without
+creating a fifth duplicate record.
 
 ## Rollback
 
