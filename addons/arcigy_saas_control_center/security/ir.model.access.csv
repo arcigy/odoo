@@ -60,7 +60,9 @@ access_saas_data_quality_run_executive,saas.data.quality.run executive,model_saa
 access_saas_environment_engineering,saas.environment engineering,model_saas_environment,group_saas_engineering,1,0,0,0
 access_saas_dashboard_engineering,saas.dashboard engineering,model_saas_dashboard,group_saas_engineering,1,0,0,0
 access_saas_service_engineering,saas.service engineering,model_saas_service,group_saas_engineering,1,0,0,0
+access_saas_plan_engineering,saas.plan engineering,model_saas_plan,group_saas_engineering,1,0,0,0
 access_saas_tenant_engineering,saas.tenant engineering,model_saas_tenant,group_saas_engineering,1,0,0,0
+access_saas_feature_engineering,saas.feature engineering,model_saas_feature,group_saas_engineering,1,0,0,0
 access_saas_integration_engineering,saas.integration engineering,model_saas_integration,group_saas_engineering,1,0,0,0
 access_saas_release_engineering,saas.release engineering,model_saas_release,group_saas_engineering,1,0,0,0
 access_saas_metric_definition_engineering,saas.metric.definition engineering,model_saas_metric_definition,group_saas_engineering,1,0,0,0
@@ -84,8 +86,12 @@ access_saas_capacity_daily_engineering,saas.capacity.daily engineering,model_saa
 access_saas_data_quality_run_engineering,saas.data.quality.run engineering,model_saas_data_quality_run,group_saas_engineering,1,0,0,0
 access_saas_environment_finance,saas.environment finance,model_saas_environment,group_saas_finance,1,0,0,0
 access_saas_dashboard_finance,saas.dashboard finance,model_saas_dashboard,group_saas_finance,1,0,0,0
+access_saas_service_finance,saas.service finance,model_saas_service,group_saas_finance,1,0,0,0
 access_saas_plan_finance,saas.plan finance,model_saas_plan,group_saas_finance,1,0,0,0
 access_saas_tenant_finance,saas.tenant finance,model_saas_tenant,group_saas_finance,1,0,0,0
+access_saas_feature_finance,saas.feature finance,model_saas_feature,group_saas_finance,1,0,0,0
+access_saas_integration_finance,saas.integration finance,model_saas_integration,group_saas_finance,1,0,0,0
+access_saas_release_finance,saas.release finance,model_saas_release,group_saas_finance,1,0,0,0
 access_saas_metric_definition_finance,saas.metric.definition finance,model_saas_metric_definition,group_saas_finance,1,0,0,0
 access_saas_metric_current_finance,saas.metric.current finance,model_saas_metric_current,group_saas_finance,1,0,0,0
 access_saas_metric_timeseries_finance,saas.metric.timeseries finance,model_saas_metric_timeseries,group_saas_finance,1,0,0,0
@@ -93,10 +99,12 @@ access_saas_tenant_daily_finance,saas.tenant.daily finance,model_saas_tenant_dai
 access_saas_cost_daily_finance,saas.cost.daily finance,model_saas_cost_daily,group_saas_finance,1,1,1,0
 access_saas_environment_customer_success,saas.environment customer success,model_saas_environment,group_saas_customer_success,1,0,0,0
 access_saas_dashboard_customer_success,saas.dashboard customer success,model_saas_dashboard,group_saas_customer_success,1,0,0,0
+access_saas_service_customer_success,saas.service customer success,model_saas_service,group_saas_customer_success,1,0,0,0
 access_saas_plan_customer_success,saas.plan customer success,model_saas_plan,group_saas_customer_success,1,0,0,0
 access_saas_tenant_customer_success,saas.tenant customer success,model_saas_tenant,group_saas_customer_success,1,0,0,0
 access_saas_feature_customer_success,saas.feature customer success,model_saas_feature,group_saas_customer_success,1,0,0,0
 access_saas_integration_customer_success,saas.integration customer success,model_saas_integration,group_saas_customer_success,1,0,0,0
+access_saas_release_customer_success,saas.release customer success,model_saas_release,group_saas_customer_success,1,0,0,0
 access_saas_metric_definition_customer_success,saas.metric.definition customer success,model_saas_metric_definition,group_saas_customer_success,1,0,0,0
 access_saas_metric_current_customer_success,saas.metric.current customer success,model_saas_metric_current,group_saas_customer_success,1,0,0,0
 access_saas_metric_timeseries_customer_success,saas.metric.timeseries customer success,model_saas_metric_timeseries,group_saas_customer_success,1,0,0,0
@@ -107,8 +115,11 @@ access_saas_product_daily_customer_success,saas.product.daily customer success,m
 access_saas_environment_support,saas.environment support,model_saas_environment,group_saas_support,1,0,0,0
 access_saas_dashboard_support,saas.dashboard support,model_saas_dashboard,group_saas_support,1,0,0,0
 access_saas_service_support,saas.service support,model_saas_service,group_saas_support,1,0,0,0
+access_saas_plan_support,saas.plan support,model_saas_plan,group_saas_support,1,0,0,0
 access_saas_tenant_support,saas.tenant support,model_saas_tenant,group_saas_support,1,0,0,0
+access_saas_feature_support,saas.feature support,model_saas_feature,group_saas_support,1,0,0,0
 access_saas_integration_support,saas.integration support,model_saas_integration,group_saas_support,1,0,0,0
+access_saas_release_support,saas.release support,model_saas_release,group_saas_support,1,0,0,0
 access_saas_metric_definition_support,saas.metric.definition support,model_saas_metric_definition,group_saas_support,1,0,0,0
 access_saas_metric_current_support,saas.metric.current support,model_saas_metric_current,group_saas_support,1,0,0,0
 access_saas_metric_timeseries_support,saas.metric.timeseries support,model_saas_metric_timeseries,group_saas_support,1,0,0,0
@@ -119,7 +130,11 @@ access_saas_tenant_daily_support,saas.tenant.daily support,model_saas_tenant_dai
 access_saas_environment_security,saas.environment security,model_saas_environment,group_saas_security,1,0,0,0
 access_saas_dashboard_security,saas.dashboard security,model_saas_dashboard,group_saas_security,1,0,0,0
 access_saas_service_security,saas.service security,model_saas_service,group_saas_security,1,0,0,0
+access_saas_plan_security,saas.plan security,model_saas_plan,group_saas_security,1,0,0,0
 access_saas_tenant_security,saas.tenant security,model_saas_tenant,group_saas_security,1,0,0,0
+access_saas_feature_security,saas.feature security,model_saas_feature,group_saas_security,1,0,0,0
+access_saas_integration_security,saas.integration security,model_saas_integration,group_saas_security,1,0,0,0
+access_saas_release_security,saas.release security,model_saas_release,group_saas_security,1,0,0,0
 access_saas_metric_definition_security,saas.metric.definition security,model_saas_metric_definition,group_saas_security,1,0,0,0
 access_saas_metric_current_security,saas.metric.current security,model_saas_metric_current,group_saas_security,1,0,0,0
 access_saas_metric_timeseries_security,saas.metric.timeseries security,model_saas_metric_timeseries,group_saas_security,1,0,0,0

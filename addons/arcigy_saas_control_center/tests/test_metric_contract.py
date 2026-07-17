@@ -22,8 +22,15 @@ class TestSaasMetricContract(TransactionCase):
         cls.bot_group = cls.env.ref("arcigy_saas_control_center.group_saas_integration_bot")
         cls.executive_group = cls.env.ref("arcigy_saas_control_center.group_saas_executive")
         cls.finance_group = cls.env.ref("arcigy_saas_control_center.group_saas_finance")
+        cls.customer_success_group = cls.env.ref(
+            "arcigy_saas_control_center.group_saas_customer_success"
+        )
+        cls.support_group = cls.env.ref("arcigy_saas_control_center.group_saas_support")
         cls.engineering_group = cls.env.ref("arcigy_saas_control_center.group_saas_engineering")
         cls.security_group = cls.env.ref("arcigy_saas_control_center.group_saas_security")
+        cls.administrator_group = cls.env.ref(
+            "arcigy_saas_control_center.group_saas_administrator"
+        )
         cls.bot = cls.env["res.users"].with_context(no_reset_password=True).create(
             {
                 "name": "SaaS metric bot",
@@ -45,6 +52,22 @@ class TestSaasMetricContract(TransactionCase):
                 "group_ids": [(6, 0, [cls.finance_group.id])],
             }
         )
+        cls.customer_success = cls.env["res.users"].with_context(
+            no_reset_password=True
+        ).create(
+            {
+                "name": "SaaS customer success",
+                "login": "saas-customer-success-test",
+                "group_ids": [(6, 0, [cls.customer_success_group.id])],
+            }
+        )
+        cls.support = cls.env["res.users"].with_context(no_reset_password=True).create(
+            {
+                "name": "SaaS support",
+                "login": "saas-support-test",
+                "group_ids": [(6, 0, [cls.support_group.id])],
+            }
+        )
         cls.engineering = cls.env["res.users"].with_context(no_reset_password=True).create(
             {
                 "name": "SaaS engineering",
@@ -57,6 +80,37 @@ class TestSaasMetricContract(TransactionCase):
                 "name": "SaaS security",
                 "login": "saas-security-test",
                 "group_ids": [(6, 0, [cls.security_group.id])],
+            }
+        )
+        cls.administrator = cls.env["res.users"].with_context(
+            no_reset_password=True
+        ).create(
+            {
+                "name": "SaaS administrator",
+                "login": "saas-administrator-test",
+                "group_ids": [(6, 0, [cls.administrator_group.id])],
+            }
+        )
+        cls.plan = cls.env["saas.plan"].create(
+            {"name": "Role filter plan", "code": "role-filter-plan"}
+        )
+        cls.tenant = cls.env["saas.tenant"].create(
+            {
+                "name": "Role filter tenant",
+                "external_id": "role-filter-tenant",
+                "plan_id": cls.plan.id,
+            }
+        )
+        cls.feature = cls.env["saas.feature"].create(
+            {"name": "Role filter feature", "code": "role-filter-feature"}
+        )
+        cls.integration = cls.env["saas.integration"].create(
+            {"name": "Role filter integration", "code": "role-filter-integration"}
+        )
+        cls.release = cls.env["saas.release"].create(
+            {
+                "version": "role-filter-release",
+                "environment_id": cls.develop.id,
             }
         )
 
@@ -173,13 +227,73 @@ class TestSaasMetricContract(TransactionCase):
                 self._payload("develop", 99)
             )
 
-    def test_role_access_blocks_finance_security_and_engineering_cost_cross_read(self):
+    def test_all_human_roles_can_load_every_global_dashboard_filter(self):
+        expected_ids = {
+            "services": self.service.id,
+            "regions": self.region.id,
+            "releases": self.release.id,
+            "tenants": self.tenant.id,
+            "plans": self.plan.id,
+            "features": self.feature.id,
+            "integrations": self.integration.id,
+        }
+        users = [
+            self.executive,
+            self.finance,
+            self.customer_success,
+            self.support,
+            self.engineering,
+            self.security,
+            self.administrator,
+        ]
+
+        for user in users:
+            options = self.current_model.with_user(user).dashboard_filter_options()
+            self.assertIn("founder", {item["code"] for item in options["dashboards"]})
+            for option_name, expected_id in expected_ids.items():
+                self.assertIn(
+                    expected_id,
+                    {item["id"] for item in options[option_name]},
+                    f"{user.login} cannot load the {option_name} dashboard filter",
+                )
+            self.assertTrue(options["countries"], user.login)
+            self.assertTrue(options["currencies"], user.login)
+
+    def test_role_access_preserves_sensitive_aggregate_boundaries(self):
         with self.assertRaises(AccessError):
             self.env["saas.security.daily"].with_user(self.finance).search([])
         with self.assertRaises(AccessError):
             self.env["saas.cost.daily"].with_user(self.engineering).search([])
+        with self.assertRaises(AccessError):
+            self.env["saas.cost.daily"].with_user(self.security).search([])
+        for user in (self.customer_success, self.support):
+            with self.assertRaises(AccessError):
+                self.env["saas.cost.daily"].with_user(user).search([])
+            with self.assertRaises(AccessError):
+                self.env["saas.security.daily"].with_user(user).search([])
+
+        self.assertEqual(
+            self.env["saas.cost.daily"].with_user(self.finance).search_count([]), 0
+        )
+        self.assertEqual(
+            self.env["saas.endpoint.hourly"].with_user(self.engineering).search_count([]),
+            0,
+        )
+        self.assertEqual(
+            self.env["saas.product.daily"].with_user(self.customer_success).search_count([]),
+            0,
+        )
+        self.assertEqual(
+            self.env["saas.tenant.daily"].with_user(self.support).search_count([]), 0
+        )
         self.assertEqual(
             self.env["saas.security.daily"].with_user(self.security).search_count([]), 0
+        )
+        self.assertEqual(
+            self.env["saas.cost.daily"].with_user(self.executive).search_count([]), 0
+        )
+        self.assertEqual(
+            self.env["saas.security.daily"].with_user(self.executive).search_count([]), 0
         )
 
     def test_integration_bot_cannot_mutate_business_or_operational_records(self):
