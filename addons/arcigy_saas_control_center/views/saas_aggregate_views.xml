@@ -153,7 +153,70 @@
     </record>
     <record id="action_saas_security_daily" model="ir.actions.act_window">
         <field name="name">Security</field><field name="res_model">saas.security.daily</field>
-        <field name="view_mode">list,pivot,graph</field>
+        <field name="view_mode">list,form,pivot,graph</field>
+    </record>
+
+    <record id="view_saas_security_daily_form" model="ir.ui.view">
+        <field name="name">saas.security.daily.form</field><field name="model">saas.security.daily</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <field name="period_start"/><field name="period_end"/>
+                        <field name="environment_id"/><field name="service_id"/>
+                        <field name="status"/><field name="data_quality_status"/>
+                    </group>
+                    <group string="Authentication">
+                        <field name="login_attempts"/><field name="successful_login_count"/>
+                        <field name="login_failures"/><field name="failed_login_unique_ip_count"/>
+                        <field name="brute_force_detection_count"/><field name="credential_stuffing_detection_count"/>
+                        <field name="password_reset_request_count"/><field name="password_reset_completion_count"/>
+                        <field name="password_reset_abuse_count"/><field name="mfa_enabled_user_count"/>
+                        <field name="mfa_eligible_user_count"/><field name="mfa_challenge_failure_count"/>
+                        <field name="suspicious_login_count"/><field name="suspicious_session_count"/>
+                        <field name="session_revocation_count"/>
+                    </group>
+                    <group string="Authorization and credentials">
+                        <field name="admin_action_count"/><field name="role_change_count"/>
+                        <field name="owner_change_count"/><field name="privileged_account_create_count"/>
+                        <field name="privileged_account_delete_count"/><field name="privileged_action_count"/>
+                        <field name="failed_permission_check_count"/><field name="cross_tenant_denied_count"/>
+                        <field name="confirmed_cross_tenant_exposure_count"/><field name="api_key_created_count"/>
+                        <field name="api_key_revoked_count"/><field name="active_api_key_count"/>
+                        <field name="api_key_without_recent_use_count"/><field name="api_key_rotation_overdue_count"/>
+                        <field name="token_refresh_failure_count"/><field name="oauth_error_count"/>
+                        <field name="expiring_credential_count"/>
+                    </group>
+                    <group string="Abuse and application attacks">
+                        <field name="rate_limit_events"/><field name="blocked_ip_count"/>
+                        <field name="blocked_tenant_count"/><field name="bot_traffic_count"/>
+                        <field name="scraping_attempt_count"/><field name="signup_abuse_count"/>
+                        <field name="invite_abuse_count"/><field name="email_sms_abuse_count"/>
+                        <field name="export_abuse_count"/><field name="unusual_download_volume_count"/>
+                        <field name="sql_injection_detection_count"/><field name="xss_csp_violation_count"/>
+                        <field name="csrf_failure_count"/><field name="ssrf_block_count"/>
+                        <field name="path_traversal_attempt_count"/><field name="invalid_file_type_count"/>
+                        <field name="malware_detection_count"/><field name="decompression_bomb_detection_count"/>
+                        <field name="webhook_signature_failure_count"/><field name="invalid_redirect_count"/>
+                    </group>
+                    <group string="Supply chain and posture">
+                        <field name="critical_vulnerability_count"/><field name="high_vulnerability_count"/>
+                        <field name="medium_vulnerability_count"/><field name="vulnerability_age_days"/>
+                        <field name="vulnerability_over_sla_count"/><field name="unmaintained_dependency_count"/>
+                        <field name="dependency_lockfile_integrity_failure_count"/><field name="secret_finding_count"/>
+                        <field name="exposed_secret_count"/><field name="unpinned_ci_action_count"/>
+                        <field name="sbom_age_seconds"/><field name="certificate_expiring_count"/>
+                        <field name="database_encryption_status"/><field name="audit_delivery_failure_count"/>
+                    </group>
+                    <group string="Security incidents">
+                        <field name="security_incident_count"/><field name="security_incident_detect_p95_seconds"/>
+                        <field name="security_incident_contain_p95_seconds"/><field name="credential_revocation_p95_seconds"/>
+                        <field name="security_incident_affected_tenant_count"/><field name="security_incident_affected_record_count"/>
+                        <field name="security_incident_without_postmortem_count"/><field name="security_open_remediation_action_count"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
     </record>
 
     <record id="view_saas_capacity_daily_list" model="ir.ui.view">

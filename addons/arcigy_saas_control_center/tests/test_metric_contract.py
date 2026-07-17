@@ -399,7 +399,7 @@ class TestSaasMetricContract(TransactionCase):
 
     def test_every_seeded_metric_has_complete_definition_contract(self):
         definitions = self.env["saas.metric.definition"].search([])
-        self.assertEqual(len(definitions), 376)
+        self.assertEqual(len(definitions), 439)
         for definition in definitions:
             self.assertTrue(definition.code)
             self.assertTrue(definition.name)
@@ -480,6 +480,41 @@ class TestSaasMetricContract(TransactionCase):
             self.env["saas.metric.definition"].search([]).mapped("code")
         )
         self.assertFalse(expected_p0_metrics - actual_metrics)
+
+    def test_complete_security_dashboard_metric_contract_is_seeded(self):
+        expected_metrics = {
+            "login_attempt_count", "successful_login_count", "failed_login_count",
+            "failed_login_unique_ip_count", "brute_force_detections",
+            "credential_stuffing_detection_count", "password_reset_request_count",
+            "password_reset_completion_count", "password_reset_abuse_count", "mfa_adoption",
+            "mfa_challenge_failure_count", "suspicious_session_count", "session_revocation_count",
+            "access_denied_count", "admin_action_count", "role_change_count", "owner_change_count",
+            "privileged_account_create_count", "privileged_account_delete_count",
+            "failed_permission_check_count", "cross_tenant_access_denied",
+            "confirmed_cross_tenant_exposure", "api_key_created_count", "api_key_revoked_count",
+            "active_api_key_count", "api_key_without_recent_use_count",
+            "api_key_rotation_overdue_count", "token_refresh_failure_count", "oauth_error_count",
+            "expiring_credential_count", "http_rate_limited_count", "blocked_ip_count", "blocked_tenant_count",
+            "bot_traffic_count", "scraping_attempt_count", "signup_abuse_count", "invite_abuse_count",
+            "password_reset_abuse_count", "email_sms_abuse_count", "export_abuse_count",
+            "unusual_download_volume_count", "sql_injection_detection_count", "xss_csp_violation_count",
+            "csrf_failure_count", "ssrf_block_count", "path_traversal_attempt_count",
+            "invalid_file_type_count", "malware_detection_count", "decompression_bomb_detection_count",
+            "webhook_signature_failure_count", "invalid_redirect_count", "critical_vulnerability_count",
+            "high_vulnerability_count", "medium_vulnerability_count", "vulnerability_age_days",
+            "vulnerability_over_sla_count", "unmaintained_dependency_count",
+            "dependency_lockfile_integrity_failure_count", "secret_scan_finding_count",
+            "exposed_secret_count", "unpinned_ci_action_count", "sbom_age_seconds",
+            "certificate_expiring_count", "backup_encryption_status", "database_encryption_status",
+            "security_incident_count", "security_incident_detect_p95_seconds",
+            "security_incident_contain_p95_seconds", "credential_revocation_p95_seconds",
+            "security_incident_affected_tenant_count", "security_incident_affected_record_count",
+            "security_incident_without_postmortem_count", "security_open_remediation_action_count",
+        }
+        actual_metrics = set(
+            self.env["saas.metric.definition"].search([]).mapped("code")
+        )
+        self.assertFalse(expected_metrics - actual_metrics)
 
     def test_complete_engineering_quality_metric_contract_is_seeded(self):
         expected_metrics = {
