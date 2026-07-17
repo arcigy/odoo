@@ -147,6 +147,16 @@ Omit `--dry-run` only after both no-write scrapes for that environment have been
 - Metric sync rejects HTML, stale, malformed and unknown telemetry.
 - Two consecutive ingests are idempotent and preserve environment isolation.
 
+### Signed-in browser evidence
+
+On 2026-07-17 an authenticated Chrome session loaded the live Control Center at
+`/odoo/action-246`. The smoke switched the dashboard selector from API/backend to
+Founder/CEO and Engineering, confirmed paired Develop/Main freshness cards and
+metric table columns, exercised the read-only `Obnoviť` action, and observed zero
+browser-console errors or warnings. Operations, Metrics, Aggregates and
+Configuration navigation was visible to the signed-in administrator. No form,
+record, credential or source value was created, edited or deleted.
+
 ## Rollback
 
 1. Stop the sync schedule first.
