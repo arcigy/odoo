@@ -6,7 +6,8 @@
   },
   "github": {
     "tokenEnv": "ARCIGY_GITHUB_READ_TOKEN",
-    "windowDays": 30
+    "windowDays": 30,
+    "stalePullRequestDays": 14
   },
   "sources": {
     "develop": {

@@ -16,7 +16,7 @@ function rawConfig() {
       database: "arcigy",
       apiKeyEnv: "ARCIGY_ODOO_API_KEY",
     },
-    github: { tokenEnv: "ARCIGY_GITHUB_READ_TOKEN", windowDays: 30 },
+    github: { tokenEnv: "ARCIGY_GITHUB_READ_TOKEN", windowDays: 30, stalePullRequestDays: 14 },
     sources: {
       develop: {
         repository: "arcigy/kitchen_app",
@@ -46,7 +46,7 @@ function run(conclusion, acceptedAt, completedAt, queuedAt, startedAt) {
   };
 }
 
-function githubFixture({ emptyBuilds = false, securityAlertCount = 3 } = {}) {
+function githubFixture({ emptyBuilds = false, securityAlertCount = 3, invalidPullDetail = false } = {}) {
   const requests = [];
   const odooPosts = [];
   const requestJson = async (url, options = {}) => {
@@ -92,7 +92,50 @@ function githubFixture({ emptyBuilds = false, securityAlertCount = 3 } = {}) {
       };
     }
     if (parsed.pathname.endsWith("/pulls")) {
-      return branch === "develop" ? [{ number: 1 }, { number: 2 }] : [{ number: 3 }];
+      if (parsed.searchParams.get("state") === "open") {
+        return branch === "develop"
+          ? [
+              { number: 1, updated_at: "2026-07-15T12:00:00Z" },
+              { number: 2, updated_at: "2026-06-30T12:00:00Z" },
+            ]
+          : [{ number: 3, updated_at: "2026-07-16T10:00:00Z" }];
+      }
+      return branch === "develop"
+        ? [
+            {
+              number: 11,
+              created_at: "2026-07-15T09:00:00Z",
+              merged_at: "2026-07-15T10:00:00Z",
+              updated_at: "2026-07-15T10:00:00Z",
+            },
+            {
+              number: 12,
+              created_at: "2026-07-12T10:00:00Z",
+              merged_at: "2026-07-14T10:00:00Z",
+              updated_at: "2026-07-14T10:00:00Z",
+            },
+          ]
+        : [];
+    }
+    if (parsed.pathname.endsWith("/pulls/11")) {
+      return {
+        number: 11,
+        additions: invalidPullDetail ? -1 : 100,
+        deletions: 50,
+        changed_files: 5,
+        created_at: "2026-07-15T09:00:00Z",
+        merged_at: "2026-07-15T10:00:00Z",
+      };
+    }
+    if (parsed.pathname.endsWith("/pulls/12")) {
+      return {
+        number: 12,
+        additions: 1000,
+        deletions: 200,
+        changed_files: 25,
+        created_at: "2026-07-12T10:00:00Z",
+        merged_at: "2026-07-14T10:00:00Z",
+      };
     }
     if (parsed.pathname.endsWith("/dependabot/alerts")) {
       return Array.from({ length: securityAlertCount }, (_, index) => ({
@@ -121,6 +164,10 @@ test("requires explicit Develop and Main branch contracts", () => {
   const duplicateSecurity = rawConfig();
   duplicateSecurity.sources.develop.includeSecurity = true;
   assert.throws(() => validateGithubConfig(duplicateSecurity), /only one environment/);
+
+  const invalidStaleWindow = rawConfig();
+  invalidStaleWindow.github.stalePullRequestDays = 0;
+  assert.throws(() => validateGithubConfig(invalidStaleWindow), /stalePullRequestDays/);
 });
 
 test("calculates status from the Odoo metric contract thresholds", () => {
@@ -150,6 +197,10 @@ test("every emitted GitHub metric is present in the seeded Odoo contract", async
     "deployment_queue_p95_seconds",
     "lead_time_for_changes_seconds",
     "open_pr_count",
+    "pr_cycle_time_p50_seconds",
+    "pr_average_diff_lines",
+    "pr_average_files_changed",
+    "stale_pr_count",
     "critical_vulnerability_count",
     "secret_scan_finding_count",
   ]) {
@@ -179,6 +230,10 @@ test("collects branch-scoped CI and deployment metrics without inventing rollbac
   assert.equal(byCode.deployment_queue_p95_seconds.value, 300);
   assert.equal(byCode.lead_time_for_changes_seconds.value, 900);
   assert.equal(byCode.open_pr_count.value, 2);
+  assert.equal(byCode.stale_pr_count.value, 1);
+  assert.equal(byCode.pr_cycle_time_p50_seconds.value, 88200);
+  assert.equal(byCode.pr_average_diff_lines.value, 675);
+  assert.equal(byCode.pr_average_files_changed.value, 15);
   assert.equal(byCode.change_failure_rate, undefined);
   assert.equal(byCode.release_rollback_rate, undefined);
   assert.ok(collected.metrics.every((metric) => metric.external_key.startsWith("develop:github:")));
@@ -195,6 +250,9 @@ test("collects repository-wide security counts only for the configured environme
   const byCode = Object.fromEntries(main.metrics.map((metric) => [metric.code, metric.value]));
   assert.equal(byCode.critical_vulnerability_count, 2);
   assert.equal(byCode.secret_scan_finding_count, 1);
+  assert.equal(byCode.stale_pr_count, 0);
+  assert.equal(byCode.pr_cycle_time_p50_seconds, undefined);
+  assert.ok(main.omitted.includes("pr_cycle_time_p50_seconds:no_merged_pull_requests"));
   assert.equal(
     fixture.requests.some((request) => request.url.includes("secret-scanning/alerts?state=open&hide_secret=true")),
     true,
@@ -270,5 +328,19 @@ test("fails closed instead of undercounting a capped security result", async () 
         now: Date.parse("2026-07-16T12:00:00Z"),
       }),
     /cursor pagination is required/,
+  );
+});
+
+test("fails closed on incomplete pull-request detail instead of emitting partial size metrics", async () => {
+  const config = validateGithubConfig(rawConfig());
+  const fixture = githubFixture({ invalidPullDetail: true });
+  await assert.rejects(
+    () =>
+      collectGithubEnvironment(config, "develop", {
+        env: { ARCIGY_GITHUB_READ_TOKEN: "test-read-token" },
+        requestJson: fixture.requestJson,
+        now: Date.parse("2026-07-16T12:00:00Z"),
+      }),
+    /additions must be a non-negative integer/,
   );
 });

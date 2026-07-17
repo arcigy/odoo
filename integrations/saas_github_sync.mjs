@@ -7,6 +7,7 @@ const MAX_INPUT_BYTES = 1024 * 1024;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_PAGES = 10;
 const PAGE_SIZE = 100;
+const MAX_PULL_DETAILS = 100;
 const ENVIRONMENTS = ["develop", "main"];
 const SAFE_REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SAFE_BRANCH = /^[A-Za-z0-9._/-]{1,255}$/;
@@ -35,11 +36,21 @@ const METRICS = Object.freeze({
     freshnessSeconds: 86400,
   },
   open_pr_count: { direction: "lower", warning: 10, critical: 25, freshnessSeconds: 86400 },
+  pr_cycle_time_p50_seconds: { direction: "lower", warning: 259200, critical: 604800, freshnessSeconds: 86400 },
+  pr_average_diff_lines: { direction: "lower", warning: 500, critical: 1000, freshnessSeconds: 86400 },
+  pr_average_files_changed: { direction: "lower", warning: 20, critical: 40, freshnessSeconds: 86400 },
+  stale_pr_count: { direction: "lower", warning: 2, critical: 5, freshnessSeconds: 86400 },
   critical_vulnerability_count: { direction: "lower", warning: 1, critical: 2, freshnessSeconds: 86400 },
   secret_scan_finding_count: { direction: "lower", warning: 1, critical: 2, freshnessSeconds: 86400 },
 });
 
-const ELIGIBLE_BUILD_CONCLUSIONS = new Set(["success", "failure", "timed_out", "action_required", "startup_failure"]);
+const ELIGIBLE_WORKFLOW_CONCLUSIONS = new Set([
+  "success",
+  "failure",
+  "timed_out",
+  "action_required",
+  "startup_failure",
+]);
 
 function plainObject(value, name) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${name} must be an object.`);
@@ -146,7 +157,7 @@ export function validateGithubConfig(raw) {
   const odoo = plainObject(config.odoo, "config.odoo");
   rejectUnknownKeys(odoo, new Set(["url", "database", "apiKeyEnv"]), "config.odoo");
   const github = plainObject(config.github, "config.github");
-  rejectUnknownKeys(github, new Set(["tokenEnv", "windowDays"]), "config.github");
+  rejectUnknownKeys(github, new Set(["tokenEnv", "windowDays", "stalePullRequestDays"]), "config.github");
   const sources = plainObject(config.sources, "config.sources");
   rejectUnknownKeys(sources, new Set(ENVIRONMENTS), "config.sources");
 
@@ -163,6 +174,10 @@ export function validateGithubConfig(raw) {
   if (!Number.isInteger(windowDays) || windowDays < 1 || windowDays > 90) {
     throw new Error("config.github.windowDays must be an integer between 1 and 90.");
   }
+  const stalePullRequestDays = Number(github.stalePullRequestDays ?? 14);
+  if (!Number.isInteger(stalePullRequestDays) || stalePullRequestDays < 1 || stalePullRequestDays > 90) {
+    throw new Error("config.github.stalePullRequestDays must be an integer between 1 and 90.");
+  }
   const normalizedSources = Object.fromEntries(
     ENVIRONMENTS.map((environment) => [environment, validateSource(sources[environment], environment)]),
   );
@@ -171,7 +186,7 @@ export function validateGithubConfig(raw) {
   }
   return {
     odoo: { url: secureUrl(odoo.url, "config.odoo.url"), database, apiKeyEnv },
-    github: { tokenEnv: githubTokenEnv, windowDays },
+    github: { tokenEnv: githubTokenEnv, windowDays, stalePullRequestDays },
     sources: normalizedSources,
   };
 }
@@ -204,6 +219,21 @@ async function pagedGithub(path, headers, selectPage, requestJson) {
   throw new Error(`GitHub result exceeded the bounded ${MAX_PAGES * PAGE_SIZE}-record window.`);
 }
 
+async function pagedGithubSince(path, headers, selectPage, cutoff, requestJson) {
+  const values = [];
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const separator = path.includes("?") ? "&" : "?";
+    const raw = await requestJson(`${GITHUB_API_URL}${path}${separator}per_page=${PAGE_SIZE}&page=${page}`, { headers });
+    const pageValues = selectPage(raw);
+    if (!Array.isArray(pageValues)) throw new Error("GitHub returned an unexpected paginated response.");
+    values.push(...pageValues);
+    if (pageValues.length < PAGE_SIZE) return values;
+    const oldestUpdatedAt = finiteDate(pageValues.at(-1)?.updated_at, "pull request updated_at");
+    if (oldestUpdatedAt < cutoff) return values;
+  }
+  throw new Error(`GitHub pull request result exceeded the bounded ${MAX_PAGES * PAGE_SIZE}-record window.`);
+}
+
 async function boundedGithubList(path, headers, requestJson) {
   const separator = path.includes("?") ? "&" : "?";
   const values = await requestJson(`${GITHUB_API_URL}${path}${separator}per_page=${PAGE_SIZE}`, { headers });
@@ -229,6 +259,33 @@ function openPullRequestsPath(source) {
   const repository = source.repository.split("/").map(encodeURIComponent).join("/");
   const query = new URLSearchParams({ state: "open", base: source.branch, sort: "updated", direction: "desc" });
   return `/repos/${repository}/pulls?${query}`;
+}
+
+function closedPullRequestsPath(source) {
+  const repository = source.repository.split("/").map(encodeURIComponent).join("/");
+  const query = new URLSearchParams({ state: "closed", base: source.branch, sort: "updated", direction: "desc" });
+  return `/repos/${repository}/pulls?${query}`;
+}
+
+function pullRequestDetailPath(source, number) {
+  const repository = source.repository.split("/").map(encodeURIComponent).join("/");
+  return `/repos/${repository}/pulls/${encodeURIComponent(number)}`;
+}
+
+function validatePullRequestDetail(raw, expectedNumber) {
+  const detail = plainObject(raw, "pull request detail");
+  if (!Number.isInteger(detail.number) || detail.number !== expectedNumber) {
+    throw new Error("GitHub returned an unexpected pull request number.");
+  }
+  for (const field of ["additions", "deletions", "changed_files"]) {
+    if (!Number.isInteger(detail[field]) || detail[field] < 0) {
+      throw new Error(`GitHub pull request ${field} must be a non-negative integer.`);
+    }
+  }
+  const createdAt = finiteDate(detail.created_at, "pull request created_at");
+  const mergedAt = finiteDate(detail.merged_at, "pull request merged_at");
+  if (mergedAt < createdAt) throw new Error("GitHub pull request merged_at cannot precede created_at.");
+  return { additions: detail.additions, deletions: detail.deletions, changedFiles: detail.changed_files, createdAt, mergedAt };
 }
 
 function metricItem(code, value, environment, source, periodStart, periodEnd, sampleCount, extra = {}) {
@@ -284,9 +341,32 @@ export async function collectGithubEnvironment(
     (raw) => raw,
     requestJson,
   );
+  const closedPullRequests = await pagedGithubSince(
+    closedPullRequestsPath(source),
+    headers,
+    (raw) => raw,
+    Date.parse(periodStart),
+    requestJson,
+  );
+  const mergedPullRequests = closedPullRequests.filter((pullRequest) => {
+    if (!pullRequest?.merged_at) return false;
+    const mergedAt = finiteDate(pullRequest.merged_at, "pull request merged_at");
+    return mergedAt >= Date.parse(periodStart) && mergedAt <= Date.parse(periodEnd);
+  });
+  if (mergedPullRequests.length > MAX_PULL_DETAILS) {
+    throw new Error(`GitHub merged pull request population exceeds the bounded ${MAX_PULL_DETAILS}-record detail limit.`);
+  }
+  const mergedPullRequestDetails = [];
+  for (const pullRequest of mergedPullRequests) {
+    if (!Number.isInteger(pullRequest?.number) || pullRequest.number <= 0) {
+      throw new Error("GitHub pull request number must be a positive integer.");
+    }
+    const detail = await requestJson(`${GITHUB_API_URL}${pullRequestDetailPath(source, pullRequest.number)}`, { headers });
+    mergedPullRequestDetails.push(validatePullRequestDetail(detail, pullRequest.number));
+  }
   const metrics = [];
   const omitted = [];
-  const eligibleBuilds = buildRuns.filter((run) => ELIGIBLE_BUILD_CONCLUSIONS.has(run?.conclusion));
+  const eligibleBuilds = buildRuns.filter((run) => ELIGIBLE_WORKFLOW_CONCLUSIONS.has(run?.conclusion));
   metrics.push(
     metricItem(
       "build_count",
@@ -298,6 +378,65 @@ export async function collectGithubEnvironment(
       eligibleBuilds.length,
     ),
   );
+  const stalePullRequestCutoff = now - config.github.stalePullRequestDays * 86400_000;
+  const stalePullRequestCount = openPullRequests.filter((pullRequest) => {
+    const updatedAt = finiteDate(pullRequest?.updated_at, "open pull request updated_at");
+    return updatedAt < stalePullRequestCutoff;
+  }).length;
+  metrics.push(
+    metricItem(
+      "stale_pr_count",
+      stalePullRequestCount,
+      environment,
+      source,
+      periodStart,
+      periodEnd,
+      openPullRequests.length,
+      { drilldown_url: `https://github.com/${source.repository}/pulls?q=is%3Apr+is%3Aopen+base%3A${encodeURIComponent(source.branch)}` },
+    ),
+  );
+
+  if (mergedPullRequestDetails.length) {
+    const cycleTimes = mergedPullRequestDetails.map((detail) => (detail.mergedAt - detail.createdAt) / 1000);
+    const totalDiffLines = mergedPullRequestDetails.reduce(
+      (total, detail) => total + detail.additions + detail.deletions,
+      0,
+    );
+    const totalFilesChanged = mergedPullRequestDetails.reduce((total, detail) => total + detail.changedFiles, 0);
+    metrics.push(
+      metricItem(
+        "pr_cycle_time_p50_seconds",
+        median(cycleTimes),
+        environment,
+        source,
+        periodStart,
+        periodEnd,
+        mergedPullRequestDetails.length,
+      ),
+      metricItem(
+        "pr_average_diff_lines",
+        totalDiffLines / mergedPullRequestDetails.length,
+        environment,
+        source,
+        periodStart,
+        periodEnd,
+        mergedPullRequestDetails.length,
+      ),
+      metricItem(
+        "pr_average_files_changed",
+        totalFilesChanged / mergedPullRequestDetails.length,
+        environment,
+        source,
+        periodStart,
+        periodEnd,
+        mergedPullRequestDetails.length,
+      ),
+    );
+  } else {
+    omitted.push("pr_cycle_time_p50_seconds:no_merged_pull_requests");
+    omitted.push("pr_average_diff_lines:no_merged_pull_requests");
+    omitted.push("pr_average_files_changed:no_merged_pull_requests");
+  }
   if (eligibleBuilds.length) {
     const successfulBuilds = eligibleBuilds.filter((run) => run.conclusion === "success").length;
     metrics.push(
@@ -354,7 +493,7 @@ export async function collectGithubEnvironment(
     );
   }
 
-  const eligibleDeploys = deployRuns.filter((run) => ELIGIBLE_BUILD_CONCLUSIONS.has(run?.conclusion));
+  const eligibleDeploys = deployRuns.filter((run) => ELIGIBLE_WORKFLOW_CONCLUSIONS.has(run?.conclusion));
   const successfulDeploys = eligibleDeploys.filter((run) => run?.conclusion === "success");
   metrics.push(
     metricItem(
