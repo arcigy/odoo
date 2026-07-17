@@ -370,4 +370,15 @@ node integrations/saas_operational_sync.mjs `
 
 Reálny output držte mimo Gitu. Ostrý zápis povoľte až po uložení krátko žijúceho bot API key v schválenom secret store; kľúč nikdy nedávajte do argumentov, logov, JSON evidence ani chatu.
 
+Secret-free kompiláciu a Odoo dry-run možno spúšťať samostatným taskom bez zmeny backup tasku:
+
+```powershell
+.\ops\backup\install-odoo-backup-evidence-task.ps1 `
+  -RepoDirectory (Get-Location).Path `
+  -BackupDirectory "C:\Users\laube\Downloads\CAPROVER\backups\geotherm-odoo-automated" `
+  -ConfigPath "C:\Users\laube\Downloads\CAPROVER\backups\geotherm-odoo-evidence.env"
+```
+
+Task `Geotherm Odoo Backup Evidence Compile` beží denne o 04:30, teda po backup tasku. Používa iba allowlisted config bez secretu, výstup drží pod backup adresárom, vynúti ACL a vždy volá operational sync s `--dry-run`. Nevie vytvoriť API key ani vykonať live Odoo zápis.
+
 Aktuálny read-only audit ukazuje 44 % využitie root filesystemu. Pred veľkým buildom stav znovu zmerajte a vždy zachovajte aktívny aj predchádzajúci funkčný image každej služby.
