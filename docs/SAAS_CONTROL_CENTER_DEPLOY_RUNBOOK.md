@@ -86,6 +86,12 @@ Application rollback proof must reuse an independently verified restored databas
 
 The approved 2026-07-17 drill used backup `geotherm-odoo-20260717T082027Z` and proved image 36 -> image 35 -> image 36. Current-image login and authorized health returned 200 in 4 seconds; rollback image 35 returned both in 5 seconds; the return to image 36 returned both in 4 seconds. Five monthly costs, one pricebook catalog, 88 products, 12 add-ons, two environments, 24 dashboards, 376 metric definitions, two current rows, 30 history rows and all three required addons remained exact. The test used random credentials, an internal network and zero published ports. Cleanup left zero matching containers, networks or volumes; live application and database services remained image 36 at 1/1.
 
+## Isolated DR failover drill
+
+DR proof must use two fully separate restored stacks: unique primary and standby PostgreSQL volumes, unique primary and standby Odoo filestore volumes, and separate internal networks. Prepare and validate the standby before declaring the simulated primary outage. Measure failover RTO from primary shutdown to standby application health. Report conservative RPO as the age of the restored backup at successful failover. Do not publish ports, attach production mounts, modify DNS or write synthetic evidence into live Odoo.
+
+The approved 2026-07-17 drill prepared both stacks from backup `geotherm-odoo-20260717T082027Z`, verified the primary login/health and exact source counts, stopped the primary application and database, then started image 36 against the separate standby. Standby login and authorized health returned 200 in 6 seconds. Five monthly costs, one catalog, 88 products, 12 add-ons, two environments, 24 dashboards, 376 definitions, two current rows, 30 history rows and all three required addons remained exact. Conservative backup-age RPO was 7,612 seconds. Cleanup left zero matching containers, networks or volumes; live application and database services remained image 36 at 1/1.
+
 ## Controlled deployment order
 
 1. Deploy the tested `kitchen_app` commit to `arcigy-kitchen-develop` only.
