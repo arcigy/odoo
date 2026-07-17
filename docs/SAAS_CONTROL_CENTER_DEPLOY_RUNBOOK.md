@@ -150,12 +150,14 @@ Omit `--dry-run` only after both no-write scrapes for that environment have been
 ### Signed-in browser evidence
 
 On 2026-07-17 an authenticated Chrome session loaded the live Control Center at
-`/odoo/action-246`. The smoke switched the dashboard selector from API/backend to
-Founder/CEO and Engineering, confirmed paired Develop/Main freshness cards and
-metric table columns, exercised the read-only `Obnoviť` action, and observed zero
-browser-console errors or warnings. Operations, Metrics, Aggregates and
-Configuration navigation was visible to the signed-in administrator. No form,
-record, credential or source value was created, edited or deleted.
+`/odoo/action-246`. The smoke selected all 23 required dashboards plus the
+optional AI/LLM dashboard. For each of the 24 options it waited for the exact
+dashboard heading and confirmed exactly one Develop and one Main table column;
+all 24 passed. The earlier read-only `Obnoviť` action also passed, and the final
+browser console contained zero errors or warnings. Operations, Metrics,
+Aggregates and Configuration navigation was visible to the signed-in
+administrator. The tab was returned to Founder/CEO. No form, record, credential
+or source value was created, edited or deleted.
 
 ### Documentation-only image 37 deployment
 
