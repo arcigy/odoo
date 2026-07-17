@@ -248,7 +248,7 @@ Denné a mesačné kontrakty sa nesmú miešať. Percentá vyžadujú numerátor
 
 ### GitHub CI/CD a security
 
-`integrations/saas_github_sync.mjs` číta iba agregovateľné metadata z GitHub Actions, Dependabot a Secret Scanning. Do Odoo neposiela kód, mená vývojárov, raw alerty ani literalne secrets (`hide_secret=true`). Develop a Main sú viazané na samostatné branche a repository-wide security stav sa smie priradiť iba jednému prostrediu.
+`integrations/saas_github_sync.mjs` číta iba agregovateľné metadata z GitHub Actions, otvorených pull requestov, Dependabot a Secret Scanning. Do Odoo neposiela kód, názvy PR, mená vývojárov, raw alerty ani literalne secrets (`hide_secret=true`). Develop a Main sú viazané na samostatné branche a repository-wide security stav sa smie priradiť iba jednému prostrediu.
 
 ```powershell
 $env:ARCIGY_GITHUB_READ_TOKEN = '<read-only secret-store reference>'
@@ -257,7 +257,7 @@ node integrations/saas_github_sync.mjs `
   --dry-run
 ```
 
-Fine-grained GitHub token potrebuje iba repository permissions `Actions: read`, `Dependabot alerts: read` a `Secret scanning alerts: read`; nepotrebuje Contents write ani administračné mutácie. Adapter pravdivo počíta build success, deployment frequency, lead time a otvorené critical/secret-scan nálezy. `change_failure_rate` ani `release_rollback_rate` neodhaduje z failed workflow; vyžadujú dôkaz incidentu alebo rollbacku. Ostrý zápis navyše vyžaduje `ARCIGY_ODOO_API_KEY`.
+Fine-grained GitHub token potrebuje iba repository permissions `Actions: read`, `Pull requests: read`, `Dependabot alerts: read` a `Secret scanning alerts: read`; nepotrebuje Contents write ani administračné mutácie. Adapter pravdivo počíta completed build/deployment count, success rate, p95 trvanie a queue wait, deployment frequency, lead time, otvorené PR a otvorené critical/secret-scan nálezy. Chýbajúce alebo chronologicky neplatné timing samples vynechá namiesto falošnej nuly. `change_failure_rate` ani `release_rollback_rate` neodhaduje z failed workflow; vyžadujú dôkaz incidentu alebo rollbacku. Ostrý zápis navyše vyžaduje `ARCIGY_ODOO_API_KEY`.
 
 ### AI-assisted change risk
 

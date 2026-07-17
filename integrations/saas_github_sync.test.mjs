@@ -36,11 +36,13 @@ function rawConfig() {
   };
 }
 
-function run(conclusion, acceptedAt, deployedAt) {
+function run(conclusion, acceptedAt, completedAt, queuedAt, startedAt) {
   return {
     conclusion,
     head_commit: acceptedAt ? { timestamp: acceptedAt } : null,
-    updated_at: deployedAt,
+    created_at: queuedAt,
+    run_started_at: startedAt,
+    updated_at: completedAt,
   };
 }
 
@@ -57,14 +59,22 @@ function githubFixture({ emptyBuilds = false, securityAlertCount = 3 } = {}) {
     assert.equal(parsed.hostname, "api.github.com");
     assert.equal(options.headers["X-GitHub-Api-Version"], "2026-03-10");
     assert.equal(options.headers.Authorization, "Bearer test-read-token");
-    const branch = parsed.searchParams.get("branch");
+    const branch = parsed.searchParams.get("branch") || parsed.searchParams.get("base");
     if (parsed.pathname.endsWith("/actions/workflows/ci.yml/runs")) {
       if (emptyBuilds) return { workflow_runs: [] };
       return {
         workflow_runs:
           branch === "develop"
-            ? [run("success"), run("failure"), run("cancelled")]
-            : [run("success"), run("success"), run("success")],
+            ? [
+                run("success", null, "2026-07-15T10:11:00Z", "2026-07-15T10:00:00Z", "2026-07-15T10:01:00Z"),
+                run("failure", null, "2026-07-14T11:22:00Z", "2026-07-14T11:00:00Z", "2026-07-14T11:02:00Z"),
+                run("cancelled"),
+              ]
+            : [
+                run("success", null, "2026-07-15T09:06:00Z", "2026-07-15T09:00:00Z", "2026-07-15T09:01:00Z"),
+                run("success", null, "2026-07-14T09:12:00Z", "2026-07-14T09:00:00Z", "2026-07-14T09:02:00Z"),
+                run("success", null, "2026-07-13T09:18:00Z", "2026-07-13T09:00:00Z", "2026-07-13T09:03:00Z"),
+              ],
       };
     }
     if (parsed.pathname.endsWith("/actions/workflows/deploy-caprover.yml/runs")) {
@@ -72,12 +82,17 @@ function githubFixture({ emptyBuilds = false, securityAlertCount = 3 } = {}) {
         workflow_runs:
           branch === "develop"
             ? [
-                run("success", "2026-07-15T10:00:00Z", "2026-07-15T10:10:00Z"),
-                run("success", "2026-07-14T10:00:00Z", "2026-07-14T10:20:00Z"),
-                run("failure", "2026-07-13T10:00:00Z", "2026-07-13T10:05:00Z"),
+                run("success", "2026-07-15T10:00:00Z", "2026-07-15T10:10:00Z", "2026-07-15T10:00:00Z", "2026-07-15T10:02:00Z"),
+                run("success", "2026-07-14T10:00:00Z", "2026-07-14T10:20:00Z", "2026-07-14T10:00:00Z", "2026-07-14T10:05:00Z"),
+                run("failure", "2026-07-13T10:00:00Z", "2026-07-13T10:05:00Z", "2026-07-13T10:00:00Z", "2026-07-13T10:01:00Z"),
               ]
-            : [run("success", "2026-07-15T09:00:00Z", "2026-07-15T09:30:00Z")],
+            : [
+                run("success", "2026-07-15T09:00:00Z", "2026-07-15T09:30:00Z", "2026-07-15T09:00:00Z", "2026-07-15T09:05:00Z"),
+              ],
       };
+    }
+    if (parsed.pathname.endsWith("/pulls")) {
+      return branch === "develop" ? [{ number: 1 }, { number: 2 }] : [{ number: 3 }];
     }
     if (parsed.pathname.endsWith("/dependabot/alerts")) {
       return Array.from({ length: securityAlertCount }, (_, index) => ({
@@ -125,8 +140,16 @@ test("every emitted GitHub metric is present in the seeded Odoo contract", async
   );
   for (const code of [
     "build_success_rate",
+    "build_count",
+    "build_duration_p95_seconds",
+    "build_queue_p95_seconds",
     "deployment_frequency",
+    "deployment_count",
+    "deployment_success_rate",
+    "deployment_duration_p95_seconds",
+    "deployment_queue_p95_seconds",
     "lead_time_for_changes_seconds",
+    "open_pr_count",
     "critical_vulnerability_count",
     "secret_scan_finding_count",
   ]) {
@@ -145,8 +168,17 @@ test("collects branch-scoped CI and deployment metrics without inventing rollbac
   const byCode = Object.fromEntries(collected.metrics.map((metric) => [metric.code, metric]));
   assert.equal(byCode.build_success_rate.value, 50);
   assert.equal(byCode.build_success_rate.denominator, 2);
+  assert.equal(byCode.build_count.value, 2);
+  assert.equal(byCode.build_duration_p95_seconds.value, 1200);
+  assert.equal(byCode.build_queue_p95_seconds.value, 120);
   assert.equal(byCode.deployment_frequency.value, 2 / 30);
+  assert.equal(byCode.deployment_count.value, 3);
+  assert.equal(byCode.deployment_success_rate.numerator, 2);
+  assert.equal(byCode.deployment_success_rate.denominator, 3);
+  assert.equal(byCode.deployment_duration_p95_seconds.value, 900);
+  assert.equal(byCode.deployment_queue_p95_seconds.value, 300);
   assert.equal(byCode.lead_time_for_changes_seconds.value, 900);
+  assert.equal(byCode.open_pr_count.value, 2);
   assert.equal(byCode.change_failure_rate, undefined);
   assert.equal(byCode.release_rollback_rate, undefined);
   assert.ok(collected.metrics.every((metric) => metric.external_key.startsWith("develop:github:")));
@@ -209,7 +241,10 @@ test("an empty build window is explicit and does not become a fake success rate"
     now: Date.parse("2026-07-16T12:00:00Z"),
   });
   assert.equal(collected.metrics.some((metric) => metric.code === "build_success_rate"), false);
-  assert.deepEqual(collected.omitted, ["build_success_rate:no_eligible_completed_runs"]);
+  assert.equal(collected.metrics.find((metric) => metric.code === "build_count").value, 0);
+  assert.ok(collected.omitted.includes("build_success_rate:no_eligible_completed_runs"));
+  assert.ok(collected.omitted.includes("build_duration_p95_seconds:no_valid_completed_build_timing"));
+  assert.ok(collected.omitted.includes("build_queue_p95_seconds:no_valid_completed_build_timing"));
 });
 
 test("rejects missing credentials and invalid environment selections before collection", async () => {
