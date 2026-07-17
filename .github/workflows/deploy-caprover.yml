@@ -16,6 +16,62 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Validate Odoo addon sources
+        shell: bash
+        run: |
+          python -m compileall -q addons
+          python integrations/validate_odoo_addons.py
+      - name: Test bounded integration contracts
+        shell: bash
+        run: node --test integrations/*.test.mjs
+      - name: Build isolated Odoo test image
+        shell: bash
+        run: docker build -t "geotherm-odoo-ci:$GITHUB_SHA" .
+      - name: Start isolated PostgreSQL test database
+        shell: bash
+        run: |
+          docker network create geotherm-odoo-ci
+          docker run -d --name geotherm-odoo-ci-db \
+            --network geotherm-odoo-ci \
+            -e POSTGRES_DB=geotherm_ci \
+            -e POSTGRES_USER=odoo \
+            -e POSTGRES_PASSWORD=odoo-ci-password \
+            postgres:16-alpine
+          ready=0
+          for _ in $(seq 1 30); do
+            if docker exec geotherm-odoo-ci-db pg_isready -U odoo -d geotherm_ci; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          [[ "$ready" == "1" ]] || { echo 'PostgreSQL CI database did not become ready.' >&2; exit 1; }
+      - name: Test Odoo 19 modules on a fresh database
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            --network geotherm-odoo-ci \
+            -e HOST=geotherm-odoo-ci-db \
+            -e PORT=5432 \
+            -e USER=odoo \
+            -e PASSWORD=odoo-ci-password \
+            -e ODOO_DB_NAME=geotherm_ci \
+            -e ODOO_MASTER_PASSWORD=odoo-ci-master-password \
+            "geotherm-odoo-ci:$GITHUB_SHA" \
+            odoo \
+            --init=geotherm_chatbot,geotherm_drive,arcigy_saas_control_center \
+            --without-demo \
+            --test-enable \
+            --test-tags=/arcigy_saas_control_center \
+            --stop-after-init 2>&1 | tee odoo-test.log
+          grep -Eq '0 failed, 0 error\(s\) of [1-9][0-9]* tests' odoo-test.log
+      - name: Remove isolated test resources
+        if: always()
+        shell: bash
+        run: |
+          docker rm -f geotherm-odoo-ci-db >/dev/null 2>&1 || true
+          docker network rm geotherm-odoo-ci >/dev/null 2>&1 || true
       - name: Create deployment archive
         shell: bash
         run: |
