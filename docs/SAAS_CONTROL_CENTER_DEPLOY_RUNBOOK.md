@@ -80,6 +80,12 @@ Cleanup must remove containers with `docker rm -fv` because the PostgreSQL and O
 
 The approved 2026-07-17 drill restored post-deploy backup `geotherm-odoo-20260717T082027Z` with image 36. It passed ten exact stable-table hashes, `current=2`, `history=30`, 26 filestore files, all three required addons, application smoke and tenant isolation. Measured RTO was 33 seconds and conservative RPO was 1,198 seconds. Production remained 1/1 and no Arcigy source, credential or schedule was changed.
 
+## Isolated image rollback drill
+
+Application rollback proof must reuse an independently verified restored database and filestore on a unique internal network. Start the current image first, confirm login and authorized health, remove only that isolated application container with its anonymous volumes, then start the previous protected image against the same isolated restore. Verify required module registry state and preserved business/metric counts before returning to the current image. Keep cron disabled, publish no ports and never attach production mounts.
+
+The approved 2026-07-17 drill used backup `geotherm-odoo-20260717T082027Z` and proved image 36 -> image 35 -> image 36. Current-image login and authorized health returned 200 in 4 seconds; rollback image 35 returned both in 5 seconds; the return to image 36 returned both in 4 seconds. Five monthly costs, one pricebook catalog, 88 products, 12 add-ons, two environments, 24 dashboards, 376 metric definitions, two current rows, 30 history rows and all three required addons remained exact. The test used random credentials, an internal network and zero published ports. Cleanup left zero matching containers, networks or volumes; live application and database services remained image 36 at 1/1.
+
 ## Controlled deployment order
 
 1. Deploy the tested `kitchen_app` commit to `arcigy-kitchen-develop` only.
