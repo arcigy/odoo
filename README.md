@@ -349,4 +349,25 @@ Canonical repo teraz obsahuje aj zachovaný `geotherm_drive`, CapRover `captain-
 
 Samostatný task `Geotherm Odoo Encrypted Off-host Backup` beží denne o 04:15, `StartWhenAvailable`, s 5 GiB free-space guardom. Nepoužíva ani nemení Arcigy `kitchen_app` backup tasky a neposiela backup metriku do Odoo. Config a artefakty ostávajú mimo Gitu pod `C:\Users\laube\Downloads\CAPROVER\backups`. Obnova plaintextu vyžaduje explicitné `-AllowPlaintextOutput` v `ops/backup/decrypt-odoo-backup.ps1`.
 
+`integrations/saas_odoo_backup_rollup.mjs` pripraví z reálnych Odoo backup artefaktov privacy-safe `saas.backup.run` evidence. Pred výstupom overí každý fyzický `.p7m` súbor voči evidence veľkosti a SHA-256, presnú službu, AES-256 CMS, transfer/structure/decrypt roundtrip, odstránený plaintext a úplnú väzbu evidence ↔ artefakt. Odmieta symlinky, retained plaintext, orphan artefakty, neznáme polia a lokálne cesty alebo certificate thumbprint nikdy neposiela ďalej. Kým chýba úplná 24-hodinová história pokusov a schválený storage-cost model, nastavuje `backup_contract_complete=false`; nevymýšľa nulové failure ani cost hodnoty.
+
+```powershell
+$backupDir = "C:\Users\laube\Downloads\CAPROVER\backups\geotherm-odoo-automated"
+$evidence = Join-Path $backupDir "odoo-operational-backup-main.local.json"
+
+node integrations/saas_odoo_backup_rollup.mjs `
+  --input-dir=$backupDir `
+  --environment=main `
+  --app-service=srv-captain--geotherm-odoo `
+  --db-service=srv-captain--geotherm-odoo-db `
+  --output=$evidence
+
+node integrations/saas_operational_sync.mjs `
+  --config=integrations/saas_operational_sync.example.json `
+  --evidence=$evidence `
+  --dry-run
+```
+
+Reálny output držte mimo Gitu. Ostrý zápis povoľte až po uložení krátko žijúceho bot API key v schválenom secret store; kľúč nikdy nedávajte do argumentov, logov, JSON evidence ani chatu.
+
 Aktuálny read-only audit ukazuje 44 % využitie root filesystemu. Pred veľkým buildom stav znovu zmerajte a vždy zachovajte aktívny aj predchádzajúci funkčný image každej služby.
