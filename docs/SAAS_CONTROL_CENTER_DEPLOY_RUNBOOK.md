@@ -77,6 +77,16 @@ Two approved 2026-07-17 runs succeeded, including one launched through the actua
 
 The independent `integrations/saas_odoo_backup_rollup.mjs` compiler now converts those artifacts into bounded `saas.backup.run` evidence only after re-reading and hashing every physical encrypted file. The approved real run reconciled two evidence files to two `.p7m` files, emitted two Main records, removed local paths and certificate metadata, and passed `saas_operational_sync.mjs --dry-run` twice. It deliberately emitted `backup_contract_complete=false`: the current success-only files do not prove a complete 24-hour attempt population and no storage-cost allocation has been approved. No API key or Odoo row was created; live `saas.backup.run` and `res.users.apikeys` both remained zero after the secret-handling boundary stopped automated temporary-key transfer.
 
+The backup runner additionally writes one bounded `.attempt.json` record for each
+completed attempt. It records only the generated backup ID, timestamps, exact
+Odoo service identities, final `success`/`failed` status and a symbolic
+failure class. It never records command output, a path, certificate metadata,
+credentials or an Odoo key. The compiler accepts a failed attempt as an
+incomplete `saas.backup.run` record so it can open the normal Odoo operational
+path, but it refuses to invent a 24-hour failure count or a complete backup
+contract until an independently complete attempt population and an approved
+storage-cost allocation exist.
+
 `ops/backup/odoo-backup-evidence-runner.ps1` and `install-odoo-backup-evidence-task.ps1` provide a separate daily 04:30 compile/dry-run task. Its config has no credential, its output must remain a `.local.json` file inside the approved backup directory, and the runner cannot omit `--dry-run`. Keep this task independent from both the encrypted backup task and every Arcigy task.
 
 The Windows task `Geotherm Odoo Backup Evidence Compile` was installed on 2026-07-17 and then exercised through Task Scheduler. It finished with result `0`, validated two Main `saas.backup.run` records, and scheduled its next run for 2026-07-18 04:30 Europe/Bratislava. The config and generated evidence ACL each grant only the current Windows user full control. The encrypted Odoo backup task and both inspected Arcigy backup/restore tasks retained their original executable, arguments, trigger and principal.

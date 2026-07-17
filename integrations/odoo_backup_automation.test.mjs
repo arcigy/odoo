@@ -46,6 +46,10 @@ test("off-host runner uses strict SSH, AES-256 CMS and deletes plaintext only af
   assert.match(runner, /--cleanup \$requestedBackupId/);
   assert.match(runner, /remote_plaintext_removed = \$true/);
   assert.match(runner, /odoo_metric_write_performed = \$false/);
+  assert.match(runner, /\.attempt\.json/);
+  assert.match(runner, /Get-BackupFailureClass/);
+  assert.match(runner, /Backup attempt ledger requires operator review/);
+  assert.match(runner, /failure_class = \$FailureClass/);
   assert.doesNotMatch(runner, /kitchen_app|ARCIGY_ODOO_API_KEY|saas\.backup\.run|Invoke-RestMethod/);
   assert.doesNotMatch(runner, /Remove-Item.+-Recurse|docker system prune|docker volume prune/);
 });
