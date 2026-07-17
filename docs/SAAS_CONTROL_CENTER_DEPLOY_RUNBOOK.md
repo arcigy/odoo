@@ -81,6 +81,14 @@ The independent `integrations/saas_odoo_backup_rollup.mjs` compiler now converts
 
 The Windows task `Geotherm Odoo Backup Evidence Compile` was installed on 2026-07-17 and then exercised through Task Scheduler. It finished with result `0`, validated two Main `saas.backup.run` records, and scheduled its next run for 2026-07-18 04:30 Europe/Bratislava. The config and generated evidence ACL each grant only the current Windows user full control. The encrypted Odoo backup task and both inspected Arcigy backup/restore tasks retained their original executable, arguments, trigger and principal.
 
+### Credential-backed backup evidence ingest
+
+The live stage is deliberately separate. Create a dedicated `saas_integration_bot` Odoo user with only `arcigy_saas_control_center.group_saas_integration_bot`, generate an `rpc` API key with a maximum 30-day lifetime and store it under the approved `Arcigy/GeothermOdoo/...` Windows Credential Manager namespace with `ops/backup/set-odoo-ingest-credential.ps1`. Never place the key in a command argument, file, task definition, JSON evidence, log, Git, clipboard transcript or chat.
+
+Install `Geotherm Odoo Backup Evidence Ingest` with `ops/backup/install-odoo-backup-ingest-task.ps1`. It runs at 04:40 Europe/Bratislava using a limited interactive principal. Its external `.env` contains only `ODOO_INGEST_EVIDENCE_CONFIG_PATH` and `ODOO_INGEST_CREDENTIAL_TARGET`. Every run invokes the 04:30 evidence runner again, requires a freshly regenerated `.local.json`, reads the key from Credential Manager into process memory, executes the allowlisted idempotent `saas.backup.run` ingest, checks the exact Main record count and removes `ARCIGY_ODOO_API_KEY` in `finally`.
+
+Fail closed if the credential is absent, expired, belongs to another user, has the wrong shape, the dry-run fails, evidence is stale, the environment is not Main or the returned model/count differs. Prove retry safety by running the task twice and confirming the same external keys update the same rows. Rotation must first create a new bounded key, replace the exact Credential Manager target with explicit `-Force`, run and verify one ingest, then revoke the previous named key. Do not delete backup artifacts or enable retention as part of rotation or failure recovery.
+
 This proves an automated off-host copy for Odoo, not the Arcigy Develop/Main SaaS backup producer. The task uses an interactive Windows principal with `StartWhenAvailable`; a powered-off or logged-out workstation delays the copy. Automatic retention deletion remains disabled until an explicit retention and certificate-recovery policy is approved. At the current observed size, storage grows by about 12.4 MB per successful daily artifact.
 
 ## Isolated restore drill

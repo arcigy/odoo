@@ -8,6 +8,9 @@ const installer = await readFile(new URL("../ops/backup/install-odoo-backup-task
 const decryptor = await readFile(new URL("../ops/backup/decrypt-odoo-backup.ps1", import.meta.url), "utf8");
 const evidenceRunner = await readFile(new URL("../ops/backup/odoo-backup-evidence-runner.ps1", import.meta.url), "utf8");
 const evidenceInstaller = await readFile(new URL("../ops/backup/install-odoo-backup-evidence-task.ps1", import.meta.url), "utf8");
+const credentialSetter = await readFile(new URL("../ops/backup/set-odoo-ingest-credential.ps1", import.meta.url), "utf8");
+const ingestRunner = await readFile(new URL("../ops/backup/odoo-backup-ingest-runner.ps1", import.meta.url), "utf8");
+const ingestInstaller = await readFile(new URL("../ops/backup/install-odoo-backup-ingest-task.ps1", import.meta.url), "utf8");
 
 test("remote Odoo backup is fail-closed, structurally verified and bounded to exact services", () => {
   assert.match(remoteScript, /set -Eeuo pipefail/);
@@ -84,5 +87,39 @@ test("evidence task compiles and validates backups without a secret or live Odoo
   assert.doesNotMatch(
     evidenceInstaller,
     /ARCIGY_ODOO_API_KEY|Arcigy Production Encrypted Backup|Arcigy Weekly Isolated Restore Verification|Unregister-ScheduledTask/,
+  );
+});
+
+test("live backup ingest keeps the Odoo key in Windows Credential Manager only", () => {
+  assert.match(credentialSetter, /\[Security\.SecureString\]\$ApiKey/);
+  assert.match(credentialSetter, /CredWriteW/);
+  assert.match(credentialSetter, /SecureStringToCoTaskMemUnicode/);
+  assert.match(credentialSetter, /ZeroFreeCoTaskMemUnicode/);
+  assert.match(credentialSetter, /Credential already exists; use -Force only during an approved rotation/);
+  assert.doesNotMatch(credentialSetter, /cmdkey|ConvertFrom-SecureString|Set-Content|WriteAllText/);
+
+  assert.match(ingestRunner, /CredReadW/);
+  assert.match(ingestRunner, /saas_integration_bot/);
+  assert.match(ingestRunner, /odoo-backup-evidence-runner\.ps1/);
+  assert.match(ingestRunner, /freshly regenerated before live ingest/);
+  assert.match(ingestRunner, /\$env:ARCIGY_ODOO_API_KEY = \$apiKey/);
+  assert.match(ingestRunner, /Remove-Item Env:ARCIGY_ODOO_API_KEY/);
+  assert.match(ingestRunner, /saas\.backup\.run/);
+  assert.match(ingestRunner, /mode=live/);
+  assert.doesNotMatch(ingestRunner, /Write-Output.+apiKey|Write-Host.+apiKey|kitchen_app/);
+});
+
+test("live backup ingest is a separate delayed task with secret-free configuration", () => {
+  assert.match(ingestInstaller, /Geotherm Odoo Backup Evidence Ingest/);
+  assert.match(ingestInstaller, /AddHours\(4\)\.AddMinutes\(40\)/);
+  assert.match(ingestInstaller, /New-ScheduledTaskTrigger -Daily/);
+  assert.match(ingestInstaller, /StartWhenAvailable/);
+  assert.match(ingestInstaller, /MultipleInstances IgnoreNew/);
+  assert.match(ingestInstaller, /RunLevel Limited/);
+  assert.match(ingestInstaller, /configuration must stay outside the repository/);
+  assert.match(ingestInstaller, /ODOO_INGEST_CREDENTIAL_TARGET/);
+  assert.doesNotMatch(
+    ingestInstaller,
+    /ARCIGY_ODOO_API_KEY=|Arcigy Production Encrypted Backup|Arcigy Weekly Isolated Restore Verification|Unregister-ScheduledTask|kitchen_app/,
   );
 });
