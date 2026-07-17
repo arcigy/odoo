@@ -79,6 +79,8 @@ The independent `integrations/saas_odoo_backup_rollup.mjs` compiler now converts
 
 `ops/backup/odoo-backup-evidence-runner.ps1` and `install-odoo-backup-evidence-task.ps1` provide a separate daily 04:30 compile/dry-run task. Its config has no credential, its output must remain a `.local.json` file inside the approved backup directory, and the runner cannot omit `--dry-run`. Keep this task independent from both the encrypted backup task and every Arcigy task.
 
+The Windows task `Geotherm Odoo Backup Evidence Compile` was installed on 2026-07-17 and then exercised through Task Scheduler. It finished with result `0`, validated two Main `saas.backup.run` records, and scheduled its next run for 2026-07-18 04:30 Europe/Bratislava. The config and generated evidence ACL each grant only the current Windows user full control. The encrypted Odoo backup task and both inspected Arcigy backup/restore tasks retained their original executable, arguments, trigger and principal.
+
 This proves an automated off-host copy for Odoo, not the Arcigy Develop/Main SaaS backup producer. The task uses an interactive Windows principal with `StartWhenAvailable`; a powered-off or logged-out workstation delays the copy. Automatic retention deletion remains disabled until an explicit retention and certificate-recovery policy is approved. At the current observed size, storage grows by about 12.4 MB per successful daily artifact.
 
 ## Isolated restore drill
