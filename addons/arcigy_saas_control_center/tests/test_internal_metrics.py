@@ -28,8 +28,8 @@ class TestInternalOperationalMetrics(TransactionCase):
 
     def test_refresh_emits_true_zero_incident_counts_but_omits_missing_ages(self):
         result = self.current._cron_refresh_internal_operational_metrics()
-        self.assertEqual(result["refreshed"], 2)
-        self.assertEqual(len(result["omitted"]), 150)
+        self.assertEqual(result["refreshed"], 3)
+        self.assertEqual(len(result["omitted"]), 151)
 
         metric = self.env.ref(
             "arcigy_saas_control_center.metric_open_critical_incidents"
@@ -39,6 +39,25 @@ class TestInternalOperationalMetrics(TransactionCase):
         self.assertEqual(set(records.mapped("environment_id.code")), {"develop", "main"})
         self.assertTrue(all(record.current_value == 0 for record in records))
         self.assertTrue(all(record.status == "healthy" for record in records))
+        api_key_metric = self.env.ref(
+            "arcigy_saas_control_center.metric_security_api_active"
+        )
+        api_key_current = self.current.search(
+            [
+                ("metric_id", "=", api_key_metric.id),
+                ("environment_id", "=", self.main.id),
+            ]
+        )
+        self.assertEqual(len(api_key_current), 1)
+        self.assertEqual(api_key_current.current_value, 0)
+        self.assertFalse(
+            self.current.search(
+                [
+                    ("metric_id", "=", api_key_metric.id),
+                    ("environment_id", "=", self.develop.id),
+                ]
+            )
+        )
         self.assertFalse(
             self.current.search(
                 [
@@ -153,8 +172,8 @@ class TestInternalOperationalMetrics(TransactionCase):
         )
 
         result = self.current._cron_refresh_internal_operational_metrics()
-        self.assertEqual(result["refreshed"], 11)
-        self.assertEqual(len(result["omitted"]), 141)
+        self.assertEqual(result["refreshed"], 12)
+        self.assertEqual(len(result["omitted"]), 142)
         by_code = {
             record.metric_id.code: record
             for record in self.current.search(
@@ -203,6 +222,40 @@ class TestInternalOperationalMetrics(TransactionCase):
                 [("environment_id", "=", self.develop.id)]
             ),
             10,
+        )
+
+    def test_refresh_counts_only_active_main_api_keys_without_recording_key_material(self):
+        now = fields.Datetime.now()
+        self.env["res.users.apikeys"].sudo()._generate(
+            "rpc", "Internal metric test API key", now + timedelta(days=1)
+        )
+
+        self.current._cron_refresh_internal_operational_metrics()
+
+        expected_count = self.env["res.users.apikeys"].sudo().search_count(
+            [
+                ("user_id.active", "=", True),
+                "|",
+                ("expiration_date", "=", False),
+                ("expiration_date", ">=", now),
+            ]
+        )
+        current = self.current.search(
+            [
+                ("metric_id.code", "=", "active_api_key_count"),
+                ("environment_id", "=", self.main.id),
+            ]
+        )
+        self.assertEqual(len(current), 1)
+        self.assertEqual(current.current_value, expected_count)
+        self.assertEqual(current.sample_count, 1)
+        self.assertFalse(
+            self.current.search(
+                [
+                    ("metric_id.code", "=", "active_api_key_count"),
+                    ("environment_id", "=", self.develop.id),
+                ]
+            )
         )
 
     def test_latest_failed_restore_is_not_reported_as_success(self):
@@ -305,8 +358,8 @@ class TestInternalOperationalMetrics(TransactionCase):
         )
 
         result = self.current._cron_refresh_internal_operational_metrics()
-        self.assertEqual(result["refreshed"], 26)
-        self.assertEqual(len(result["omitted"]), 126)
+        self.assertEqual(result["refreshed"], 27)
+        self.assertEqual(len(result["omitted"]), 127)
         develop_values = {
             record.metric_id.code: record
             for record in self.current.search(
@@ -440,8 +493,8 @@ class TestInternalOperationalMetrics(TransactionCase):
         )
 
         result = self.current._cron_refresh_internal_operational_metrics()
-        self.assertEqual(result["refreshed"], 21)
-        self.assertEqual(len(result["omitted"]), 131)
+        self.assertEqual(result["refreshed"], 22)
+        self.assertEqual(len(result["omitted"]), 132)
         develop_values = {
             record.metric_id.code: record
             for record in self.current.search(
@@ -549,8 +602,8 @@ class TestInternalOperationalMetrics(TransactionCase):
         )
 
         result = self.current._cron_refresh_internal_operational_metrics()
-        self.assertEqual(result["refreshed"], 18)
-        self.assertEqual(len(result["omitted"]), 134)
+        self.assertEqual(result["refreshed"], 19)
+        self.assertEqual(len(result["omitted"]), 135)
         sync_codes = {
             "odoo_sync_attempt_age_seconds",
             "odoo_sync_duration_seconds",
@@ -703,8 +756,8 @@ class TestInternalOperationalMetrics(TransactionCase):
             )
 
         result = self.current._cron_refresh_internal_operational_metrics()
-        self.assertEqual(result["refreshed"], 61)
-        self.assertEqual(len(result["omitted"]), 91)
+        self.assertEqual(result["refreshed"], 62)
+        self.assertEqual(len(result["omitted"]), 92)
 
         backup_codes = {
             "backup_duration_seconds",
