@@ -63,6 +63,23 @@ chmod 600 "$backup_dir"/*
 
 Copy the verified backup off-host before the live deployment. A backup left only on the application host is not sufficient even while disk headroom is healthy.
 
+## Isolated restore drill
+
+Restore proof must never attach production database or Odoo volumes. Use unique temporary resource names, a Docker `--internal` network, random temporary database credentials, no published ports and the exact tested application/database images. Disable cron in the restored Odoo process and verify login plus the authenticated health endpoint from inside the isolated application container.
+
+Record all of the following without emitting secrets or row contents:
+
+- source archive and component checksum verification;
+- successful PostgreSQL restore, filestore extraction and required-addon registry state;
+- exact hashes for stable critical tables such as pricing, CRM, Drive, users, attachments, environments and metric definitions;
+- counts rather than false bitwise equality for `saas.metric.current` and `saas.metric.timeseries`, which may legitimately change after the backup snapshot;
+- restored filestore count, application smoke, internal network, unpublished ports and absence of production mounts;
+- RTO from restore start to healthy application smoke, and conservative RPO as the backup age at successful recovery.
+
+Cleanup must remove containers with `docker rm -fv` because the PostgreSQL and Odoo base images declare anonymous volumes. Then remove only the explicitly named temporary filestore volume and network, and prove zero matching container, network and volume residue. Never use a broad prune.
+
+The approved 2026-07-17 drill restored post-deploy backup `geotherm-odoo-20260717T082027Z` with image 36. It passed ten exact stable-table hashes, `current=2`, `history=30`, 26 filestore files, all three required addons, application smoke and tenant isolation. Measured RTO was 33 seconds and conservative RPO was 1,198 seconds. Production remained 1/1 and no Arcigy source, credential or schedule was changed.
+
 ## Controlled deployment order
 
 1. Deploy the tested `kitchen_app` commit to `arcigy-kitchen-develop` only.
