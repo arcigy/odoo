@@ -702,6 +702,10 @@ class SaasMetricCurrent(models.Model):
                 "model": "saas.load.test",
                 "drilldown": f"{base_url}/web#model=saas.load.test&view_type=list",
             },
+            "active_api_key_count": {
+                "model": "res.users.apikeys",
+                "drilldown": f"{base_url}/web#model=res.users.apikeys&view_type=list",
+            },
         }
         definitions = {
             definition.code: definition
@@ -732,6 +736,17 @@ class SaasMetricCurrent(models.Model):
                     ]
                 )
             }
+            if environment.code == "main":
+                values["active_api_key_count"] = self.env[
+                    "res.users.apikeys"
+                ].search_count(
+                    [
+                        ("user_id.active", "=", True),
+                        "|",
+                        ("expiration_date", "=", False),
+                        ("expiration_date", ">=", now),
+                    ]
+                )
             backup = self.env["saas.backup.run"].search(
                 [
                     ("environment_id", "=", environment.id),
