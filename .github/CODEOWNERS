@@ -1,0 +1,8 @@
+# Arcigy owns every production Odoo change. Branch protection can make this
+# ownership review mandatory without granting a CI runner broader permissions.
+* @arcigy
+
+# Keep the critical delivery and data-contract surfaces explicit.
+/.github/ @arcigy
+/addons/ @arcigy
+/integrations/ @arcigy
