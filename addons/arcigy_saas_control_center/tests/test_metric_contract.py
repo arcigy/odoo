@@ -571,6 +571,7 @@ class TestSaasMetricContract(TransactionCase):
             self.current_model.with_user(self.bot).ingest_metric_batch(payload)
 
     def test_ingest_rejects_future_or_non_integer_measurement_metadata(self):
+        before = self.env["saas.sync.run"].search_count([])
         payload = self._payload("develop", 99)
         payload["metrics"][0]["measured_at"] = "2026-07-16T10:06:00Z"
         with self.assertRaisesRegex(ValidationError, "newer than the source watermark"):

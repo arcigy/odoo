@@ -1,11 +1,11 @@
 {
     "name": "Arcigy SaaS Control Center",
-    "version": "19.0.1.13.0",
+    "version": "19.0.1.14.0",
     "summary": "Develop/Main SaaS health, reliability, cost and recovery cockpit",
     "category": "Administration",
     "license": "LGPL-3",
     "author": "Arcigy",
-    "depends": ["base", "contacts", "mail", "web"],
+    "depends": ["base", "contacts", "mail", "web", "crm"],
     "data": [
         "security/saas_security.xml",
         "security/ir.model.access.csv",
