@@ -17,6 +17,7 @@ access_saas_restore_test_admin,saas.restore.test admin,model_saas_restore_test,g
 access_saas_load_test_admin,saas.load.test admin,model_saas_load_test,group_saas_administrator,1,1,1,1
 access_saas_sync_run_admin,saas.sync.run admin,model_saas_sync_run,group_saas_administrator,1,1,1,1
 access_saas_postmortem_action_admin,saas.postmortem.action admin,model_saas_postmortem_action,group_saas_administrator,1,1,1,1
+access_saas_implementation_plan_item_admin,saas.implementation.plan.item admin,model_saas_implementation_plan_item,group_saas_administrator,1,1,1,1
 access_saas_tenant_daily_admin,saas.tenant.daily admin,model_saas_tenant_daily,group_saas_administrator,1,1,1,1
 access_saas_endpoint_hourly_admin,saas.endpoint.hourly admin,model_saas_endpoint_hourly,group_saas_administrator,1,1,1,1
 access_saas_database_hourly_admin,saas.database.hourly admin,model_saas_database_hourly,group_saas_administrator,1,1,1,1
@@ -46,6 +47,7 @@ access_saas_restore_test_executive,saas.restore.test executive,model_saas_restor
 access_saas_load_test_executive,saas.load.test executive,model_saas_load_test,group_saas_executive,1,0,0,0
 access_saas_sync_run_executive,saas.sync.run executive,model_saas_sync_run,group_saas_executive,1,0,0,0
 access_saas_postmortem_action_executive,saas.postmortem.action executive,model_saas_postmortem_action,group_saas_executive,1,0,0,0
+access_saas_implementation_plan_item_executive,saas.implementation.plan.item executive,model_saas_implementation_plan_item,group_saas_executive,1,0,0,0
 access_saas_tenant_daily_executive,saas.tenant.daily executive,model_saas_tenant_daily,group_saas_executive,1,0,0,0
 access_saas_endpoint_hourly_executive,saas.endpoint.hourly executive,model_saas_endpoint_hourly,group_saas_executive,1,0,0,0
 access_saas_database_hourly_executive,saas.database.hourly executive,model_saas_database_hourly,group_saas_executive,1,0,0,0
@@ -75,6 +77,7 @@ access_saas_restore_test_engineering,saas.restore.test engineering,model_saas_re
 access_saas_load_test_engineering,saas.load.test engineering,model_saas_load_test,group_saas_engineering,1,0,0,0
 access_saas_sync_run_engineering,saas.sync.run engineering,model_saas_sync_run,group_saas_engineering,1,0,0,0
 access_saas_postmortem_action_engineering,saas.postmortem.action engineering,model_saas_postmortem_action,group_saas_engineering,1,1,1,0
+access_saas_implementation_plan_item_engineering,saas.implementation.plan.item engineering,model_saas_implementation_plan_item,group_saas_engineering,1,0,0,0
 access_saas_tenant_daily_engineering,saas.tenant.daily engineering,model_saas_tenant_daily,group_saas_engineering,1,0,0,0
 access_saas_endpoint_hourly_engineering,saas.endpoint.hourly engineering,model_saas_endpoint_hourly,group_saas_engineering,1,0,0,0
 access_saas_database_hourly_engineering,saas.database.hourly engineering,model_saas_database_hourly,group_saas_engineering,1,0,0,0
@@ -128,6 +131,7 @@ access_saas_metric_timeseries_support,saas.metric.timeseries support,model_saas_
 access_saas_alert_support,saas.alert support,model_saas_alert,group_saas_support,1,1,1,0
 access_saas_incident_support,saas.incident support,model_saas_incident,group_saas_support,1,1,1,0
 access_saas_postmortem_action_support,saas.postmortem.action support,model_saas_postmortem_action,group_saas_support,1,1,1,0
+access_saas_implementation_plan_item_support,saas.implementation.plan.item support,model_saas_implementation_plan_item,group_saas_support,1,0,0,0
 access_saas_tenant_daily_support,saas.tenant.daily support,model_saas_tenant_daily,group_saas_support,1,0,0,0
 access_saas_endpoint_hourly_support,saas.endpoint.hourly support,model_saas_endpoint_hourly,group_saas_support,1,0,0,0
 access_saas_queue_hourly_support,saas.queue.hourly support,model_saas_queue_hourly,group_saas_support,1,0,0,0
@@ -148,6 +152,7 @@ access_saas_backup_run_security,saas.backup.run security,model_saas_backup_run,g
 access_saas_restore_test_security,saas.restore.test security,model_saas_restore_test,group_saas_security,1,0,0,0
 access_saas_sync_run_security,saas.sync.run security,model_saas_sync_run,group_saas_security,1,0,0,0
 access_saas_postmortem_action_security,saas.postmortem.action security,model_saas_postmortem_action,group_saas_security,1,1,1,0
+access_saas_implementation_plan_item_security,saas.implementation.plan.item security,model_saas_implementation_plan_item,group_saas_security,1,0,0,0
 access_saas_security_daily_security,saas.security.daily security,model_saas_security_daily,group_saas_security,1,0,0,0
 access_saas_data_quality_run_security,saas.data.quality.run security,model_saas_data_quality_run,group_saas_security,1,0,0,0
 access_saas_environment_bot,saas.environment bot,model_saas_environment,group_saas_integration_bot,1,0,0,0

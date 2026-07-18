@@ -545,6 +545,51 @@ class SaasPostmortemAction(models.Model):
     verification = fields.Text()
 
 
+class SaasImplementationPlanItem(models.Model):
+    _name = "saas.implementation.plan.item"
+    _description = "SaaS implementation plan item"
+    _order = "priority, sequence, id"
+
+    name = fields.Char(required=True)
+    priority = fields.Selection(
+        [("p0", "P0"), ("p1", "P1"), ("p2", "P2")],
+        required=True,
+        default="p1",
+        index=True,
+    )
+    status = fields.Selection(
+        [
+            ("planned", "Planned"),
+            ("in_progress", "In progress"),
+            ("blocked", "Blocked"),
+            ("done", "Done"),
+        ],
+        required=True,
+        default="planned",
+        index=True,
+    )
+    scope = fields.Selection(
+        [
+            ("arcigy", "Arcigy"),
+            ("odoo", "Odoo"),
+            ("cross_system", "Cross-system"),
+            ("policy", "Policy / approval"),
+        ],
+        required=True,
+        default="cross_system",
+    )
+    owner_id = fields.Many2one("res.users", required=True, default=lambda self: self.env.user)
+    sequence = fields.Integer(default=100)
+    next_action = fields.Text()
+    acceptance_criteria = fields.Text()
+    blocker = fields.Text()
+    source_document = fields.Char(
+        required=True,
+        default="docs/SAAS_IMPLEMENTATION_PLAN_REMAINING.md",
+        readonly=True,
+    )
+
+
 class SaasBackupRun(models.Model):
     _name = "saas.backup.run"
     _inherit = "saas.operational.ingest.mixin"

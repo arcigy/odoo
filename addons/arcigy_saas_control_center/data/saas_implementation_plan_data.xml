@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="implementation_plan_arcigy_telemetry" model="saas.implementation.plan.item">
+        <field name="name">Arcigy Develop/Main telemetry and least-privilege isolation</field>
+        <field name="priority">p0</field><field name="status">blocked</field><field name="scope">arcigy</field><field name="sequence">10</field>
+        <field name="next_action">Complete the separate Arcigy safety workflow, then prove two isolated no-write scrapes before any Odoo ingest.</field>
+        <field name="acceptance_criteria">Develop and Main expose valid isolated telemetry and a constrained Develop database role passes mutation isolation proof.</field>
+        <field name="blocker">Owned by the separate Arcigy delivery workflow.</field>
+    </record>
+    <record id="implementation_plan_external_producers" model="saas.implementation.plan.item">
+        <field name="name">Authoritative aggregate producers and reconciliation</field>
+        <field name="priority">p0</field><field name="status">planned</field><field name="scope">cross_system</field><field name="sequence">20</field>
+        <field name="next_action">Connect approved database, queue, dependency, product, billing, CRM, support, privacy and deployment sources through existing no-write adapters first.</field>
+        <field name="acceptance_criteria">Two reconciled no-write exports per environment, approved owner and tolerance, then bounded idempotent ingest.</field>
+    </record>
+    <record id="implementation_plan_backup_policy" model="saas.implementation.plan.item">
+        <field name="name">Backup retention, PITR, secondary copy and storage-cost policy</field>
+        <field name="priority">p0</field><field name="status">blocked</field><field name="scope">policy</field><field name="sequence">30</field>
+        <field name="next_action">Approve retention duration, PITR window, certificate-recovery/secondary-copy design and cost allocation before any deletion or infrastructure change.</field>
+        <field name="acceptance_criteria">Approved policy, backup, dry run, verification, rollback and measured Odoo evidence.</field>
+        <field name="blocker">Requires explicit business and operational policy decision.</field>
+    </record>
+    <record id="implementation_plan_capacity_accessibility" model="saas.implementation.plan.item">
+        <field name="name">Capacity baseline, SLO drills and accessibility acceptance</field>
+        <field name="priority">p1</field><field name="status">planned</field><field name="scope">arcigy</field><field name="sequence">40</field>
+        <field name="next_action">Use an isolated representative target for capacity evidence, then complete manual accessibility and incident-drill acceptance.</field>
+        <field name="acceptance_criteria">No production load test; measured baseline, approved SLOs and recorded manual acceptance.</field>
+    </record>
+</odoo>
