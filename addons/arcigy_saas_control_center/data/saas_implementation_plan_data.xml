@@ -26,4 +26,54 @@
         <field name="next_action">Use an isolated representative target for capacity evidence, then complete manual accessibility and incident-drill acceptance.</field>
         <field name="acceptance_criteria">No production load test; measured baseline, approved SLOs and recorded manual acceptance.</field>
     </record>
+    <record id="implementation_plan_prometheus_endpoints" model="saas.implementation.plan.item">
+        <field name="name">Arcigy authenticated Prometheus and readiness endpoints</field>
+        <field name="priority">p0</field><field name="status">blocked</field><field name="scope">arcigy</field><field name="sequence">11</field>
+        <field name="next_action">Expose valid isolated Develop and Main readiness plus authenticated Prometheus telemetry.</field>
+        <field name="acceptance_criteria">Two no-write scrapes per environment parse exactly one authorized aggregate sample.</field>
+        <field name="blocker">Develop /metrics and Main readiness telemetry are not yet valid sources.</field>
+    </record>
+    <record id="implementation_plan_runtime_exporters" model="saas.implementation.plan.item">
+        <field name="name">Database, pool, queue, cache and dependency exporters</field>
+        <field name="priority">p0</field><field name="status">planned</field><field name="scope">arcigy</field><field name="sequence">12</field>
+        <field name="next_action">Deploy approved exporters and replace example PromQL with reconciled queries.</field>
+        <field name="acceptance_criteria">Separate Develop/Main aggregates reconcile in two dry runs before any Odoo write.</field>
+    </record>
+    <record id="implementation_plan_product_events" model="saas.implementation.plan.item">
+        <field name="name">Product-event producer and warehouse rollup</field>
+        <field name="priority">p0</field><field name="status">planned</field><field name="scope">arcigy</field><field name="sequence">21</field>
+        <field name="next_action">Publish the allowlisted versioned event envelope outside kitchen_app and reconcile a real export.</field>
+        <field name="acceptance_criteria">Closed UTC export, hashed identities only, exact totals and no raw product payload in Odoo.</field>
+    </record>
+    <record id="implementation_plan_business_sources" model="saas.implementation.plan.item">
+        <field name="name">Billing, CRM, support, marketing and cost source producers</field>
+        <field name="priority">p0</field><field name="status">planned</field><field name="scope">cross_system</field><field name="sequence">22</field>
+        <field name="next_action">Connect signed authoritative aggregates and approve owners and reconciliation tolerances.</field>
+        <field name="acceptance_criteria">Two closed-period reconciliations per source before idempotent ingest.</field>
+    </record>
+    <record id="implementation_plan_privacy_sources" model="saas.implementation.plan.item">
+        <field name="name">Privacy, DSR, consent and retention evidence sources</field>
+        <field name="priority">p0</field><field name="status">blocked</field><field name="scope">policy</field><field name="sequence">23</field>
+        <field name="next_action">Approve data inventory and retention policy, then connect bounded privacy aggregates.</field>
+        <field name="acceptance_criteria">No personal records in Odoo; reconciled privacy KPIs with approved owners and retention.</field>
+        <field name="blocker">Requires legal/business policy decisions.</field>
+    </record>
+    <record id="implementation_plan_release_security_sources" model="saas.implementation.plan.item">
+        <field name="name">Release, DORA, GitHub security and AI-change aggregate producers</field>
+        <field name="priority">p1</field><field name="status">planned</field><field name="scope">cross_system</field><field name="sequence">50</field>
+        <field name="next_action">Enable reconciled least-privilege GitHub producer and approved aggregate delivery evidence.</field>
+        <field name="acceptance_criteria">Closed periods, no raw code or identities, Develop first and two reconciliations.</field>
+    </record>
+    <record id="implementation_plan_ai_llm_sources" model="saas.implementation.plan.item">
+        <field name="name">AI/LLM gateway, model, tool, quality and safety aggregates</field>
+        <field name="priority">p1</field><field name="status">planned</field><field name="scope">cross_system</field><field name="sequence">51</field>
+        <field name="next_action">Build approved aggregate producers at the gateway and quality/safety controls.</field>
+        <field name="acceptance_criteria">Two reconciled closed periods per environment with no prompts, responses, identities or secrets.</field>
+    </record>
+    <record id="implementation_plan_remaining_odoo_smokes" model="saas.implementation.plan.item">
+        <field name="name">Remaining Odoo role smokes and notification delivery</field>
+        <field name="priority">p1</field><field name="status">planned</field><field name="scope">odoo</field><field name="sequence">52</field>
+        <field name="next_action">Run representative signed-in role visual checks and a real controlled mail-delivery smoke.</field>
+        <field name="acceptance_criteria">Read boundaries, menus and alert delivery verified without changing customer data.</field>
+    </record>
 </odoo>
