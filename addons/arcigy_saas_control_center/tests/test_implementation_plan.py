@@ -1,4 +1,5 @@
 from odoo.tests.common import TransactionCase
+from odoo.exceptions import ValidationError
 
 
 class TestSaasImplementationPlan(TransactionCase):
@@ -15,3 +16,14 @@ class TestSaasImplementationPlan(TransactionCase):
         )
         self.assertEqual(created.status, "planned")
         self.assertEqual(created.owner_id, self.env.user)
+
+    def test_ready_for_review_requires_a_precise_checklist(self):
+        plan = self.env["saas.implementation.plan.item"]
+        item = plan.create({"name": "Review gate", "priority": "p1", "scope": "odoo"})
+        with self.assertRaises(ValidationError):
+            item.status = "ready_for_review"
+        item.write({
+            "status": "ready_for_review",
+            "review_checklist": "Open the feature and verify the saved result after reload.",
+        })
+        self.assertEqual(item.status, "ready_for_review")

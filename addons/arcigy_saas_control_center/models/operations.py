@@ -562,6 +562,7 @@ class SaasImplementationPlanItem(models.Model):
             ("planned", "Planned"),
             ("in_progress", "In progress"),
             ("blocked", "Blocked"),
+            ("ready_for_review", "Ready na skontrolovanie"),
             ("done", "Done"),
         ],
         required=True,
@@ -582,12 +583,24 @@ class SaasImplementationPlanItem(models.Model):
     sequence = fields.Integer(default=100)
     next_action = fields.Text()
     acceptance_criteria = fields.Text()
+    review_checklist = fields.Text(
+        string="Čo presne skontrolovať",
+        help="Povinný, konkrétny checklist pred odovzdaním úlohy na kontrolu.",
+    )
     blocker = fields.Text()
     source_document = fields.Char(
         required=True,
         default="docs/SAAS_IMPLEMENTATION_PLAN_REMAINING.md",
         readonly=True,
     )
+
+    @api.constrains("status", "review_checklist")
+    def _check_review_checklist(self):
+        for item in self:
+            if item.status == "ready_for_review" and not (item.review_checklist or "").strip():
+                raise ValidationError(
+                    "Úloha v stave ‚Ready na skontrolovanie‘ musí obsahovať presný checklist kontroly."
+                )
 
 
 class SaasBackupRun(models.Model):

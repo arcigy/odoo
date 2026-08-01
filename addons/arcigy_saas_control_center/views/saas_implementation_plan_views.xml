@@ -4,8 +4,8 @@
         <field name="name">saas.implementation.plan.item.list</field>
         <field name="model">saas.implementation.plan.item</field>
         <field name="arch" type="xml">
-            <list default_order="priority, sequence, id" decoration-danger="priority == 'p0'" decoration-warning="priority == 'p1'">
-                <field name="priority" widget="badge"/><field name="status" widget="badge"/><field name="name"/><field name="scope"/><field name="owner_id"/><field name="next_action" optional="hide"/>
+            <list default_order="priority, sequence, id" decoration-danger="priority == 'p0'" decoration-warning="priority == 'p1'" decoration-success="status == 'ready_for_review'">
+                <field name="priority" widget="badge"/><field name="status" widget="badge"/><field name="name"/><field name="scope"/><field name="owner_id"/><field name="review_checklist" string="Čo skontrolovať"/><field name="next_action" optional="hide"/>
             </list>
         </field>
     </record>
@@ -17,7 +17,7 @@
                 <sheet>
                     <div class="oe_title"><h1><field name="name"/></h1></div>
                     <group><group><field name="priority"/><field name="status"/><field name="scope"/><field name="owner_id"/><field name="sequence"/></group><group><field name="source_document" readonly="1"/></group></group>
-                    <group string="Execution"><field name="next_action"/><field name="acceptance_criteria"/><field name="blocker" invisible="status != 'blocked'"/></group>
+                    <group string="Execution"><field name="next_action"/><field name="acceptance_criteria"/><field name="review_checklist" required="status == 'ready_for_review'"/><field name="blocker" invisible="status != 'blocked'"/></group>
                 </sheet>
             </form>
         </field>
