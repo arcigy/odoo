@@ -27,3 +27,20 @@ class TestSaasImplementationPlan(TransactionCase):
             "review_checklist": "Open the feature and verify the saved result after reload.",
         })
         self.assertEqual(item.status, "ready_for_review")
+
+    def test_inserting_and_moving_tasks_keeps_one_unique_queue(self):
+        plan = self.env["saas.implementation.plan.item"]
+        initial_count = len(plan.search([]))
+        first = plan.create({"name": "First", "priority": "p1", "scope": "odoo"})
+        second = plan.create({"name": "Second", "priority": "p1", "scope": "odoo"})
+        inserted = plan.create_at_position(
+            {"name": "Inserted", "priority": "p1", "scope": "odoo"}, 2
+        )
+        self.assertEqual(inserted.sequence, 2)
+        self.assertEqual(first.sequence, initial_count + 2)
+        self.assertEqual(second.sequence, initial_count + 3)
+        second.sequence = 1
+        self.assertEqual(second.sequence, 1)
+        self.assertEqual(inserted.sequence, 3)
+        sequences = plan.search([], order="sequence").mapped("sequence")
+        self.assertEqual(sequences, list(range(1, len(sequences) + 1)))

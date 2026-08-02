@@ -14,6 +14,7 @@
         "data/saas.metric.definition.csv",
         "data/saas_internal_cron.xml",
         "data/saas_implementation_plan_data.xml",
+        "data/saas_implementation_plan_sequence_data.xml",
         "views/saas_metric_views.xml",
         "views/saas_operations_views.xml",
         "views/saas_implementation_plan_views.xml",
