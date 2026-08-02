@@ -580,7 +580,7 @@ class SaasImplementationPlanItem(models.Model):
         default="cross_system",
     )
     owner_id = fields.Many2one("res.users", required=True, default=lambda self: self.env.user)
-    sequence = fields.Integer(default=100)
+    sequence = fields.Integer(default=lambda self: self._next_sequence(), index=True)
     next_action = fields.Text()
     acceptance_criteria = fields.Text()
     review_checklist = fields.Text(
@@ -593,6 +593,67 @@ class SaasImplementationPlanItem(models.Model):
         default="docs/SAAS_IMPLEMENTATION_PLAN_REMAINING.md",
         readonly=True,
     )
+
+    @api.model
+    def _next_sequence(self):
+        last_item = self.search([], order="sequence desc, id desc", limit=1)
+        return (last_item.sequence or 0) + 1
+
+    @api.model
+    def _normalize_sequence(self, ordered_ids=None):
+        """Keep the plan as one contiguous, unambiguous ordered queue."""
+        items = self.browse(ordered_ids) if ordered_ids else self.search([], order="sequence, id")
+        for position, item in enumerate(items, start=1):
+            if item.sequence != position:
+                item.with_context(implementation_plan_sequence_reordering=True).sequence = position
+        return True
+
+    def _move_to_position(self, position):
+        self.ensure_one()
+        other_items = self.search([("id", "!=", self.id)], order="sequence, id")
+        target = max(1, min(int(position or 1), len(other_items) + 1))
+        ordered_ids = other_items.ids
+        ordered_ids.insert(target - 1, self.id)
+        self._normalize_sequence(ordered_ids)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        if self.env.context.get("implementation_plan_sequence_reordering"):
+            return super().create(vals_list)
+
+        requested_positions = []
+        next_sequence = len(self.search([])) + 1
+        prepared_vals_list = []
+        for offset, original_vals in enumerate(vals_list):
+            vals = dict(original_vals)
+            requested_positions.append(vals.get("sequence"))
+            vals["sequence"] = next_sequence + offset
+            prepared_vals_list.append(vals)
+
+        records = super().create(prepared_vals_list)
+        for record, requested_position in zip(records, requested_positions):
+            if requested_position not in (None, False):
+                record._move_to_position(requested_position)
+        return records
+
+    def write(self, vals):
+        if self.env.context.get("implementation_plan_sequence_reordering") or "sequence" not in vals:
+            return super().write(vals)
+
+        requested_position = vals.get("sequence")
+        values_without_sequence = dict(vals)
+        values_without_sequence.pop("sequence")
+        result = super().write(values_without_sequence)
+        for offset, record in enumerate(self.sorted("sequence")):
+            record._move_to_position(int(requested_position) + offset)
+        return result
+
+    @api.model
+    def create_at_position(self, values, position):
+        """Small Codex/API entrypoint for inserting a task at an exact position."""
+        values = dict(values or {})
+        values["sequence"] = position
+        return self.create(values)
 
     @api.constrains("status", "review_checklist")
     def _check_review_checklist(self):
