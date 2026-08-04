@@ -136,11 +136,28 @@ class TestSaasImplementationPlan(TransactionCase):
         first = plan.create({"name": "Earlier task", "priority": "p1", "scope": "arcigy"})
         target = plan.create({"name": "Exact task", "priority": "p1", "scope": "arcigy"})
         claim = plan.with_user(worker).codex_claim_next(
-            {"task_id": target.id, "worker_name": "exact-task-test"}
+            {"task_id": target.id, "expected_name": target.name, "worker_name": "exact-task-test"}
         )
         self.assertEqual(claim["task"]["id"], target.id)
         self.assertEqual(target.status, "planning")
         self.assertEqual(first.status, "planned")
+
+    def test_exact_task_claim_rejects_a_name_mismatch_without_claiming(self):
+        plan = self.env["saas.implementation.plan.item"]
+        group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {
+                "name": "Codex exact-task mismatch worker",
+                "login": "codex-exact-task-mismatch@example.invalid",
+                "group_ids": [(6, 0, [group.id])],
+            }
+        )
+        target = plan.create({"name": "Protected exact task", "priority": "p1", "scope": "arcigy"})
+        with self.assertRaises(ValidationError):
+            plan.with_user(worker).codex_claim_next(
+                {"task_id": target.id, "expected_name": "Different task", "worker_name": "exact-task-test"}
+            )
+        self.assertEqual(target.status, "planned")
 
     def test_codex_queue_rejects_unprivileged_access(self):
         user = self.env["res.users"].create({"name": "No queue access", "login": "no-queue@example.invalid"})

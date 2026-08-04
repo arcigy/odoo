@@ -238,6 +238,7 @@ class SaasImplementationPlanItem(models.Model):
         worker_name = str(payload.get("worker_name") or "codex").strip()[:120]
         requested_position = payload.get("position")
         requested_task_id = payload.get("task_id")
+        expected_name = payload.get("expected_name")
         if requested_position not in (None, False):
             if not isinstance(requested_position, int) or requested_position < 1:
                 raise ValidationError("position must be a positive integer.")
@@ -246,6 +247,8 @@ class SaasImplementationPlanItem(models.Model):
                 raise ValidationError("task_id must be a positive integer.")
         if requested_position and requested_task_id:
             raise ValidationError("Specify either position or task_id, not both.")
+        if expected_name not in (None, False) and not isinstance(expected_name, str):
+            raise ValidationError("expected_name must be a string.")
         lease_minutes = payload.get("lease_minutes", 90)
         if not isinstance(lease_minutes, int) or lease_minutes < 15 or lease_minutes > 240:
             raise ValidationError("lease_minutes must be between 15 and 240.")
@@ -279,6 +282,8 @@ class SaasImplementationPlanItem(models.Model):
             task = candidates[:1]
         if not task:
             return {"task": False, "reason": "queue_empty"}
+        if expected_name and task.name != expected_name:
+            raise ValidationError("The requested task ID does not match the expected task name.")
         now = fields.Datetime.now()
         token = uuid4().hex
         run = self.env["saas.implementation.plan.run"].create(
