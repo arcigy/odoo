@@ -28,6 +28,14 @@ class TestSaasImplementationPlan(TransactionCase):
         })
         self.assertEqual(item.status, "ready_for_review")
 
+    def test_administrator_can_retry_a_transiently_blocked_item(self):
+        plan = self.env["saas.implementation.plan.item"]
+        item = plan.create({"name": "Retry bridge startup", "priority": "p1", "scope": "odoo"})
+        item.write({"status": "blocked", "blocker": "The local automation bridge stopped before Codex could start."})
+        item.action_retry_automation()
+        self.assertEqual(item.status, "planned")
+        self.assertFalse(item.blocker)
+
     def test_inserting_and_moving_tasks_keeps_one_unique_queue(self):
         plan = self.env["saas.implementation.plan.item"]
         initial_count = len(plan.search([]))

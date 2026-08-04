@@ -554,3 +554,11 @@ class SaasImplementationPlanItem(models.Model):
         for task in self:
             task.write({"status": "changes_requested"})
         return True
+
+    def action_retry_automation(self):
+        """Return a transiently blocked automation item to the normal queue."""
+        for task in self:
+            if task.status != "blocked":
+                raise ValidationError("Only blocked implementation tasks can be retried.")
+            task.write({"status": "planned", "blocker": False})
+        return True
