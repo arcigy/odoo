@@ -548,7 +548,9 @@ class SaasPostmortemAction(models.Model):
 class SaasImplementationPlanItem(models.Model):
     _name = "saas.implementation.plan.item"
     _description = "SaaS implementation plan item"
-    _order = "priority, sequence, id"
+    # The founder-managed plan position is the only execution priority.
+    # P0/P1/P2 remains useful visual context, but must never reshuffle work.
+    _order = "sequence, id"
 
     name = fields.Char(required=True)
     priority = fields.Selection(
