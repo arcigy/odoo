@@ -45,6 +45,19 @@ class TestSaasImplementationPlan(TransactionCase):
         sequences = plan.search([], order="sequence").mapped("sequence")
         self.assertEqual(sequences, list(range(1, len(sequences) + 1)))
 
+    def test_deleting_a_task_compacts_all_later_positions(self):
+        plan = self.env["saas.implementation.plan.item"]
+        initial_count = len(plan.search([]))
+        first = plan.create({"name": "Delete first", "priority": "p1", "scope": "odoo"})
+        removed = plan.create({"name": "Delete middle", "priority": "p1", "scope": "odoo"})
+        last = plan.create({"name": "Delete last", "priority": "p1", "scope": "odoo"})
+        self.assertEqual([first.sequence, removed.sequence, last.sequence], [initial_count + 1, initial_count + 2, initial_count + 3])
+        removed.unlink()
+        self.assertEqual(first.sequence, initial_count + 1)
+        self.assertEqual(last.sequence, initial_count + 2)
+        sequences = plan.search([], order="sequence").mapped("sequence")
+        self.assertEqual(sequences, list(range(1, len(sequences) + 1)))
+
     def test_codex_worker_can_claim_plan_and_mark_task_ready(self):
         plan = self.env["saas.implementation.plan.item"]
         group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")

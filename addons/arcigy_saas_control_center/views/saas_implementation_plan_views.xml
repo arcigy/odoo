@@ -25,6 +25,7 @@
                 <header>
                     <button name="action_mark_done" type="object" string="Schvalit" class="btn-primary" invisible="status != 'ready_for_review'"/>
                     <button name="action_request_changes" type="object" string="Vratit na opravu" invisible="status != 'ready_for_review'"/>
+                    <button name="unlink" type="object" string="Vymazat ulohu" confirm="Naozaj vymazat tuto ulohu? Ostatne ulohy sa automaticky spravne precisluju."/>
                     <field name="status" widget="statusbar" statusbar_visible="planned,planning,in_progress,testing,deploying,awaiting_approval,ready_for_review,changes_requested,split,blocked,done"/>
                 </header>
                 <sheet>

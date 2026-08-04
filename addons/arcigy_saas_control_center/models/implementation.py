@@ -167,6 +167,19 @@ class SaasImplementationPlanItem(models.Model):
             task.write({"status": "changes_requested"})
         return message
 
+    def unlink(self):
+        """Delete selected plan items without leaving an ambiguous queue gap.
+
+        Odoo's normal administrator delete permission remains the authority for
+        this operation.  Runs and captured feedback belonging to the deleted
+        item follow their existing cascade rules; surviving tasks are compacted
+        atomically to positions 1..N.
+        """
+        self._codex_lock_queue()
+        result = super().unlink()
+        self._normalize_sequence()
+        return result
+
     @api.model
     def _codex_payload(self, record):
         return {
