@@ -193,6 +193,7 @@ class SaasImplementationPlanItem(models.Model):
             "prompt": record.full_prompt or record.next_action or "",
             "acceptance_criteria": record.acceptance_criteria or "",
             "plan": record.implementation_plan or "",
+            "plan_model": record.current_codex_run_id.plan_model or "",
             "risk_level": record.risk_level,
         }
 
@@ -231,14 +232,20 @@ class SaasImplementationPlanItem(models.Model):
 
     @api.model
     def codex_claim_next(self, payload):
-        """Atomically claim the current Nth eligible task, or the first task when omitted."""
+        """Atomically claim one eligible task by ID, queue position, or first position."""
         self._ensure_codex_access()
         payload = self._codex_require_payload(payload)
         worker_name = str(payload.get("worker_name") or "codex").strip()[:120]
         requested_position = payload.get("position")
+        requested_task_id = payload.get("task_id")
         if requested_position not in (None, False):
             if not isinstance(requested_position, int) or requested_position < 1:
                 raise ValidationError("position must be a positive integer.")
+        if requested_task_id not in (None, False):
+            if not isinstance(requested_task_id, int) or requested_task_id < 1:
+                raise ValidationError("task_id must be a positive integer.")
+        if requested_position and requested_task_id:
+            raise ValidationError("Specify either position or task_id, not both.")
         lease_minutes = payload.get("lease_minutes", 90)
         if not isinstance(lease_minutes, int) or lease_minutes < 15 or lease_minutes > 240:
             raise ValidationError("lease_minutes must be between 15 and 240.")
@@ -264,7 +271,9 @@ class SaasImplementationPlanItem(models.Model):
             [("status", "in", ACTIVE_QUEUE_STATES), ("priority", "!=", "p2")],
             order="sequence, id",
         )
-        if requested_position:
+        if requested_task_id:
+            task = candidates.filtered(lambda candidate: candidate.id == requested_task_id)
+        elif requested_position:
             task = candidates[requested_position - 1:requested_position]
         else:
             task = candidates[:1]

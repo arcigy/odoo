@@ -102,6 +102,7 @@ class TestSaasImplementationPlan(TransactionCase):
         self.assertFalse(saved["approval_required"])
         self.assertEqual(item.status, "in_progress")
         self.assertEqual(item.current_codex_run_id.phase, "ready")
+        self.assertEqual(worker_plan._codex_payload(item)["plan_model"], "gpt-5.6-sol")
         execution = worker_plan.codex_claim_execution(
             {"task_id": item.id, "worker_name": "executor", "lease_minutes": 30}
         )
@@ -121,6 +122,25 @@ class TestSaasImplementationPlan(TransactionCase):
         )
         self.assertEqual(item.status, "ready_for_review")
         self.assertEqual(item.current_codex_run_id.phase, "ready")
+
+    def test_codex_worker_can_claim_an_exact_eligible_task_id(self):
+        plan = self.env["saas.implementation.plan.item"]
+        group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {
+                "name": "Codex exact-task worker",
+                "login": "codex-exact-task@example.invalid",
+                "group_ids": [(6, 0, [group.id])],
+            }
+        )
+        first = plan.create({"name": "Earlier task", "priority": "p1", "scope": "arcigy"})
+        target = plan.create({"name": "Exact task", "priority": "p1", "scope": "arcigy"})
+        claim = plan.with_user(worker).codex_claim_next(
+            {"task_id": target.id, "worker_name": "exact-task-test"}
+        )
+        self.assertEqual(claim["task"]["id"], target.id)
+        self.assertEqual(target.status, "planning")
+        self.assertEqual(first.status, "planned")
 
     def test_codex_queue_rejects_unprivileged_access(self):
         user = self.env["res.users"].create({"name": "No queue access", "login": "no-queue@example.invalid"})
