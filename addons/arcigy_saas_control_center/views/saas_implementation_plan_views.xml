@@ -45,6 +45,7 @@
                             <field name="source_document" readonly="1"/>
                             <field name="parent_id" readonly="1"/>
                             <field name="current_codex_run_id" readonly="1"/>
+                            <field name="codex_thread_id" readonly="1"/>
                         </group>
                     </group>
                     <notebook>
@@ -62,6 +63,13 @@
                             <field name="review_checklist" required="status == 'ready_for_review'"/>
                             <field name="blocker" invisible="status != 'blocked'" readonly="1"/>
                             <field name="followup_notes"/>
+                            <field name="review_feedback_ids" readonly="1">
+                                <list>
+                                    <field name="sequence"/>
+                                    <field name="state" widget="badge"/>
+                                    <field name="body"/>
+                                </list>
+                            </field>
                         </page>
                         <page string="Codex behy">
                             <field name="codex_run_ids" readonly="1">

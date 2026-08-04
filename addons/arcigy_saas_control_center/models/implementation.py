@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
+from odoo.tools import html2plaintext
 
 
 CODEX_GROUP = "arcigy_saas_control_center.group_saas_codex_worker"
@@ -52,6 +53,30 @@ class SaasImplementationPlanRun(models.Model):
     safe_error = fields.Text()
 
     _run_token_unique = models.Constraint("UNIQUE(run_token)", "Run token must be unique.")
+
+
+class SaasImplementationPlanReviewFeedback(models.Model):
+    """Immutable reviewer feedback captured from Odoo's internal-note chatter."""
+
+    _name = "saas.implementation.plan.review.feedback"
+    _description = "Implementation plan reviewer feedback"
+    _order = "sequence, id"
+
+    task_id = fields.Many2one(
+        "saas.implementation.plan.item", required=True, ondelete="cascade", index=True
+    )
+    message_id = fields.Many2one("mail.message", required=True, ondelete="cascade", index=True)
+    sequence = fields.Integer(required=True, index=True)
+    body = fields.Text(required=True)
+    state = fields.Selection(
+        [("pending", "Pending"), ("leased", "Leased"), ("processed", "Processed")],
+        required=True,
+        default="pending",
+        index=True,
+    )
+    claimed_by_run_id = fields.Many2one("saas.implementation.plan.run", ondelete="set null", index=True)
+
+    _message_unique = models.Constraint("UNIQUE(message_id)", "A reviewer note can only be captured once.")
 
 
 class SaasImplementationPlanItem(models.Model):
@@ -101,12 +126,46 @@ class SaasImplementationPlanItem(models.Model):
     daily_batch_slot = fields.Integer(index=True)
     codex_run_ids = fields.One2many("saas.implementation.plan.run", "task_id", string="Codex runs")
     current_codex_run_id = fields.Many2one("saas.implementation.plan.run", readonly=True, copy=False)
+    codex_thread_id = fields.Char(readonly=True, copy=False, index=True)
+    review_feedback_ids = fields.One2many(
+        "saas.implementation.plan.review.feedback", "task_id", string="Reviewer feedback"
+    )
     parent_id = fields.Many2one("saas.implementation.plan.item", ondelete="set null", index=True)
     child_ids = fields.One2many("saas.implementation.plan.item", "parent_id", string="Podúlohy")
 
     def _ensure_codex_access(self):
         if not (self.env.user.has_group(CODEX_GROUP) or self.env.user.has_group(ADMIN_GROUP)):
             raise AccessError("Only the Arcigy Codex worker can operate the implementation queue.")
+
+    def message_post(self, **kwargs):
+        """Turn every confirmed internal review note into durable, ordered rework input.
+
+        Only a human note posted while the task is Ready for review reopens the task.
+        System messages and normal chatter updates remain informational and never requeue work.
+        """
+        feedback_before_post = self.filtered(
+            lambda task: task.status in {"ready_for_review", "changes_requested"}
+        )
+        message = super().message_post(**kwargs)
+        note_subtype = self.env.ref("mail.mt_note", raise_if_not_found=False)
+        if not feedback_before_post or not note_subtype or message.subtype_id != note_subtype:
+            return message
+        body = html2plaintext(message.body or "").strip()
+        if not body:
+            return message
+        feedback_model = self.env["saas.implementation.plan.review.feedback"].sudo()
+        for task in feedback_before_post:
+            next_sequence = (max(task.review_feedback_ids.mapped("sequence")) if task.review_feedback_ids else 0) + 1
+            feedback_model.create(
+                {
+                    "task_id": task.id,
+                    "message_id": message.id,
+                    "sequence": next_sequence,
+                    "body": body,
+                }
+            )
+            task.write({"status": "changes_requested"})
+        return message
 
     @api.model
     def _codex_payload(self, record):
@@ -188,7 +247,10 @@ class SaasImplementationPlanItem(models.Model):
             if used_slots >= daily_limit:
                 return {"task": False, "reason": "daily_limit_reached", "daily_limit": daily_limit}
             daily_slot = used_slots + 1
-        candidates = self.search([("status", "in", ACTIVE_QUEUE_STATES)], order="sequence, id")
+        candidates = self.search(
+            [("status", "in", ACTIVE_QUEUE_STATES), ("priority", "!=", "p2")],
+            order="sequence, id",
+        )
         if requested_position:
             task = candidates[requested_position - 1:requested_position]
         else:
@@ -286,6 +348,57 @@ class SaasImplementationPlanItem(models.Model):
         return {"task": self._codex_payload(task), "run_token": token, "run_id": run.id}
 
     @api.model
+    def codex_claim_review_followup(self, payload):
+        """Lease every currently pending reviewer note for one existing Codex thread.
+
+        Notes are leased as one ordered batch. A later note never overwrites an
+        earlier one: it stays pending for the next continuation turn.
+        """
+        self._ensure_codex_access()
+        payload = self._codex_require_payload(payload)
+        worker_name = str(payload.get("worker_name") or "codex-review").strip()[:120]
+        lease_minutes = payload.get("lease_minutes", 180)
+        if not isinstance(lease_minutes, int) or lease_minutes < 15 or lease_minutes > 240:
+            raise ValidationError("lease_minutes must be between 15 and 240.")
+        self._codex_lock_queue()
+        candidates = self.search(
+            [
+                ("status", "=", "changes_requested"),
+                ("priority", "!=", "p2"),
+                ("codex_thread_id", "!=", False),
+                ("review_feedback_ids.state", "=", "pending"),
+            ],
+            order="sequence, id",
+        )
+        task = candidates[:1]
+        if not task:
+            return {"task": False, "reason": "queue_empty"}
+        notes = task.review_feedback_ids.filtered(lambda note: note.state == "pending").sorted(
+            key=lambda note: (note.sequence, note.id)
+        )
+        now = fields.Datetime.now()
+        token = uuid4().hex
+        run = self.env["saas.implementation.plan.run"].create(
+            {
+                "task_id": task.id,
+                "run_token": token,
+                "worker_name": worker_name,
+                "phase": "implementing",
+                "lease_expires_at": fields.Datetime.add(now, minutes=lease_minutes),
+                "codex_thread_id": task.codex_thread_id,
+            }
+        )
+        notes.write({"state": "leased", "claimed_by_run_id": run.id})
+        task.write({"status": "in_progress", "current_codex_run_id": run.id})
+        return {
+            "task": self._codex_payload(task),
+            "run_token": token,
+            "run_id": run.id,
+            "codex_thread_id": task.codex_thread_id,
+            "review_notes": [{"id": note.id, "sequence": note.sequence, "body": note.body} for note in notes],
+        }
+
+    @api.model
     def codex_update_run(self, payload):
         self._ensure_codex_access()
         payload = self._codex_require_payload(payload)
@@ -304,6 +417,8 @@ class SaasImplementationPlanItem(models.Model):
         if "test_summary" in payload:
             values["test_summary"] = str(payload.get("test_summary") or "")[:20000]
         run.write(values)
+        if values.get("codex_thread_id"):
+            task.write({"codex_thread_id": values["codex_thread_id"]})
         task_status_by_phase = {
             "planning": "planning",
             "implementing": "in_progress",
@@ -326,6 +441,9 @@ class SaasImplementationPlanItem(models.Model):
             raise ValidationError("Ready tasks require a precise checklist and result summary.")
         run.write({"phase": "ready", "finished_at": fields.Datetime.now(), "heartbeat_at": fields.Datetime.now(), "test_summary": str(payload.get("test_summary") or "")[:20000]})
         task.write({"status": "ready_for_review", "review_checklist": checklist, "result_summary": summary})
+        self.env["saas.implementation.plan.review.feedback"].search(
+            [("claimed_by_run_id", "=", run.id), ("state", "=", "leased")]
+        ).write({"state": "processed"})
         if task.owner_id:
             task.activity_schedule(
                 "mail.mail_activity_data_todo",

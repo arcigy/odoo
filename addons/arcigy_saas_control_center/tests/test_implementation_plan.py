@@ -124,6 +124,66 @@ class TestSaasImplementationPlan(TransactionCase):
         self.assertFalse(second["task"])
         self.assertEqual(second["reason"], "daily_limit_reached")
 
+    def test_multiple_review_notes_are_batched_for_the_same_codex_thread(self):
+        plan = self.env["saas.implementation.plan.item"]
+        group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {"name": "Codex review worker", "login": "codex-review@example.invalid", "group_ids": [(6, 0, [group.id])]}
+        )
+        item = plan.create(
+            {
+                "name": "Review continuation",
+                "priority": "p1",
+                "scope": "arcigy",
+                "codex_thread_id": "thr_review_continuation",
+                "status": "ready_for_review",
+                "review_checklist": "Open the implementation plan and verify that the prepared result is available after reload.",
+            }
+        )
+        item.message_post(body="First correction: retain the existing layout.", subtype_xmlid="mail.mt_note")
+        item.message_post(body="Second correction: add the missing mobile check.", subtype_xmlid="mail.mt_note")
+        self.assertEqual(item.status, "changes_requested")
+        self.assertEqual(item.review_feedback_ids.mapped("sequence"), [1, 2])
+        self.assertEqual(item.review_feedback_ids.mapped("state"), ["pending", "pending"])
+
+        claimed = plan.with_user(worker).codex_claim_review_followup({"worker_name": "review-test"})
+        self.assertEqual(claimed["task"]["id"], item.id)
+        self.assertEqual(claimed["codex_thread_id"], "thr_review_continuation")
+        self.assertEqual([note["sequence"] for note in claimed["review_notes"]], [1, 2])
+        self.assertEqual(item.review_feedback_ids.mapped("state"), ["leased", "leased"])
+
+        plan.with_user(worker).codex_mark_ready(
+            {
+                "task_id": item.id,
+                "run_token": claimed["run_token"],
+                "result_summary": "Both reviewer corrections were applied in the original Codex conversation.",
+                "review_checklist": "Reload the task, verify both corrections, then check the recorded Codex run and its test evidence.",
+            }
+        )
+        self.assertEqual(item.status, "ready_for_review")
+        self.assertEqual(item.review_feedback_ids.mapped("state"), ["processed", "processed"])
+
+    def test_p2_items_stay_out_of_new_and_review_followup_queues(self):
+        plan = self.env["saas.implementation.plan.item"]
+        group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {"name": "Codex deferred worker", "login": "codex-deferred@example.invalid", "group_ids": [(6, 0, [group.id])]}
+        )
+        deferred = plan.create(
+            {
+                "name": "Deferred future work",
+                "priority": "p2",
+                "scope": "arcigy",
+                "codex_thread_id": "thr_deferred",
+                "status": "changes_requested",
+                "review_checklist": "Keep this task out of the implementation queue until the founder changes its priority.",
+            }
+        )
+        deferred.message_post(body="This remains future work.", subtype_xmlid="mail.mt_note")
+        followup = plan.with_user(worker).codex_claim_review_followup({"worker_name": "deferred-test"})
+        self.assertFalse(followup["task"])
+        self.assertEqual(followup["reason"], "queue_empty")
+
     def test_codex_worker_splits_a_broad_task_into_ordered_review_slices(self):
         plan = self.env["saas.implementation.plan.item"]
         group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
