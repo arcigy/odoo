@@ -137,6 +137,29 @@ class SaasImplementationPlanItem(models.Model):
         if not (self.env.user.has_group(CODEX_GROUP) or self.env.user.has_group(ADMIN_GROUP)):
             raise AccessError("Only the Arcigy Codex worker can operate the implementation queue.")
 
+    @api.model
+    def _codex_administrator_creator(self):
+        """Return the one founder account allowed to feed the Codex queue.
+
+        This deliberately uses Odoo's stable administrator XML id rather than a
+        display name or a role. A different SaaS administrator may administer
+        Odoo, but only records created by this Administrator account may start
+        or resume a Codex conversation.
+        """
+        return self.env.ref("base.user_admin", raise_if_not_found=False)
+
+    @api.model
+    def _codex_administrator_task_domain(self):
+        administrator = self._codex_administrator_creator()
+        # Fail closed if the expected founder account is unavailable.
+        return [("id", "=", 0)] if not administrator else [("create_uid", "=", administrator.id)]
+
+    @api.model
+    def _ensure_codex_administrator_task(self, task):
+        administrator = self._codex_administrator_creator()
+        if not administrator or task.create_uid.id != administrator.id:
+            raise AccessError("Only tasks created by Administrator may be processed by Codex.")
+
     def message_post(self, **kwargs):
         """Turn every confirmed internal review note into durable, ordered rework input.
 
@@ -220,6 +243,7 @@ class SaasImplementationPlanItem(models.Model):
     @api.model
     def _codex_run_from_payload(self, payload):
         task = self._codex_task_from_payload(payload)
+        self._ensure_codex_administrator_task(task)
         token = str(payload.get("run_token") or "").strip()
         if not token:
             raise ValidationError("run_token is required.")
@@ -271,7 +295,11 @@ class SaasImplementationPlanItem(models.Model):
                 return {"task": False, "reason": "daily_limit_reached", "daily_limit": daily_limit}
             daily_slot = used_slots + 1
         candidates = self.search(
-            [("status", "in", ACTIVE_QUEUE_STATES), ("priority", "!=", "p2")],
+            [
+                ("status", "in", ACTIVE_QUEUE_STATES),
+                ("priority", "!=", "p2"),
+                *self._codex_administrator_task_domain(),
+            ],
             order="sequence, id",
         )
         if requested_task_id:
@@ -349,6 +377,7 @@ class SaasImplementationPlanItem(models.Model):
         self._ensure_codex_access()
         payload = self._codex_require_payload(payload)
         task = self._codex_task_from_payload(payload)
+        self._ensure_codex_administrator_task(task)
         worker_name = str(payload.get("worker_name") or "codex-executor").strip()[:120]
         lease_minutes = payload.get("lease_minutes", 180)
         if not isinstance(lease_minutes, int) or lease_minutes < 15 or lease_minutes > 240:
@@ -394,6 +423,7 @@ class SaasImplementationPlanItem(models.Model):
                 ("priority", "!=", "p2"),
                 ("codex_thread_id", "!=", False),
                 ("review_feedback_ids.state", "=", "pending"),
+                *self._codex_administrator_task_domain(),
             ],
             order="sequence, id",
         )
@@ -424,6 +454,62 @@ class SaasImplementationPlanItem(models.Model):
             "codex_thread_id": task.codex_thread_id,
             "review_notes": [{"id": note.id, "sequence": note.sequence, "body": note.body} for note in notes],
         }
+
+    @api.model
+    def codex_list_disallowed_threads(self, payload):
+        """List only existing Codex chats created from non-Administrator tasks."""
+        self._ensure_codex_access()
+        self._codex_require_payload(payload)
+        administrator = self._codex_administrator_creator()
+        domain = [("codex_thread_id", "!=", False)]
+        if administrator:
+            domain.append(("create_uid", "!=", administrator.id))
+        tasks = self.search(domain, order="sequence, id")
+        return {
+            "threads": [
+                {
+                    "task_id": task.id,
+                    "thread_id": task.codex_thread_id,
+                    "status": task.status,
+                    "created_by": task.create_uid.name,
+                }
+                for task in tasks
+            ]
+        }
+
+    @api.model
+    def codex_discard_disallowed_threads(self, payload):
+        """Clear stale pointers after their non-Administrator Codex chats are deleted."""
+        self._ensure_codex_access()
+        payload = self._codex_require_payload(payload)
+        task_ids = payload.get("task_ids")
+        if not isinstance(task_ids, list) or not task_ids or len(task_ids) > 100:
+            raise ValidationError("task_ids must contain between 1 and 100 task IDs.")
+        if any(not isinstance(task_id, int) or task_id <= 0 for task_id in task_ids):
+            raise ValidationError("task_ids must contain only positive integers.")
+        self._codex_lock_queue()
+        tasks = self.browse(task_ids).exists()
+        if len(tasks) != len(set(task_ids)):
+            raise ValidationError("One or more implementation tasks were not found.")
+        administrator = self._codex_administrator_creator()
+        if administrator and any(task.create_uid.id == administrator.id for task in tasks):
+            raise AccessError("Administrator-created tasks must never be detached from Codex.")
+        active_runs = self.env["saas.implementation.plan.run"].search(
+            [("task_id", "in", tasks.ids), ("phase", "in", ["planning", "implementing", "testing", "deploying"])]
+        )
+        now = fields.Datetime.now()
+        active_runs.write(
+            {
+                "phase": "blocked",
+                "finished_at": now,
+                "heartbeat_at": now,
+                "safe_error": "Stopped because the task was not created by Administrator.",
+            }
+        )
+        active_tasks = tasks.filtered(lambda task: task.status in {"planning", "in_progress", "testing", "deploying"})
+        active_tasks.write({"status": "planned"})
+        tasks.write({"codex_thread_id": False, "current_codex_run_id": False})
+        return {"discarded_task_ids": tasks.ids}
 
     @api.model
     def codex_update_run(self, payload):

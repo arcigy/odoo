@@ -3,6 +3,18 @@ from odoo.exceptions import AccessError, ValidationError
 
 
 class TestSaasImplementationPlan(TransactionCase):
+    def _administrator_plan(self):
+        """Create queue-eligible records as Odoo's actual Administrator user."""
+        administrator = self.env.ref("base.user_admin")
+        administrator.write(
+            {
+                "group_ids": [
+                    (4, self.env.ref("arcigy_saas_control_center.group_saas_administrator").id)
+                ]
+            }
+        )
+        return self.env["saas.implementation.plan.item"].with_user(administrator)
+
     def test_seeded_items_and_admin_create_contract(self):
         plan = self.env["saas.implementation.plan.item"]
         seeded = plan.search([])
@@ -76,7 +88,7 @@ class TestSaasImplementationPlan(TransactionCase):
                 "group_ids": [(6, 0, [group.id])],
             }
         )
-        item = plan.create(
+        item = self._administrator_plan().create(
             {
                 "name": "Codex workflow contract",
                 "priority": "p1",
@@ -85,7 +97,7 @@ class TestSaasImplementationPlan(TransactionCase):
             }
         )
         worker_plan = plan.with_user(worker)
-        claim = worker_plan.codex_claim_next({"position": len(plan.search([("status", "in", ["planned", "changes_requested"])])), "worker_name": "test"})
+        claim = worker_plan.codex_claim_next({"task_id": item.id, "worker_name": "test"})
         self.assertEqual(claim["task"]["id"], item.id)
         self.assertEqual(item.status, "planning")
         saved = worker_plan.codex_save_plan(
@@ -133,8 +145,8 @@ class TestSaasImplementationPlan(TransactionCase):
                 "group_ids": [(6, 0, [group.id])],
             }
         )
-        first = plan.create({"name": "Earlier task", "priority": "p1", "scope": "arcigy"})
-        target = plan.create({"name": "Exact task", "priority": "p1", "scope": "arcigy"})
+        first = self._administrator_plan().create({"name": "Earlier task", "priority": "p1", "scope": "arcigy"})
+        target = self._administrator_plan().create({"name": "Exact task", "priority": "p1", "scope": "arcigy"})
         claim = plan.with_user(worker).codex_claim_next(
             {"task_id": target.id, "expected_name": target.name, "worker_name": "exact-task-test"}
         )
@@ -152,12 +164,78 @@ class TestSaasImplementationPlan(TransactionCase):
                 "group_ids": [(6, 0, [group.id])],
             }
         )
-        target = plan.create({"name": "Protected exact task", "priority": "p1", "scope": "arcigy"})
+        target = self._administrator_plan().create({"name": "Protected exact task", "priority": "p1", "scope": "arcigy"})
         with self.assertRaises(ValidationError):
             plan.with_user(worker).codex_claim_next(
                 {"task_id": target.id, "expected_name": "Different task", "worker_name": "exact-task-test"}
             )
         self.assertEqual(target.status, "planned")
+
+    def test_codex_claims_only_tasks_created_by_the_base_administrator(self):
+        plan = self.env["saas.implementation.plan.item"]
+        codex_group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        administrator_group = self.env.ref("arcigy_saas_control_center.group_saas_administrator")
+        worker = self.env["res.users"].create(
+            {
+                "name": "Codex author filter worker",
+                "login": "codex-author-filter@example.invalid",
+                "group_ids": [(6, 0, [codex_group.id])],
+            }
+        )
+        other_administrator = self.env["res.users"].create(
+            {
+                "name": "Other SaaS administrator",
+                "login": "other-saas-administrator@example.invalid",
+                "group_ids": [(6, 0, [administrator_group.id])],
+            }
+        )
+        disallowed = plan.with_user(other_administrator).create(
+            {"name": "Not founder-authored", "priority": "p1", "scope": "arcigy"}
+        )
+        allowed = self._administrator_plan().create({"name": "Founder-authored", "priority": "p1", "scope": "arcigy"})
+        worker_plan = plan.with_user(worker)
+
+        skipped = worker_plan.codex_claim_next({"task_id": disallowed.id, "worker_name": "author-filter"})
+        self.assertFalse(skipped["task"])
+        self.assertEqual(disallowed.status, "planned")
+
+        claimed = worker_plan.codex_claim_next({"task_id": allowed.id, "worker_name": "author-filter"})
+        self.assertEqual(claimed["task"]["id"], allowed.id)
+
+    def test_non_administrator_threads_can_be_listed_and_detached_only(self):
+        plan = self.env["saas.implementation.plan.item"]
+        codex_group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        administrator_group = self.env.ref("arcigy_saas_control_center.group_saas_administrator")
+        worker = self.env["res.users"].create(
+            {
+                "name": "Codex stale-thread worker",
+                "login": "codex-stale-thread@example.invalid",
+                "group_ids": [(6, 0, [codex_group.id])],
+            }
+        )
+        other_administrator = self.env["res.users"].create(
+            {
+                "name": "Other stale-thread administrator",
+                "login": "other-stale-thread-administrator@example.invalid",
+                "group_ids": [(6, 0, [administrator_group.id])],
+            }
+        )
+        disallowed = plan.with_user(other_administrator).create(
+            {"name": "Stale non-founder chat", "priority": "p1", "scope": "arcigy"}
+        )
+        disallowed.write({"codex_thread_id": "thread-from-other-administrator"})
+        allowed = self._administrator_plan().create({"name": "Protected founder chat", "priority": "p1", "scope": "arcigy"})
+        allowed.write({"codex_thread_id": "founder-thread"})
+        worker_plan = plan.with_user(worker)
+
+        listed = worker_plan.codex_list_disallowed_threads({})
+        self.assertIn(disallowed.id, [item["task_id"] for item in listed["threads"]])
+        self.assertNotIn(allowed.id, [item["task_id"] for item in listed["threads"]])
+        with self.assertRaises(AccessError):
+            worker_plan.codex_discard_disallowed_threads({"task_ids": [allowed.id]})
+        discarded = worker_plan.codex_discard_disallowed_threads({"task_ids": [disallowed.id]})
+        self.assertEqual(discarded["discarded_task_ids"], [disallowed.id])
+        self.assertFalse(disallowed.codex_thread_id)
 
     def test_codex_queue_rejects_unprivileged_access(self):
         user = self.env["res.users"].create({"name": "No queue access", "login": "no-queue@example.invalid"})
@@ -171,8 +249,11 @@ class TestSaasImplementationPlan(TransactionCase):
             {"name": "Codex daily worker", "login": "codex-daily@example.invalid", "group_ids": [(6, 0, [group.id])]}
         )
         worker_plan = plan.with_user(worker)
+        eligible = self._administrator_plan().create(
+            {"name": "Administrator daily item", "priority": "p1", "scope": "arcigy"}
+        )
         first = worker_plan.codex_claim_next(
-            {"worker_name": "daily", "daily_batch_date": "2026-08-04", "daily_limit": 1}
+            {"task_id": eligible.id, "worker_name": "daily", "daily_batch_date": "2026-08-04", "daily_limit": 1}
         )
         self.assertTrue(first["task"])
         self.assertEqual(plan.browse(first["task"]["id"]).daily_batch_slot, 1)
@@ -188,7 +269,7 @@ class TestSaasImplementationPlan(TransactionCase):
         worker = self.env["res.users"].create(
             {"name": "Codex review worker", "login": "codex-review@example.invalid", "group_ids": [(6, 0, [group.id])]}
         )
-        item = plan.create(
+        item = self._administrator_plan().create(
             {
                 "name": "Review continuation",
                 "priority": "p1",
@@ -227,7 +308,7 @@ class TestSaasImplementationPlan(TransactionCase):
         worker = self.env["res.users"].create(
             {"name": "Codex deferred worker", "login": "codex-deferred@example.invalid", "group_ids": [(6, 0, [group.id])]}
         )
-        deferred = plan.create(
+        deferred = self._administrator_plan().create(
             {
                 "name": "Deferred future work",
                 "priority": "p2",
@@ -248,11 +329,11 @@ class TestSaasImplementationPlan(TransactionCase):
         worker = self.env["res.users"].create(
             {"name": "Codex split worker", "login": "codex-split@example.invalid", "group_ids": [(6, 0, [group.id])]}
         )
-        broad_task = plan.create(
+        broad_task = self._administrator_plan().create(
             {"name": "Broad workflow", "priority": "p1", "scope": "arcigy", "full_prompt": "Deliver the complete long-running implementation workflow."}
         )
         worker_plan = plan.with_user(worker)
-        claim = worker_plan.codex_claim_next({"position": len(plan.search([("status", "=", "planned")])), "worker_name": "test"})
+        claim = worker_plan.codex_claim_next({"task_id": broad_task.id, "worker_name": "test"})
         self.assertEqual(claim["task"]["id"], broad_task.id)
         result = worker_plan.codex_split(
             {
