@@ -213,6 +213,7 @@ class SaasImplementationPlanItem(models.Model):
             "target_repository": record.target_repository,
             "target_environment": record.target_environment,
             "status": record.status,
+            "codex_thread_id": record.codex_thread_id or "",
             "prompt": record.full_prompt or record.next_action or "",
             "acceptance_criteria": record.acceptance_criteria or "",
             "plan": record.implementation_plan or "",
@@ -529,6 +530,9 @@ class SaasImplementationPlanItem(models.Model):
                 values[key] = str(payload.get(key) or "").strip()[:limit]
         if "test_summary" in payload:
             values["test_summary"] = str(payload.get("test_summary") or "")[:20000]
+        requested_thread_id = values.get("codex_thread_id")
+        if requested_thread_id and task.codex_thread_id and task.codex_thread_id != requested_thread_id:
+            raise AccessError("This implementation task already belongs to a different Codex thread.")
         run.write(values)
         if values.get("codex_thread_id"):
             task.write({"codex_thread_id": values["codex_thread_id"]})

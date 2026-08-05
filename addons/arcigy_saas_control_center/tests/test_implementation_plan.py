@@ -171,6 +171,53 @@ class TestSaasImplementationPlan(TransactionCase):
             )
         self.assertEqual(target.status, "planned")
 
+    def test_codex_task_retains_one_thread_across_retries(self):
+        plan = self.env["saas.implementation.plan.item"]
+        group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {
+                "name": "Codex one-thread worker",
+                "login": "codex-one-thread@example.invalid",
+                "group_ids": [(6, 0, [group.id])],
+            }
+        )
+        item = self._administrator_plan().create(
+            {"name": "One Codex conversation", "priority": "p1", "scope": "arcigy"}
+        )
+        worker_plan = plan.with_user(worker)
+        initial = worker_plan.codex_claim_next({"task_id": item.id, "worker_name": "one-thread"})
+        worker_plan.codex_update_run(
+            {
+                "task_id": item.id,
+                "run_token": initial["run_token"],
+                "phase": "planning",
+                "codex_thread_id": "thread-original",
+            }
+        )
+        self.assertEqual(worker_plan._codex_payload(item)["codex_thread_id"], "thread-original")
+
+        item.write({"status": "planned", "current_codex_run_id": False})
+        retry = worker_plan.codex_claim_next({"task_id": item.id, "worker_name": "one-thread-retry"})
+        self.assertEqual(retry["task"]["codex_thread_id"], "thread-original")
+        with self.assertRaises(AccessError):
+            worker_plan.codex_update_run(
+                {
+                    "task_id": item.id,
+                    "run_token": retry["run_token"],
+                    "phase": "planning",
+                    "codex_thread_id": "thread-duplicate",
+                }
+            )
+        self.assertEqual(item.codex_thread_id, "thread-original")
+        worker_plan.codex_update_run(
+            {
+                "task_id": item.id,
+                "run_token": retry["run_token"],
+                "phase": "planning",
+                "codex_thread_id": "thread-original",
+            }
+        )
+
     def test_codex_claims_only_tasks_created_by_the_base_administrator(self):
         plan = self.env["saas.implementation.plan.item"]
         codex_group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
