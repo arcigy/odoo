@@ -134,6 +134,60 @@ class TestSaasImplementationPlan(TransactionCase):
         )
         self.assertEqual(item.status, "ready_for_review")
         self.assertEqual(item.current_codex_run_id.phase, "ready")
+        self.assertTrue(
+            item.activity_ids.filtered(
+                lambda activity: activity.summary == "Skontrolovať dokončené úpravy"
+            )
+        )
+        self.assertTrue(
+            item.message_ids.filtered(
+                lambda message: "Dokončené úpravy čakajú na kontrolu" in (message.body or "")
+            )
+        )
+
+    def test_approval_ready_plan_notifies_the_owner_without_reopening_the_task(self):
+        plan = self.env["saas.implementation.plan.item"]
+        group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {
+                "name": "Codex approval notification worker",
+                "login": "codex-approval-notification@example.invalid",
+                "group_ids": [(6, 0, [group.id])],
+            }
+        )
+        item = self._administrator_plan().create(
+            {
+                "name": "Approval notification contract",
+                "priority": "p1",
+                "scope": "cross_system",
+                "full_prompt": "Create a plan that needs founder approval before any production-facing work starts.",
+            }
+        )
+        worker_plan = plan.with_user(worker)
+        claim = worker_plan.codex_claim_next({"task_id": item.id, "worker_name": "approval-notification"})
+        saved = worker_plan.codex_save_plan(
+            {
+                "task_id": item.id,
+                "run_token": claim["run_token"],
+                "plan": "Inspect the release contract, document the production effect, wait for founder approval, then implement only after the approval is recorded.",
+                "risk_level": "approval",
+                "target_repository": "cross_system",
+                "target_environment": "approval",
+                "model": "gpt-5.6-sol",
+            }
+        )
+        self.assertTrue(saved["approval_required"])
+        self.assertEqual(item.status, "awaiting_approval")
+        self.assertTrue(
+            item.activity_ids.filtered(
+                lambda activity: activity.summary == "Schváliť Codex plán"
+            )
+        )
+        self.assertTrue(
+            item.message_ids.filtered(
+                lambda message: "Codex plán čaká na schválenie" in (message.body or "")
+            )
+        )
 
     def test_codex_worker_can_claim_an_exact_eligible_task_id(self):
         plan = self.env["saas.implementation.plan.item"]

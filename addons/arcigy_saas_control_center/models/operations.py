@@ -561,11 +561,11 @@ class SaasImplementationPlanItem(models.Model):
     )
     status = fields.Selection(
         [
-            ("planned", "Planned"),
-            ("in_progress", "In progress"),
-            ("blocked", "Blocked"),
-            ("ready_for_review", "Ready na skontrolovanie"),
-            ("done", "Done"),
+            ("planned", "Čaká vo fronte"),
+            ("in_progress", "Prebieha implementácia"),
+            ("blocked", "Zablokované"),
+            ("ready_for_review", "Dokončené úpravy – čaká na kontrolu"),
+            ("done", "Hotovo"),
         ],
         required=True,
         default="planned",

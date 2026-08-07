@@ -6,6 +6,8 @@ They are not a generic Odoo RPC bridge and cannot create arbitrary business data
 
 from uuid import uuid4
 
+from markupsafe import Markup, escape
+
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tools import html2plaintext
@@ -16,12 +18,12 @@ ADMIN_GROUP = "arcigy_saas_control_center.group_saas_administrator"
 ACTIVE_QUEUE_STATES = ("planned", "changes_requested")
 WORKER_STATES = {"planning", "implementing", "testing", "deploying"}
 RUN_PHASES = [
-    ("planning", "Planning"),
-    ("implementing", "Implementing"),
-    ("testing", "Testing"),
-    ("deploying", "Deploying"),
-    ("ready", "Ready"),
-    ("blocked", "Blocked"),
+    ("planning", "Prebieha plánovanie"),
+    ("implementing", "Prebieha implementácia"),
+    ("testing", "Prebieha testovanie"),
+    ("deploying", "Prebieha nasadenie"),
+    ("ready", "Pripravené"),
+    ("blocked", "Zablokované"),
 ]
 
 
@@ -85,12 +87,12 @@ class SaasImplementationPlanItem(models.Model):
 
     status = fields.Selection(
         selection_add=[
-            ("planning", "Planning"),
-            ("testing", "Testing"),
-            ("deploying", "Deploying"),
-            ("awaiting_approval", "Awaiting approval"),
-            ("changes_requested", "Changes requested"),
-            ("split", "Split into reviewable slices"),
+            ("planning", "Prebieha plánovanie"),
+            ("testing", "Prebieha testovanie"),
+            ("deploying", "Prebieha nasadenie"),
+            ("awaiting_approval", "Čaká na schválenie"),
+            ("changes_requested", "Vrátené na opravu"),
+            ("split", "Rozdelené na samostatné úlohy"),
         ],
         ondelete={
             "planning": "set default",
@@ -159,6 +161,27 @@ class SaasImplementationPlanItem(models.Model):
         administrator = self._codex_administrator_creator()
         if not administrator or task.create_uid.id != administrator.id:
             raise AccessError("Only tasks created by Administrator may be processed by Codex.")
+
+    def _notify_owner(self, summary, detail):
+        """Notify the owner without turning the message into reviewer feedback.
+
+        An internal note deliberately reopens a ready task. Lifecycle messages
+        therefore use a direct comment notification for the owner; Odoo can
+        deliver it to an opted-in PWA device through its built-in web push.
+        """
+        self.ensure_one()
+        partner = self.owner_id.partner_id
+        if not partner:
+            return
+        body = Markup("<p><strong>{}</strong></p><p>{}</p>").format(
+            escape(summary), escape(detail)
+        )
+        self.with_context(mail_notify_force_send=False).message_post(
+            body=body,
+            message_type="notification",
+            subtype_xmlid="mail.mt_comment",
+            partner_ids=[partner.id],
+        )
 
     def message_post(self, **kwargs):
         """Turn every confirmed internal review note into durable, ordered rework input.
@@ -351,6 +374,7 @@ class SaasImplementationPlanItem(models.Model):
         if environment not in {"develop", "odoo_staging", "approval"}:
             raise ValidationError("Unsupported target_environment.")
         approval_required = risk == "approval" or environment == "approval"
+        previous_status = task.status
         task.write(
             {
                 "implementation_plan": plan,
@@ -370,6 +394,18 @@ class SaasImplementationPlanItem(models.Model):
                 "test_summary": "Implementation plan saved and handed off to the execution task.",
             }
         )
+        if approval_required and previous_status != "awaiting_approval" and task.owner_id:
+            approval_note = (
+                "Plán je hotový. Otvor úlohu, prečítaj kartu Plan a potom ju "
+                "schváľ alebo vráť s poznámkou na opravu."
+            )
+            task.activity_schedule(
+                "mail.mail_activity_data_todo",
+                user_id=task.owner_id.id,
+                summary="Schváliť Codex plán",
+                note=approval_note,
+            )
+            task._notify_owner("Codex plán čaká na schválenie", approval_note)
         return {"task_id": task.id, "status": task.status, "approval_required": approval_required}
 
     @api.model
@@ -556,18 +592,20 @@ class SaasImplementationPlanItem(models.Model):
         summary = str(payload.get("result_summary") or "").strip()
         if len(checklist) < 30 or len(summary) < 20:
             raise ValidationError("Ready tasks require a precise checklist and result summary.")
+        previous_status = task.status
         run.write({"phase": "ready", "finished_at": fields.Datetime.now(), "heartbeat_at": fields.Datetime.now(), "test_summary": str(payload.get("test_summary") or "")[:20000]})
         task.write({"status": "ready_for_review", "review_checklist": checklist, "result_summary": summary})
         self.env["saas.implementation.plan.review.feedback"].search(
             [("claimed_by_run_id", "=", run.id), ("state", "=", "leased")]
         ).write({"state": "processed"})
-        if task.owner_id:
+        if task.owner_id and previous_status != "ready_for_review":
             task.activity_schedule(
                 "mail.mail_activity_data_todo",
                 user_id=task.owner_id.id,
-                summary="Skontrolovať Codex úlohu",
+                summary="Skontrolovať dokončené úpravy",
                 note=checklist,
             )
+            task._notify_owner("Dokončené úpravy čakajú na kontrolu", checklist)
         return {"task_id": task.id, "status": task.status}
 
     @api.model
