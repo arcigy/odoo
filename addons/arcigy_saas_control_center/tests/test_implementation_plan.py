@@ -51,6 +51,53 @@ class TestSaasImplementationPlan(TransactionCase):
         self.assertEqual(item.status, "planned")
         self.assertFalse(item.blocker)
 
+    def test_plan_without_model_metadata_defaults_to_sol_for_terra_handoff(self):
+        plan = self.env["saas.implementation.plan.item"]
+        group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {
+                "name": "Codex model fallback worker",
+                "login": "codex-model-fallback@example.invalid",
+                "group_ids": [(6, 0, [group.id])],
+            }
+        )
+        item = self._administrator_plan().create(
+            {"name": "Plan model fallback", "priority": "p1", "scope": "odoo"}
+        )
+        worker_plan = plan.with_user(worker)
+        claim = worker_plan.codex_claim_next({"task_id": item.id, "worker_name": "model-fallback"})
+        worker_plan.codex_save_plan(
+            {
+                "task_id": item.id,
+                "run_token": claim["run_token"],
+                "plan": "Save the approved plan without optional model metadata and preserve the Terra handoff contract.",
+                "risk_level": "medium",
+                "target_repository": "odoo",
+                "target_environment": "develop",
+            }
+        )
+        self.assertEqual(item.current_codex_run_id.plan_model, "gpt-5.6-sol")
+        execution = worker_plan.codex_claim_execution(
+            {"task_id": item.id, "worker_name": "executor", "lease_minutes": 30}
+        )
+        self.assertEqual(execution["task"]["plan_model"], "gpt-5.6-sol")
+
+    def test_approved_blocked_item_retries_terra_without_creating_a_plan_chat(self):
+        plan = self.env["saas.implementation.plan.item"]
+        item = plan.create({
+            "name": "Retry approved Terra execution",
+            "priority": "p1",
+            "scope": "odoo",
+            "codex_thread_id": "thr_existing_plan",
+            "implementation_plan": "Use the saved plan and resume the existing Codex conversation on Terra.",
+        })
+        item.write({"status": "blocked", "blocker": "Execution bridge was temporarily unavailable."})
+        with patch.object(type(item), "_schedule_codex_webhook", autospec=True, return_value=True) as callback:
+            item.action_retry_automation()
+        self.assertEqual(item.status, "in_progress")
+        self.assertFalse(item.blocker)
+        callback.assert_called_once_with(item, "execution")
+
     def test_inserting_and_moving_tasks_keeps_one_unique_queue(self):
         plan = self.env["saas.implementation.plan.item"]
         initial_count = len(plan.search([]))

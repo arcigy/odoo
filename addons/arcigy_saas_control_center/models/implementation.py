@@ -38,6 +38,7 @@ RUN_PHASES = [
 _LOGGER = logging.getLogger(__name__)
 WEBHOOK_URL_PARAMETER = "arcigy_saas_control_center.codex_webhook_url"
 WEBHOOK_SECRET_PARAMETER = "arcigy_saas_control_center.codex_webhook_secret"
+PLANNING_MODEL = "gpt-5.6-sol"
 
 
 class SaasImplementationPlanRun(models.Model):
@@ -502,7 +503,11 @@ class SaasImplementationPlanItem(models.Model):
                 "phase": "ready",
                 "finished_at": fields.Datetime.now(),
                 "heartbeat_at": fields.Datetime.now(),
-                "plan_model": str(payload.get("model") or "")[:120],
+                # The planning bridge always starts native Plan mode on Sol.  The
+                # Codex-side save command predates this field and can omit it, so
+                # persist the authoritative planning model here instead of
+                # producing a plan that Terra is forced to reject later.
+                "plan_model": str(payload.get("model") or PLANNING_MODEL).strip()[:120],
                 "test_summary": "Implementation plan saved and handed off to the execution task.",
             }
         )
@@ -558,7 +563,10 @@ class SaasImplementationPlanItem(models.Model):
                 "run_token": token,
                 "worker_name": worker_name,
                 "phase": "implementing",
-                "plan_model": current_run.plan_model if current_run else "",
+                # Older saved plans may not have recorded their model.  They are
+                # all produced by this Sol-only planning bridge; preserve that
+                # invariant when handing an approved plan to Terra.
+                "plan_model": (current_run.plan_model or PLANNING_MODEL) if current_run else PLANNING_MODEL,
                 "lease_expires_at": fields.Datetime.add(now, minutes=lease_minutes),
             }
         )
@@ -905,5 +913,11 @@ class SaasImplementationPlanItem(models.Model):
         for task in self:
             if task.status != "blocked":
                 raise ValidationError("Only blocked implementation tasks can be retried.")
-            task.write({"status": "planned", "blocker": False})
+            if task.codex_thread_id and (task.implementation_plan or "").strip():
+                # The plan was already approved.  Retrying must resume Terra in
+                # the same Codex chat, never start a duplicate planning chat.
+                task.write({"status": "in_progress", "blocker": False})
+                task._schedule_codex_webhook("execution")
+            else:
+                task.write({"status": "planned", "blocker": False})
         return True
