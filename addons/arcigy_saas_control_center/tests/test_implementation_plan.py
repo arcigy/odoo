@@ -32,6 +32,13 @@ class TestSaasImplementationPlan(TransactionCase):
         self.assertEqual(created.status, "planned")
         self.assertEqual(created.owner_id, self.env.user)
 
+    def test_form_always_exposes_workflow_mode_for_new_tasks(self):
+        form_view = self.env.ref(
+            "arcigy_saas_control_center.view_saas_implementation_plan_item_form"
+        )
+        self.assertIn('name="workflow_mode"', form_view.arch_db)
+        self.assertIn('string="Spôsob spracovania"', form_view.arch_db)
+
     def test_ready_for_review_requires_a_precise_checklist(self):
         plan = self.env["saas.implementation.plan.item"]
         item = plan.create({"name": "Review gate", "priority": "p1", "scope": "odoo"})
@@ -199,6 +206,41 @@ class TestSaasImplementationPlan(TransactionCase):
         removed.unlink()
         self.assertEqual(first.sequence, initial_count + 1)
         self.assertEqual(last.sequence, initial_count + 2)
+        sequences = plan.search([], order="sequence").mapped("sequence")
+        self.assertEqual(sequences, list(range(1, len(sequences) + 1)))
+
+    def test_administrator_can_permanently_delete_task_and_owned_history(self):
+        plan = self._administrator_plan()
+        initial_count = len(plan.search([]))
+        first = plan.create({"name": "Keep before permanent delete", "priority": "p1", "scope": "odoo"})
+        deleted = plan.create({"name": "Permanently delete me", "priority": "p1", "scope": "odoo"})
+        later = plan.create({"name": "Keep after permanent delete", "priority": "p1", "scope": "odoo"})
+        deleted.write(
+            {
+                "status": "ready_for_review",
+                "review_checklist": "This task is only used to verify permanent deletion.",
+            }
+        )
+        message = deleted.message_post(body="<p>Remove this review note with the task.</p>", subtype_xmlid="mail.mt_note")
+        feedback = deleted.review_feedback_ids
+        run = self.env["saas.implementation.plan.run"].sudo().create(
+            {
+                "task_id": deleted.id,
+                "run_token": "permanent-delete-test-token",
+                "worker_name": "test",
+                "lease_expires_at": fields.Datetime.add(fields.Datetime.now(), minutes=10),
+            }
+        )
+
+        result = deleted.action_permanently_delete()
+
+        self.assertEqual(result, {"type": "ir.actions.act_window_close"})
+        self.assertFalse(plan.browse(deleted.id).exists())
+        self.assertFalse(run.exists())
+        self.assertFalse(feedback.exists())
+        self.assertFalse(message.exists())
+        self.assertEqual(first.sequence, initial_count + 1)
+        self.assertEqual(later.sequence, initial_count + 2)
         sequences = plan.search([], order="sequence").mapped("sequence")
         self.assertEqual(sequences, list(range(1, len(sequences) + 1)))
 

@@ -349,14 +349,51 @@ class SaasImplementationPlanItem(models.Model):
         """Delete selected plan items without leaving an ambiguous queue gap.
 
         Odoo's normal administrator delete permission remains the authority for
-        this operation.  Runs and captured feedback belonging to the deleted
-        item follow their existing cascade rules; surviving tasks are compacted
-        atomically to positions 1..N.
+        this operation.  The explicit permanent-delete action also removes the
+        task's chatter, activities, runs and captured feedback.  Surviving
+        tasks are compacted atomically to positions 1..N.
         """
         self._codex_lock_queue()
         result = super().unlink()
         self._normalize_sequence()
         return result
+
+    def _purge_permanent_delete_history(self):
+        """Remove Odoo-only workflow history owned by tasks being deleted.
+
+        ``mail.thread`` normally hides this history once its record is gone,
+        but a permanent delete must not leave messages or activities whose
+        ``res_model``/``res_id`` points at a now non-existent task.  The domain
+        is deliberately limited to this model and the selected record ids, so
+        no unrelated chatter or attachment is touched.
+        """
+        task_ids = self.ids
+        if not task_ids:
+            return
+        model_name = self._name
+        self.env["mail.activity"].sudo().search(
+            [("res_model", "=", model_name), ("res_id", "in", task_ids)]
+        ).unlink()
+        self.env["mail.followers"].sudo().search(
+            [("res_model", "=", model_name), ("res_id", "in", task_ids)]
+        ).unlink()
+        self.env["mail.message"].sudo().search(
+            [("model", "=", model_name), ("res_id", "in", task_ids)]
+        ).unlink()
+
+    def action_permanently_delete(self):
+        """Permanently remove one or more founder plan tasks from Odoo.
+
+        This intentionally has no archive path.  It is limited to SaaS
+        administrators and returns to the previous mobile/list view after the
+        delete, instead of leaving the user on an invalid form URL.
+        """
+        if not self.env.user.has_group(ADMIN_GROUP):
+            raise AccessError("Only an Arcigy SaaS Administrator may permanently delete a task.")
+        self._codex_lock_queue()
+        self._purge_permanent_delete_history()
+        self.unlink()
+        return {"type": "ir.actions.act_window_close"}
 
     @api.model
     def _codex_payload(self, record):

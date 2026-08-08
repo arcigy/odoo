@@ -29,7 +29,7 @@
                     <button name="action_request_changes" type="object" string="Vratit na opravu" invisible="status != 'ready_for_review'"/>
                     <button name="action_retry_automation" type="object" string="Skusit znovu" class="btn-primary" invisible="status != 'blocked'"/>
                     <button name="action_start_direct_implementation" type="object" string="Spustiť priamu implementáciu" class="btn-primary" invisible="not (status == 'planned' and workflow_mode == 'direct')" groups="arcigy_saas_control_center.group_saas_administrator"/>
-                    <button name="unlink" type="object" string="Vymazat ulohu" confirm="Naozaj vymazat tuto ulohu? Ostatne ulohy sa automaticky spravne precisluju."/>
+                    <button name="action_permanently_delete" type="object" string="Trvalo vymazať úlohu" confirm="Táto úloha, jej Codex behy, poznámky a Odoo história sa natrvalo odstránia. Túto akciu nemožno vrátiť späť. Ostatné úlohy sa automaticky správne prečíslujú." groups="arcigy_saas_control_center.group_saas_administrator"/>
                     <field name="status" widget="statusbar" statusbar_visible="planned,planning,awaiting_approval,waiting_execution,in_progress,testing,deploying,ready_for_review,changes_requested,split,blocked,done"/>
                 </header>
                 <sheet>
@@ -50,7 +50,7 @@
                         <group>
                             <field name="sequence"/>
                             <field name="priority"/>
-                            <field name="workflow_mode"/>
+                            <field name="workflow_mode" string="Spôsob spracovania"/>
                             <field name="scope"/>
                             <field name="target_repository"/>
                             <field name="target_environment"/>
