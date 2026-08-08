@@ -243,6 +243,14 @@ class TestSaasImplementationPlan(TransactionCase):
             "arcigy_saas_control_center.view_saas_implementation_plan_item_form"
         )
         self.assertIn('string="Implementovať plán (Terra)"', form_view.arch_db)
+        self.assertIn(
+            'class="o_arcigy_implementation_action" invisible="status != \'awaiting_approval\'"',
+            form_view.arch_db,
+        )
+        self.assertNotIn(
+            'class="o_arcigy_implementation_action" invisible="status != \'awaiting_approval\'" groups=',
+            form_view.arch_db,
+        )
         item = self._administrator_plan().create(
             {
                 "name": "Approve and continue on Terra",

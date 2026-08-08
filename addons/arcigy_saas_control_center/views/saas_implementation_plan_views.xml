@@ -32,7 +32,11 @@
                 </header>
                 <sheet>
                     <div class="oe_title"><h1><field name="name"/></h1></div>
-                    <div class="o_arcigy_implementation_action" invisible="status != 'awaiting_approval'" groups="arcigy_saas_control_center.group_saas_administrator">
+                    <!-- Do not gate this mobile action with a view-level group filter.
+                         Odoo's mobile client can cache that filtered architecture and
+                         hide the action from an administrator.  The object method
+                         still enforces the administrator permission server-side. -->
+                    <div class="o_arcigy_implementation_action" invisible="status != 'awaiting_approval'">
                         <button name="action_approve_plan" type="object" string="Implementovať plán (Terra)" class="btn-primary oe_highlight"/>
                         <p>Plán je pripravený. Po stlačení Terra okamžite pokračuje v existujúcom Codex chate.</p>
                     </div>
