@@ -175,19 +175,48 @@ class SaasImplementationPlanItem(models.Model):
         if not administrator or task.create_uid.id != administrator.id:
             raise AccessError("Only tasks created by Administrator may be processed by Codex.")
 
-    def _notify_owner(self, summary, detail):
-        """Notify the owner without turning the message into reviewer feedback.
+    def _notify_owner(self, event, next_step, detail=""):
+        """Send one compact, actionable lifecycle notification to the owner.
 
         An internal note deliberately reopens a ready task. Lifecycle messages
         therefore use a direct comment notification for the owner; Odoo can
         deliver it to an opted-in PWA device through its built-in web push.
+        Every message uses the same mobile-readable layout so that the owner
+        immediately sees which task changed and whether an action is needed.
         """
         self.ensure_one()
         partner = self.owner_id.partner_id
         if not partner:
             return
-        body = Markup("<p><strong>{}</strong></p><p>{}</p>").format(
-            escape(summary), escape(detail)
+        status_labels = {
+            "awaiting_approval": "Čaká na schválenie",
+            "in_progress": "Prebieha implementácia",
+            "ready_for_review": "Pripravené na kontrolu",
+            "blocked": "Zablokované",
+        }
+        status_label = status_labels.get(self.status, self.status)
+        detail_html = escape(detail).replace("\n", Markup("<br/>")) if detail else Markup("")
+        record_url = "/web#id={}&model={}&view_type=form".format(self.id, self._name)
+        body = Markup(
+            "<section class=\"o_arcigy_codex_notification\">"
+            "<p><strong>Arcigy · {event}</strong></p>"
+            "<p><strong>Úloha:</strong> {task_name}</p>"
+            "<p><strong>Stav:</strong> {status}</p>"
+            "<p><strong>Teraz:</strong> {next_step}</p>"
+            "{detail_section}"
+            "<p><a href=\"{record_url}\">Otvoriť túto úlohu</a></p>"
+            "</section>"
+        ).format(
+            event=escape(event),
+            task_name=escape(self.name),
+            status=escape(status_label),
+            next_step=escape(next_step),
+            detail_section=(
+                Markup("<p><strong>Detaily:</strong><br/>{}</p>").format(detail_html)
+                if detail_html
+                else Markup("")
+            ),
+            record_url=escape(record_url),
         )
         # Odoo deliberately skips web-push delivery to the message author.
         # The queue worker may run as the task owner, so system lifecycle
@@ -195,6 +224,7 @@ class SaasImplementationPlanItem(models.Model):
         odoo_bot = self.env.ref("base.partner_root", raise_if_not_found=False)
         post_values = {
             "body": body,
+            "subject": "Arcigy · {} · {}".format(event, self.name)[:255],
             "message_type": "notification",
             "subtype_xmlid": "mail.mt_comment",
             "partner_ids": [partner.id],
@@ -477,36 +507,28 @@ class SaasImplementationPlanItem(models.Model):
             }
         )
         if task.owner_id:
-            plan_detail = "\n\n".join(
-                [
-                    "Plán je uložený v karte Plan tejto úlohy.",
-                    plan,
-                ]
-            )
+            plan_detail = "Plán je uložený v karte Plan tejto úlohy."
             if approval_required and previous_status != "awaiting_approval":
                 approval_note = (
-                    "Plán je hotový. Otvor úlohu, prečítaj kartu Plan a potom ju "
-                    "schváľ alebo vráť s poznámkou na opravu."
+                    "Otvor kartu Plan, skontroluj návrh a potom stlač „Schváliť plán a spustiť Terra“, "
+                    "alebo vlož internú poznámku s požadovanou opravou."
                 )
                 task.activity_schedule(
                     "mail.mail_activity_data_todo",
                     user_id=task.owner_id.id,
-                    summary="Schváliť Codex plán",
+                    summary="Schváliť plán: {}".format(task.name),
                     note=approval_note,
                 )
                 task._notify_owner(
-                    "Codex plán čaká na schválenie",
-                    "\n\n".join([approval_note, plan_detail]),
+                    "Plán pripravený na schválenie",
+                    approval_note,
+                    plan_detail,
                 )
             elif not approval_required and previous_status != "in_progress":
                 task._notify_owner(
-                    "Codex plán je hotový – implementácia začína",
-                    "\n\n".join(
-                        [
-                            "Plánovanie je dokončené a implementácia sa teraz spúšťa automaticky.",
-                            plan_detail,
-                        ]
-                    ),
+                    "Terra začal implementáciu",
+                    "Netreba nič robiť. Keď budú úpravy pripravené, príde samostatné upozornenie na kontrolu.",
+                    "Plánovanie je dokončené. {}".format(plan_detail),
                 )
         return {"task_id": task.id, "status": task.status, "approval_required": approval_required}
 
@@ -735,13 +757,25 @@ class SaasImplementationPlanItem(models.Model):
             [("claimed_by_run_id", "=", run.id), ("state", "=", "leased")]
         ).write({"state": "processed"})
         if task.owner_id and previous_status != "ready_for_review":
+            review_note = "\n\n".join(
+                [
+                    "Čo sa spravilo:",
+                    summary,
+                    "Čo treba skontrolovať:",
+                    checklist,
+                ]
+            )
             task.activity_schedule(
                 "mail.mail_activity_data_todo",
                 user_id=task.owner_id.id,
-                summary="Skontrolovať dokončené úpravy",
-                note=checklist,
+                summary="Skontrolovať úpravy: {}".format(task.name),
+                note=review_note,
             )
-            task._notify_owner("Dokončené úpravy čakajú na kontrolu", checklist)
+            task._notify_owner(
+                "Úpravy pripravené na kontrolu",
+                "Otvor úlohu, over body nižšie a potom ju schváľ alebo vlož internú poznámku s opravou.",
+                review_note,
+            )
         return {"task_id": task.id, "status": task.status}
 
     @api.model
@@ -755,7 +789,14 @@ class SaasImplementationPlanItem(models.Model):
         run.write({"phase": "blocked", "finished_at": fields.Datetime.now(), "safe_error": reason[:20000]})
         task.write({"status": "blocked", "blocker": reason[:20000]})
         if task.owner_id:
-            task.activity_schedule("mail.mail_activity_data_todo", user_id=task.owner_id.id, summary="Rozhodnutie potrebné", note=reason)
+            next_step = "Otvor úlohu a rozhodni podľa blokéra. Po doplnení vlož internú poznámku, aby Terra pokračoval v tom istom chate."
+            task.activity_schedule(
+                "mail.mail_activity_data_todo",
+                user_id=task.owner_id.id,
+                summary="Rozhodnutie potrebné: {}".format(task.name),
+                note="\n\n".join(["Prečo sa práca zastavila:", reason, "Čo spraviť teraz:", next_step]),
+            )
+            task._notify_owner("Rozhodnutie potrebné", next_step, "Prečo sa práca zastavila:\n{}".format(reason))
         return {"task_id": task.id, "status": task.status}
 
     @api.model

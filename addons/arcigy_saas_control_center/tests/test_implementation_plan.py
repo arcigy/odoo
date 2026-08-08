@@ -119,11 +119,12 @@ class TestSaasImplementationPlan(TransactionCase):
         self.assertEqual(item.current_codex_run_id.phase, "ready")
         self.assertEqual(worker_plan._codex_payload(item)["plan_model"], "gpt-5.6-sol")
         plan_message = item.message_ids.filtered(
-            lambda message: "Codex plán je hotový" in (message.body or "")
+            lambda message: "Terra začal implementáciu" in (message.body or "")
         )
         self.assertEqual(len(plan_message), 1)
         self.assertEqual(plan_message.author_id, self.env.ref("base.partner_root"))
-        self.assertIn("Inspect the current contract", plan_message.body)
+        self.assertEqual(plan_message.subject, "Arcigy · Terra začal implementáciu · Codex workflow contract")
+        self.assertNotIn("Inspect the current contract", plan_message.body)
         execution = worker_plan.codex_claim_execution(
             {"task_id": item.id, "worker_name": "executor", "lease_minutes": 30}
         )
@@ -145,18 +146,22 @@ class TestSaasImplementationPlan(TransactionCase):
         self.assertEqual(item.current_codex_run_id.phase, "ready")
         self.assertTrue(
             item.activity_ids.filtered(
-                lambda activity: activity.summary == "Skontrolovať dokončené úpravy"
+                lambda activity: activity.summary == "Skontrolovať úpravy: Codex workflow contract"
             )
         )
         self.assertTrue(
             item.message_ids.filtered(
-                lambda message: "Dokončené úpravy čakajú na kontrolu" in (message.body or "")
+                lambda message: "Úpravy pripravené na kontrolu" in (message.body or "")
             )
         )
         lifecycle_message = item.message_ids.filtered(
-            lambda message: "Dokončené úpravy čakajú na kontrolu" in (message.body or "")
+            lambda message: "Úpravy pripravené na kontrolu" in (message.body or "")
         )
         self.assertEqual(lifecycle_message.author_id, self.env.ref("base.partner_root"))
+        self.assertEqual(lifecycle_message.subject, "Arcigy · Úpravy pripravené na kontrolu · Codex workflow contract")
+        self.assertIn("Úloha:", lifecycle_message.body)
+        self.assertIn("Čo treba skontrolovať:", lifecycle_message.body)
+        self.assertIn("Otvoriť túto úlohu", lifecycle_message.body)
 
     def test_approval_ready_plan_notifies_the_owner_without_reopening_the_task(self):
         plan = self.env["saas.implementation.plan.item"]
@@ -193,17 +198,45 @@ class TestSaasImplementationPlan(TransactionCase):
         self.assertEqual(item.status, "awaiting_approval")
         self.assertTrue(
             item.activity_ids.filtered(
-                lambda activity: activity.summary == "Schváliť Codex plán"
+                lambda activity: activity.summary == "Schváliť plán: Approval notification contract"
             )
         )
         self.assertTrue(item.message_ids.filtered(
-            lambda message: "Codex plán čaká na schválenie" in (message.body or "")
+            lambda message: "Plán pripravený na schválenie" in (message.body or "")
         ))
         lifecycle_message = item.message_ids.filtered(
-            lambda message: "Codex plán čaká na schválenie" in (message.body or "")
+            lambda message: "Plán pripravený na schválenie" in (message.body or "")
         )
         self.assertEqual(lifecycle_message.author_id, self.env.ref("base.partner_root"))
-        self.assertIn("Inspect the release contract", lifecycle_message.body)
+        self.assertEqual(lifecycle_message.subject, "Arcigy · Plán pripravený na schválenie · Approval notification contract")
+        self.assertIn("Teraz:", lifecycle_message.body)
+        self.assertIn("Čaká na schválenie", lifecycle_message.body)
+        self.assertNotIn("Inspect the release contract", lifecycle_message.body)
+
+    def test_lifecycle_notification_has_a_consistent_mobile_layout(self):
+        item = self._administrator_plan().create(
+            {
+                "name": "Clear mobile notification",
+                "priority": "p1",
+                "scope": "cross_system",
+                "status": "blocked",
+            }
+        )
+        item._notify_owner(
+            "Rozhodnutie potrebné",
+            "Otvor úlohu a doplň rozhodnutie.",
+            "Prečo sa práca zastavila:\nChýba bezpečné schválenie.",
+        )
+        message = item.message_ids.filtered(
+            lambda candidate: candidate.subject == "Arcigy · Rozhodnutie potrebné · Clear mobile notification"
+        )
+        self.assertTrue(message)
+        self.assertIn("Úloha:", message.body)
+        self.assertIn("Stav:", message.body)
+        self.assertIn("Zablokované", message.body)
+        self.assertIn("Teraz:", message.body)
+        self.assertIn("Detaily:", message.body)
+        self.assertIn("Otvoriť túto úlohu", message.body)
 
     def test_administrator_approval_queues_the_same_saved_plan_for_terra(self):
         item = self._administrator_plan().create(
