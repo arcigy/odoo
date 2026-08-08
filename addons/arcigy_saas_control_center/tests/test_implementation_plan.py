@@ -144,6 +144,10 @@ class TestSaasImplementationPlan(TransactionCase):
                 lambda message: "Dokončené úpravy čakajú na kontrolu" in (message.body or "")
             )
         )
+        lifecycle_message = item.message_ids.filtered(
+            lambda message: "Dokončené úpravy čakajú na kontrolu" in (message.body or "")
+        )
+        self.assertEqual(lifecycle_message.author_id, self.env.ref("base.partner_root"))
 
     def test_approval_ready_plan_notifies_the_owner_without_reopening_the_task(self):
         plan = self.env["saas.implementation.plan.item"]
@@ -188,6 +192,10 @@ class TestSaasImplementationPlan(TransactionCase):
                 lambda message: "Codex plán čaká na schválenie" in (message.body or "")
             )
         )
+        lifecycle_message = item.message_ids.filtered(
+            lambda message: "Codex plán čaká na schválenie" in (message.body or "")
+        )
+        self.assertEqual(lifecycle_message.author_id, self.env.ref("base.partner_root"))
 
     def test_codex_worker_can_claim_an_exact_eligible_task_id(self):
         plan = self.env["saas.implementation.plan.item"]

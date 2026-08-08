@@ -176,11 +176,20 @@ class SaasImplementationPlanItem(models.Model):
         body = Markup("<p><strong>{}</strong></p><p>{}</p>").format(
             escape(summary), escape(detail)
         )
+        # Odoo deliberately skips web-push delivery to the message author.
+        # The queue worker may run as the task owner, so system lifecycle
+        # notifications must be authored by OdooBot to remain deliverable.
+        odoo_bot = self.env.ref("base.partner_root", raise_if_not_found=False)
+        post_values = {
+            "body": body,
+            "message_type": "notification",
+            "subtype_xmlid": "mail.mt_comment",
+            "partner_ids": [partner.id],
+        }
+        if odoo_bot:
+            post_values["author_id"] = odoo_bot.id
         self.with_context(mail_notify_force_send=False).message_post(
-            body=body,
-            message_type="notification",
-            subtype_xmlid="mail.mt_comment",
-            partner_ids=[partner.id],
+            **post_values,
         )
 
     def message_post(self, **kwargs):
