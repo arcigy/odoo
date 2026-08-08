@@ -239,6 +239,10 @@ class TestSaasImplementationPlan(TransactionCase):
         self.assertIn("Otvoriť túto úlohu", message.body)
 
     def test_administrator_approval_queues_the_same_saved_plan_for_terra(self):
+        form_view = self.env.ref(
+            "arcigy_saas_control_center.view_saas_implementation_plan_item_form"
+        )
+        self.assertIn('string="Implementovať plán (Terra)"', form_view.arch_db)
         item = self._administrator_plan().create(
             {
                 "name": "Approve and continue on Terra",
