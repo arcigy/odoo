@@ -115,6 +115,12 @@ class TestSaasImplementationPlan(TransactionCase):
         self.assertEqual(item.status, "in_progress")
         self.assertEqual(item.current_codex_run_id.phase, "ready")
         self.assertEqual(worker_plan._codex_payload(item)["plan_model"], "gpt-5.6-sol")
+        plan_message = item.message_ids.filtered(
+            lambda message: "Codex plán je hotový" in (message.body or "")
+        )
+        self.assertEqual(len(plan_message), 1)
+        self.assertEqual(plan_message.author_id, self.env.ref("base.partner_root"))
+        self.assertIn("Inspect the current contract", plan_message.body)
         execution = worker_plan.codex_claim_execution(
             {"task_id": item.id, "worker_name": "executor", "lease_minutes": 30}
         )
@@ -187,15 +193,14 @@ class TestSaasImplementationPlan(TransactionCase):
                 lambda activity: activity.summary == "Schváliť Codex plán"
             )
         )
-        self.assertTrue(
-            item.message_ids.filtered(
-                lambda message: "Codex plán čaká na schválenie" in (message.body or "")
-            )
-        )
+        self.assertTrue(item.message_ids.filtered(
+            lambda message: "Codex plán čaká na schválenie" in (message.body or "")
+        ))
         lifecycle_message = item.message_ids.filtered(
             lambda message: "Codex plán čaká na schválenie" in (message.body or "")
         )
         self.assertEqual(lifecycle_message.author_id, self.env.ref("base.partner_root"))
+        self.assertIn("Inspect the release contract", lifecycle_message.body)
 
     def test_codex_worker_can_claim_an_exact_eligible_task_id(self):
         plan = self.env["saas.implementation.plan.item"]

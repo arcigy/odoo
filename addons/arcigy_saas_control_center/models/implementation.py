@@ -403,18 +403,38 @@ class SaasImplementationPlanItem(models.Model):
                 "test_summary": "Implementation plan saved and handed off to the execution task.",
             }
         )
-        if approval_required and previous_status != "awaiting_approval" and task.owner_id:
-            approval_note = (
-                "Plán je hotový. Otvor úlohu, prečítaj kartu Plan a potom ju "
-                "schváľ alebo vráť s poznámkou na opravu."
+        if task.owner_id:
+            plan_detail = "\n\n".join(
+                [
+                    "Plán je uložený v karte Plan tejto úlohy.",
+                    plan,
+                ]
             )
-            task.activity_schedule(
-                "mail.mail_activity_data_todo",
-                user_id=task.owner_id.id,
-                summary="Schváliť Codex plán",
-                note=approval_note,
-            )
-            task._notify_owner("Codex plán čaká na schválenie", approval_note)
+            if approval_required and previous_status != "awaiting_approval":
+                approval_note = (
+                    "Plán je hotový. Otvor úlohu, prečítaj kartu Plan a potom ju "
+                    "schváľ alebo vráť s poznámkou na opravu."
+                )
+                task.activity_schedule(
+                    "mail.mail_activity_data_todo",
+                    user_id=task.owner_id.id,
+                    summary="Schváliť Codex plán",
+                    note=approval_note,
+                )
+                task._notify_owner(
+                    "Codex plán čaká na schválenie",
+                    "\n\n".join([approval_note, plan_detail]),
+                )
+            elif not approval_required and previous_status != "in_progress":
+                task._notify_owner(
+                    "Codex plán je hotový – implementácia začína",
+                    "\n\n".join(
+                        [
+                            "Plánovanie je dokončené a implementácia sa teraz spúšťa automaticky.",
+                            plan_detail,
+                        ]
+                    ),
+                )
         return {"task_id": task.id, "status": task.status, "approval_required": approval_required}
 
     @api.model
