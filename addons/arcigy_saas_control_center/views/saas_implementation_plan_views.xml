@@ -23,6 +23,7 @@
         <field name="arch" type="xml">
             <form>
                 <header>
+                    <button name="action_approve_plan" type="object" string="Schváliť plán a spustiť Terra" class="btn-primary" invisible="status != 'awaiting_approval'" groups="arcigy_saas_control_center.group_saas_administrator"/>
                     <button name="action_mark_done" type="object" string="Schvalit" class="btn-primary" invisible="status != 'ready_for_review'"/>
                     <button name="action_request_changes" type="object" string="Vratit na opravu" invisible="status != 'ready_for_review'"/>
                     <button name="action_retry_automation" type="object" string="Skusit znovu" class="btn-primary" invisible="status != 'blocked'"/>

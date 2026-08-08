@@ -1,3 +1,6 @@
+from unittest.mock import patch
+
+from odoo import fields
 from odoo.tests.common import TransactionCase
 from odoo.exceptions import AccessError, ValidationError
 
@@ -202,6 +205,62 @@ class TestSaasImplementationPlan(TransactionCase):
         self.assertEqual(lifecycle_message.author_id, self.env.ref("base.partner_root"))
         self.assertIn("Inspect the release contract", lifecycle_message.body)
 
+    def test_administrator_approval_queues_the_same_saved_plan_for_terra(self):
+        item = self._administrator_plan().create(
+            {
+                "name": "Approve and continue on Terra",
+                "priority": "p1",
+                "scope": "arcigy",
+                "status": "awaiting_approval",
+                "implementation_plan": "Use the existing thread, implement the reviewed contract, and record the verification evidence.",
+                "codex_thread_id": "thr_approve_on_terra",
+            }
+        )
+        with patch.object(type(item), "_schedule_codex_webhook", autospec=True, return_value=True) as callback:
+            result = item.action_approve_plan()
+        self.assertEqual(item.status, "in_progress")
+        callback.assert_called_once_with(item, "execution")
+        self.assertEqual(result["tag"], "display_notification")
+
+    def test_claim_next_execution_recovers_an_approved_task_in_its_original_chat(self):
+        plan = self.env["saas.implementation.plan.item"]
+        group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {
+                "name": "Codex approved execution worker",
+                "login": "codex-approved-execution@example.invalid",
+                "group_ids": [(6, 0, [group.id])],
+            }
+        )
+        item = self._administrator_plan().create(
+            {
+                "name": "Recover approved execution",
+                "priority": "p1",
+                "scope": "arcigy",
+                "status": "in_progress",
+                "implementation_plan": "Implement the already approved plan in the original Codex conversation.",
+                "codex_thread_id": "thr_recover_approved_execution",
+            }
+        )
+        planning_run = self.env["saas.implementation.plan.run"].create(
+            {
+                "task_id": item.id,
+                "run_token": "approved_execution_planning_token",
+                "worker_name": "planner",
+                "phase": "ready",
+                "plan_model": "gpt-5.6-sol",
+                "lease_expires_at": fields.Datetime.add(fields.Datetime.now(), minutes=30),
+            }
+        )
+        item.write({"current_codex_run_id": planning_run.id})
+        execution = plan.with_user(worker).codex_claim_next_execution(
+            {"worker_name": "recovery", "lease_minutes": 30}
+        )
+        self.assertEqual(execution["task"]["id"], item.id)
+        self.assertEqual(execution["task"]["codex_thread_id"], "thr_recover_approved_execution")
+        self.assertEqual(execution["task"]["plan_model"], "gpt-5.6-sol")
+        self.assertEqual(item.current_codex_run_id.phase, "implementing")
+
     def test_codex_worker_can_claim_an_exact_eligible_task_id(self):
         plan = self.env["saas.implementation.plan.item"]
         group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
@@ -393,11 +452,14 @@ class TestSaasImplementationPlan(TransactionCase):
                 "review_checklist": "Open the implementation plan and verify that the prepared result is available after reload.",
             }
         )
-        item.message_post(body="First correction: retain the existing layout.", subtype_xmlid="mail.mt_note")
-        item.message_post(body="Second correction: add the missing mobile check.", subtype_xmlid="mail.mt_note")
+        with patch.object(type(item), "_schedule_codex_webhook", autospec=True, return_value=True) as callback:
+            item.message_post(body="First correction: retain the existing layout.", subtype_xmlid="mail.mt_note")
+            item.message_post(body="Second correction: add the missing mobile check.", subtype_xmlid="mail.mt_note")
         self.assertEqual(item.status, "changes_requested")
         self.assertEqual(item.review_feedback_ids.mapped("sequence"), [1, 2])
         self.assertEqual(item.review_feedback_ids.mapped("state"), ["pending", "pending"])
+        self.assertEqual(callback.call_count, 2)
+        callback.assert_called_with(item, "review")
 
         claimed = plan.with_user(worker).codex_claim_review_followup({"worker_name": "review-test"})
         self.assertEqual(claimed["task"]["id"], item.id)

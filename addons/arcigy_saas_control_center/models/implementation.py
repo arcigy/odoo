@@ -4,6 +4,16 @@ The JSON-2 methods in this file deliberately expose only a narrow task workflow.
 They are not a generic Odoo RPC bridge and cannot create arbitrary business data.
 """
 
+import hashlib
+import hmac
+import ipaddress
+import json
+import logging
+from datetime import datetime, timezone
+from functools import partial
+from urllib.error import URLError
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 from uuid import uuid4
 
 from markupsafe import Markup, escape
@@ -25,6 +35,9 @@ RUN_PHASES = [
     ("ready", "Pripravené"),
     ("blocked", "Zablokované"),
 ]
+_LOGGER = logging.getLogger(__name__)
+WEBHOOK_URL_PARAMETER = "arcigy_saas_control_center.codex_webhook_url"
+WEBHOOK_SECRET_PARAMETER = "arcigy_saas_control_center.codex_webhook_secret"
 
 
 class SaasImplementationPlanRun(models.Model):
@@ -192,6 +205,65 @@ class SaasImplementationPlanItem(models.Model):
             **post_values,
         )
 
+    @staticmethod
+    def _codex_webhook_url_is_safe(webhook_url):
+        """Accept only a tailnet-local callback; never turn task state into SSRF."""
+        parsed = urlparse(webhook_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return False
+        if parsed.username or parsed.password or parsed.query or parsed.fragment:
+            return False
+        try:
+            return ipaddress.ip_address(parsed.hostname) in ipaddress.ip_network("100.64.0.0/10")
+        except ValueError:
+            return parsed.scheme == "https" and parsed.hostname.endswith(".ts.net")
+
+    @staticmethod
+    def _deliver_codex_webhook(webhook_url, secret, action, task_id):
+        """Run after commit so the local worker can claim the fresh Odoo state."""
+        timestamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        raw_body = json.dumps(
+            {"version": 1, "action": action, "task_id": task_id},
+            separators=(",", ":"),
+        ).encode("utf-8")
+        signature = hmac.new(
+            secret.encode("utf-8"), timestamp.encode("utf-8") + b"\n" + raw_body, hashlib.sha256
+        ).hexdigest()
+        request = Request(
+            webhook_url,
+            data=raw_body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Arcigy-Timestamp": timestamp,
+                "X-Arcigy-Signature": f"sha256={signature}",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=5) as response:
+                if not 200 <= response.status < 300:
+                    raise URLError(f"unexpected callback status {response.status}")
+        except (OSError, URLError, ValueError) as error:
+            # The state is already durable. The quiet queue runner remains the
+            # recovery path and no task content or shared secret is logged.
+            _LOGGER.warning("Codex callback could not start task %s (%s): %s", task_id, action, type(error).__name__)
+
+    def _schedule_codex_webhook(self, action):
+        """Schedule one local callback after the Odoo write commits successfully."""
+        self.ensure_one()
+        if action not in {"execution", "review"}:
+            raise ValidationError("Unsupported Codex callback action.")
+        parameters = self.env["ir.config_parameter"].sudo()
+        webhook_url = (parameters.get_param(WEBHOOK_URL_PARAMETER) or "").strip()
+        secret = parameters.get_param(WEBHOOK_SECRET_PARAMETER) or ""
+        if not self._codex_webhook_url_is_safe(webhook_url) or len(secret) < 32:
+            _LOGGER.warning("Codex callback is not configured; task %s stays in the recovery queue.", self.id)
+            return False
+        self.env.cr.postcommit.add(
+            partial(self._deliver_codex_webhook, webhook_url, secret, action, self.id)
+        )
+        return True
+
     def message_post(self, **kwargs):
         """Turn every confirmed internal review note into durable, ordered rework input.
 
@@ -220,6 +292,7 @@ class SaasImplementationPlanItem(models.Model):
                 }
             )
             task.write({"status": "changes_requested"})
+            task._schedule_codex_webhook("review")
         return message
 
     def unlink(self):
@@ -463,11 +536,40 @@ class SaasImplementationPlanItem(models.Model):
                 "run_token": token,
                 "worker_name": worker_name,
                 "phase": "implementing",
+                "plan_model": current_run.plan_model if current_run else "",
                 "lease_expires_at": fields.Datetime.add(now, minutes=lease_minutes),
             }
         )
         task.write({"current_codex_run_id": run.id})
         return {"task": self._codex_payload(task), "run_token": token, "run_id": run.id}
+
+    @api.model
+    def codex_claim_next_execution(self, payload):
+        """Recover one already-approved task when the instant callback was unavailable."""
+        self._ensure_codex_access()
+        payload = self._codex_require_payload(payload)
+        worker_name = str(payload.get("worker_name") or "codex-executor").strip()[:120]
+        lease_minutes = payload.get("lease_minutes", 180)
+        if not isinstance(lease_minutes, int) or lease_minutes < 15 or lease_minutes > 240:
+            raise ValidationError("lease_minutes must be between 15 and 240.")
+        self._codex_lock_queue()
+        task = self.search(
+            [
+                ("status", "=", "in_progress"),
+                ("priority", "!=", "p2"),
+                ("implementation_plan", "!=", False),
+                ("codex_thread_id", "!=", False),
+                ("current_codex_run_id.phase", "in", ["ready", "blocked"]),
+                *self._codex_administrator_task_domain(),
+            ],
+            order="sequence, id",
+            limit=1,
+        )
+        if not task:
+            return {"task": False, "reason": "queue_empty"}
+        return self.codex_claim_execution(
+            {"task_id": task.id, "worker_name": worker_name, "lease_minutes": lease_minutes}
+        )
 
     @api.model
     def codex_claim_review_followup(self, payload):
@@ -482,6 +584,9 @@ class SaasImplementationPlanItem(models.Model):
         lease_minutes = payload.get("lease_minutes", 180)
         if not isinstance(lease_minutes, int) or lease_minutes < 15 or lease_minutes > 240:
             raise ValidationError("lease_minutes must be between 15 and 240.")
+        requested_task_id = payload.get("task_id")
+        if requested_task_id is not None and (not isinstance(requested_task_id, int) or requested_task_id < 1):
+            raise ValidationError("task_id must be a positive integer when provided.")
         self._codex_lock_queue()
         candidates = self.search(
             [
@@ -493,6 +598,8 @@ class SaasImplementationPlanItem(models.Model):
             ],
             order="sequence, id",
         )
+        if requested_task_id:
+            candidates = candidates.filtered(lambda candidate: candidate.id == requested_task_id)
         task = candidates[:1]
         if not task:
             return {"task": False, "reason": "queue_empty"}
@@ -718,8 +825,34 @@ class SaasImplementationPlanItem(models.Model):
     def action_mark_done(self):
         for task in self:
             task.write({"status": "done"})
-            task.activity_feedback(feedback="Marked done by reviewer.")
+            task.activity_feedback(["mail.mail_activity_data_todo"], feedback="Marked done by reviewer.")
         return True
+
+    def action_approve_plan(self):
+        """Approve a gated plan and wake its existing Codex conversation on Terra."""
+        if not self.env.user.has_group(ADMIN_GROUP):
+            raise AccessError("Only an Arcigy SaaS Administrator may approve a Codex plan.")
+        for task in self:
+            if task.status != "awaiting_approval":
+                raise ValidationError("Only a plan waiting for approval can be approved.")
+            self._ensure_codex_administrator_task(task)
+            if not task.codex_thread_id or not (task.implementation_plan or "").strip():
+                raise ValidationError("The approved plan is missing its Codex conversation or saved plan.")
+            task.write({"status": "in_progress"})
+            task.activity_feedback(
+                ["mail.mail_activity_data_todo"], feedback="Codex plan approved; Terra execution requested."
+            )
+            task._schedule_codex_webhook("execution")
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Plán schválený",
+                "message": "Terra pokračuje v existujúcom Codex chate.",
+                "type": "success",
+                "sticky": False,
+            },
+        }
 
     def action_request_changes(self):
         for task in self:
