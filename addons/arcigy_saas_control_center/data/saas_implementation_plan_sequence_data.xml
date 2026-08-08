@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Rebuild the queue after every module upgrade without changing task content. -->
+    <function model="saas.implementation.plan.item" name="_normalize_sequence"/>
+</odoo>

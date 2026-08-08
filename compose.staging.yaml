@@ -1,0 +1,55 @@
+# Local-only Odoo staging. It never reuses production volumes or publishes a public port.
+name: arcigy-odoo-staging
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${ODOO_DB_USER:-odoo}
+      POSTGRES_PASSWORD: ${ODOO_DB_PASSWORD:?Set ODOO_DB_PASSWORD in .env.staging.local}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - arcigy-odoo-staging-db:/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ODOO_DB_USER:-odoo} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  odoo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # Tailscale Serve owns the tailnet address and forwards it to this loopback port.
+    ports:
+      - "127.0.0.1:8071:8069"
+    environment:
+      HOST: db
+      PORT: 5432
+      USER: ${ODOO_DB_USER:-odoo}
+      PASSWORD: ${ODOO_DB_PASSWORD:?Set ODOO_DB_PASSWORD in .env.staging.local}
+      ODOO_DB_NAME: ${ODOO_DB_NAME:-arcigy_odoo_staging}
+      GEOTHERM_API_KEY: ${ODOO_API_KEY:?Set ODOO_API_KEY in .env.staging.local}
+      GEOTHERM_WEBHOOK_SECRET: ${ODOO_WEBHOOK_SECRET:?Set ODOO_WEBHOOK_SECRET in .env.staging.local}
+      ODOO_MASTER_PASSWORD: ${ODOO_MASTER_PASSWORD:?Set ODOO_MASTER_PASSWORD in .env.staging.local}
+    command:
+      - odoo
+      - --init=geotherm_chatbot,geotherm_drive,arcigy_saas_control_center
+      - --update=geotherm_chatbot,geotherm_drive,arcigy_saas_control_center
+      - --without-demo
+      - --db-filter=^${ODOO_DB_NAME:-arcigy_odoo_staging}$
+      - --max-cron-threads=0
+    volumes:
+      - arcigy-odoo-staging-data:/var/lib/odoo
+      - ./config:/etc/odoo:ro
+      - ./addons:/mnt/extra-addons:ro
+
+volumes:
+  arcigy-odoo-staging-db:
+  arcigy-odoo-staging-data:

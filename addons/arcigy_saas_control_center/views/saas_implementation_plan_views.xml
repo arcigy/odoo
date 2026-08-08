@@ -4,8 +4,17 @@
         <field name="name">saas.implementation.plan.item.list</field>
         <field name="model">saas.implementation.plan.item</field>
         <field name="arch" type="xml">
-            <list default_order="priority, sequence, id" decoration-danger="priority == 'p0'" decoration-warning="priority == 'p1'">
-                <field name="priority" widget="badge"/><field name="status" widget="badge"/><field name="name"/><field name="scope"/><field name="owner_id"/><field name="next_action" optional="hide"/>
+            <list default_order="sequence, id" decoration-danger="priority == 'p0'" decoration-warning="priority == 'p1'" decoration-success="status == 'ready_for_review'">
+                <field name="sequence" string="Poradie"/>
+                <field name="status" widget="badge"/>
+                <field name="name"/>
+                <field name="workflow_mode"/>
+                <field name="target_repository"/>
+                <field name="target_environment"/>
+                <field name="priority" widget="badge" optional="hide"/>
+                <field name="owner_id"/>
+                <field name="review_checklist" string="Co skontrolovat"/>
+                <field name="next_action" optional="hide"/>
             </list>
         </field>
     </record>
@@ -14,15 +23,124 @@
         <field name="model">saas.implementation.plan.item</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button name="action_approve_plan" type="object" string="Schváliť plán a spustiť Terra" class="btn-primary" invisible="status != 'awaiting_approval'" groups="arcigy_saas_control_center.group_saas_administrator"/>
+                    <button name="action_mark_done" type="object" string="Schvalit" class="btn-primary" invisible="status != 'ready_for_review'"/>
+                    <button name="action_request_changes" type="object" string="Vratit na opravu" invisible="status != 'ready_for_review'"/>
+                    <button name="action_retry_automation" type="object" string="Skusit znovu" class="btn-primary" invisible="status != 'blocked'"/>
+                    <button name="action_start_direct_implementation" type="object" string="Spustiť priamu implementáciu" class="btn-primary" invisible="not (status == 'planned' and workflow_mode == 'direct')" groups="arcigy_saas_control_center.group_saas_administrator"/>
+                    <button name="unlink" type="object" string="Vymazat ulohu" confirm="Naozaj vymazat tuto ulohu? Ostatne ulohy sa automaticky spravne precisluju."/>
+                    <field name="status" widget="statusbar" statusbar_visible="planned,planning,awaiting_approval,waiting_execution,in_progress,testing,deploying,ready_for_review,changes_requested,split,blocked,done"/>
+                </header>
                 <sheet>
                     <div class="oe_title"><h1><field name="name"/></h1></div>
-                    <group><group><field name="priority"/><field name="status"/><field name="scope"/><field name="owner_id"/><field name="sequence"/></group><group><field name="source_document" readonly="1"/></group></group>
-                    <group string="Execution"><field name="next_action"/><field name="acceptance_criteria"/><field name="blocker" invisible="status != 'blocked'"/></group>
+                    <!-- Do not gate this mobile action with a view-level group filter.
+                         Odoo's mobile client can cache that filtered architecture and
+                         hide the action from an administrator.  The object method
+                         still enforces the administrator permission server-side. -->
+                    <div class="o_arcigy_implementation_action" invisible="status != 'awaiting_approval'">
+                        <button name="action_approve_plan" type="object" string="Implementovať plán (Terra)" class="btn-primary oe_highlight"/>
+                        <p>Plán je pripravený. Po stlačení Terra okamžite pokračuje v existujúcom Codex chate.</p>
+                    </div>
+                    <div class="o_arcigy_implementation_action" invisible="not (status == 'planned' and workflow_mode == 'direct')">
+                        <button name="action_start_direct_implementation" type="object" string="Spustiť priamu implementáciu (Terra)" class="btn-primary oe_highlight"/>
+                        <p>Pre low/medium-risk úlohu: bez plánovania, zaradí sa priamo do jedinej fronty Terra.</p>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="sequence"/>
+                            <field name="priority"/>
+                            <field name="workflow_mode"/>
+                            <field name="scope"/>
+                            <field name="target_repository"/>
+                            <field name="target_environment"/>
+                            <field name="risk_level"/>
+                            <field name="owner_id"/>
+                            <field name="daily_batch_date" readonly="1"/>
+                            <field name="daily_batch_slot" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="source_document" readonly="1"/>
+                            <field name="parent_id" readonly="1"/>
+                            <field name="current_codex_run_id" readonly="1"/>
+                            <field name="codex_thread_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Zadanie">
+                            <field name="full_prompt" placeholder="Cele zadanie pre Codex..."/>
+                            <field name="acceptance_criteria"/>
+                            <field name="next_action"/>
+                        </page>
+                        <page string="Plan">
+                            <field name="implementation_plan" readonly="status not in ['planned','changes_requested','planning']"/>
+                            <field name="plan_version" readonly="1"/>
+                        </page>
+                        <page string="Vysledok">
+                            <field name="result_summary" readonly="1"/>
+                            <field name="review_checklist" required="status == 'ready_for_review'"/>
+                            <field name="blocker" invisible="status != 'blocked'" readonly="1"/>
+                            <field name="followup_notes"/>
+                            <field name="review_feedback_ids" readonly="1">
+                                <list>
+                                    <field name="sequence"/>
+                                    <field name="state" widget="badge"/>
+                                    <field name="body"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Codex behy">
+                            <field name="codex_run_ids" readonly="1">
+                                <list>
+                                    <field name="started_at"/><field name="phase"/><field name="worker_name"/>
+                                    <field name="branch_name"/><field name="commit_sha"/>
+                                    <field name="pull_request_url" widget="url"/>
+                                    <field name="deployment_url" widget="url"/>
+                                    <field name="test_summary"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Podulohy" invisible="not child_ids">
+                            <field name="child_ids" readonly="1">
+                                <list><field name="sequence"/><field name="status"/><field name="name"/><field name="review_checklist"/></list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
+                <chatter/>
             </form>
         </field>
     </record>
     <record id="action_saas_implementation_plan_items" model="ir.actions.act_window">
-        <field name="name">Implementation plan</field><field name="res_model">saas.implementation.plan.item</field><field name="view_mode">list,form</field>
+        <field name="name">Implementation plan</field>
+        <field name="res_model">saas.implementation.plan.item</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <record id="view_saas_implementation_plan_item_kanban" model="ir.ui.view">
+        <field name="name">saas.implementation.plan.item.kanban</field>
+        <field name="model">saas.implementation.plan.item</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="status" default_order="sequence, id" class="o_arcigy_implementation_queue">
+                <field name="name"/>
+                <field name="sequence"/>
+                <field name="priority"/>
+                <field name="risk_level"/>
+                <field name="workflow_mode"/>
+                <field name="review_checklist"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="o_kanban_record_title"><field name="sequence"/> – <field name="name"/></div>
+                        <div><field name="priority"/> · <field name="risk_level"/> · <field name="workflow_mode"/></div>
+                        <div t-if="record.review_checklist.raw_value"><strong>Skontrolovať:</strong> <field name="review_checklist"/></div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+    <record id="action_saas_implementation_queue_board" model="ir.actions.act_window">
+        <field name="name">Riadiaci panel fronty</field>
+        <field name="res_model">saas.implementation.plan.item</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="context">{'group_by': 'status'}</field>
     </record>
 </odoo>
