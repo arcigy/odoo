@@ -82,6 +82,80 @@ class TestSaasImplementationPlan(TransactionCase):
         )
         self.assertEqual(execution["task"]["plan_model"], "gpt-5.6-sol")
 
+    def test_low_risk_direct_task_skips_sol_and_uses_the_single_terra_waitlist(self):
+        plan = self.env["saas.implementation.plan.item"]
+        group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {
+                "name": "Codex direct worker",
+                "login": "codex-direct@example.invalid",
+                "group_ids": [(6, 0, [group.id])],
+            }
+        )
+        item = self._administrator_plan().create(
+            {
+                "name": "Direct low-risk change",
+                "priority": "p1",
+                "scope": "odoo",
+                "workflow_mode": "direct",
+                "risk_level": "low",
+            }
+        )
+        with patch.object(type(item), "_schedule_codex_webhook", autospec=True, return_value=True):
+            item.action_start_direct_implementation()
+        self.assertEqual(item.status, "waiting_execution")
+        execution = plan.with_user(worker).codex_claim_execution(
+            {"task_id": item.id, "worker_name": "direct-executor", "lease_minutes": 30}
+        )
+        self.assertEqual(execution["task"]["id"], item.id)
+        self.assertEqual(execution["task"]["workflow_mode"], "direct")
+        self.assertFalse(execution["task"]["plan_model"])
+        self.assertEqual(item.status, "in_progress")
+        self.assertEqual(item.current_codex_run_id.execute_model, "gpt-5.6-terra")
+
+    def test_only_one_terra_execution_can_be_leased_at_once(self):
+        plan = self.env["saas.implementation.plan.item"]
+        group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {
+                "name": "Codex serial executor",
+                "login": "codex-serial@example.invalid",
+                "group_ids": [(6, 0, [group.id])],
+            }
+        )
+        first = self._administrator_plan().create(
+            {"name": "First direct execution", "priority": "p1", "scope": "odoo", "workflow_mode": "direct", "risk_level": "low"}
+        )
+        second = self._administrator_plan().create(
+            {"name": "Second direct execution", "priority": "p1", "scope": "odoo", "workflow_mode": "direct", "risk_level": "low"}
+        )
+        first.write({"status": "waiting_execution"})
+        second.write({"status": "waiting_execution"})
+        worker_plan = plan.with_user(worker)
+        skipped = worker_plan.codex_claim_execution({"task_id": second.id, "worker_name": "serial", "lease_minutes": 30})
+        self.assertFalse(skipped["task"])
+        self.assertEqual(skipped["reason"], "waiting_for_earlier_execution")
+        first_execution = worker_plan.codex_claim_execution({"task_id": first.id, "worker_name": "serial", "lease_minutes": 30})
+        self.assertTrue(first_execution["task"])
+        second_execution = worker_plan.codex_claim_execution({"task_id": second.id, "worker_name": "serial", "lease_minutes": 30})
+        self.assertFalse(second_execution["task"])
+        self.assertEqual(second_execution["reason"], "execution_busy")
+        self.assertEqual(second.status, "waiting_execution")
+
+    def test_high_risk_direct_task_is_rejected_before_terra(self):
+        item = self._administrator_plan().create(
+            {
+                "name": "Unsafe direct change",
+                "priority": "p0",
+                "scope": "cross_system",
+                "workflow_mode": "direct",
+                "risk_level": "high",
+            }
+        )
+        with self.assertRaises(ValidationError):
+            item.action_start_direct_implementation()
+        self.assertEqual(item.status, "planned")
+
     def test_approved_blocked_item_retries_terra_without_creating_a_plan_chat(self):
         plan = self.env["saas.implementation.plan.item"]
         item = plan.create({
@@ -94,7 +168,7 @@ class TestSaasImplementationPlan(TransactionCase):
         item.write({"status": "blocked", "blocker": "Execution bridge was temporarily unavailable."})
         with patch.object(type(item), "_schedule_codex_webhook", autospec=True, return_value=True) as callback:
             item.action_retry_automation()
-        self.assertEqual(item.status, "in_progress")
+        self.assertEqual(item.status, "waiting_execution")
         self.assertFalse(item.blocker)
         callback.assert_called_once_with(item, "execution")
 
@@ -298,6 +372,10 @@ class TestSaasImplementationPlan(TransactionCase):
             'class="o_arcigy_implementation_action" invisible="status != \'awaiting_approval\'" groups=',
             form_view.arch_db,
         )
+        self.assertIn('name="workflow_mode"', form_view.arch_db)
+        self.assertIn('name="action_start_direct_implementation"', form_view.arch_db)
+        board_view = self.env.ref("arcigy_saas_control_center.view_saas_implementation_plan_item_kanban")
+        self.assertIn('default_group_by="status"', board_view.arch_db)
         item = self._administrator_plan().create(
             {
                 "name": "Approve and continue on Terra",
@@ -310,7 +388,7 @@ class TestSaasImplementationPlan(TransactionCase):
         )
         with patch.object(type(item), "_schedule_codex_webhook", autospec=True, return_value=True) as callback:
             result = item.action_approve_plan()
-        self.assertEqual(item.status, "in_progress")
+        self.assertEqual(item.status, "waiting_execution")
         callback.assert_called_once_with(item, "execution")
         self.assertEqual(result["tag"], "display_notification")
 

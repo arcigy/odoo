@@ -39,6 +39,9 @@ _LOGGER = logging.getLogger(__name__)
 WEBHOOK_URL_PARAMETER = "arcigy_saas_control_center.codex_webhook_url"
 WEBHOOK_SECRET_PARAMETER = "arcigy_saas_control_center.codex_webhook_secret"
 PLANNING_MODEL = "gpt-5.6-sol"
+EXECUTION_MODEL = "gpt-5.6-terra"
+DIRECT_WORKFLOW = "direct"
+PLANNED_WORKFLOW = "planned"
 
 
 class SaasImplementationPlanRun(models.Model):
@@ -105,6 +108,7 @@ class SaasImplementationPlanItem(models.Model):
             ("testing", "Prebieha testovanie"),
             ("deploying", "Prebieha nasadenie"),
             ("awaiting_approval", "Čaká na schválenie"),
+            ("waiting_execution", "Čaká vo fronte implementácie"),
             ("changes_requested", "Vrátené na opravu"),
             ("split", "Rozdelené na samostatné úlohy"),
         ],
@@ -113,6 +117,7 @@ class SaasImplementationPlanItem(models.Model):
             "testing": "set default",
             "deploying": "set default",
             "awaiting_approval": "set default",
+            "waiting_execution": "set default",
             "changes_requested": "set default",
             "split": "set default",
         },
@@ -127,6 +132,19 @@ class SaasImplementationPlanItem(models.Model):
         [("low", "Low"), ("medium", "Medium"), ("high", "High"), ("approval", "Approval required")],
         default="medium",
         tracking=True,
+    )
+    workflow_mode = fields.Selection(
+        [
+            (PLANNED_WORKFLOW, "Plánovanie + implementácia"),
+            (DIRECT_WORKFLOW, "Priama implementácia (Terra)"),
+        ],
+        required=True,
+        default=PLANNED_WORKFLOW,
+        tracking=True,
+        help=(
+            "Priama implementácia preskočí Sol plánovanie a je určená iba pre "
+            "low/medium-risk úlohy. High-risk úloha vždy potrebuje plán a schválenie."
+        ),
     )
     target_repository = fields.Selection(
         [("kitchen", "Kitchen App"), ("odoo", "Odoo"), ("cross_system", "Cross-system")],
@@ -191,6 +209,7 @@ class SaasImplementationPlanItem(models.Model):
             return
         status_labels = {
             "awaiting_approval": "Čaká na schválenie",
+            "waiting_execution": "Čaká vo fronte implementácie",
             "in_progress": "Prebieha implementácia",
             "ready_for_review": "Pripravené na kontrolu",
             "blocked": "Zablokované",
@@ -354,12 +373,69 @@ class SaasImplementationPlanItem(models.Model):
             "acceptance_criteria": record.acceptance_criteria or "",
             "plan": record.implementation_plan or "",
             "plan_model": record.current_codex_run_id.plan_model or "",
+            "workflow_mode": record.workflow_mode,
             "risk_level": record.risk_level,
         }
 
     @api.model
     def _codex_lock_queue(self):
         self.env.cr.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ["arcigy-codex-implementation-queue"])
+
+    @api.model
+    def _codex_execution_is_busy(self):
+        """There is one Terra execution slot, while Sol planning can run in parallel."""
+        now = fields.Datetime.now()
+        return bool(
+            self.env["saas.implementation.plan.run"].search_count(
+                [
+                    ("phase", "in", ["implementing", "testing", "deploying"]),
+                    ("lease_expires_at", ">", now),
+                ]
+            )
+        )
+
+    def _codex_start_execution_run(self, worker_name, lease_minutes):
+        """Lease this task's sole Terra slot after the queue lock is held."""
+        self.ensure_one()
+        if self._codex_execution_is_busy():
+            return False
+        now = fields.Datetime.now()
+        previous_run = self.current_codex_run_id
+        run = self.env["saas.implementation.plan.run"].create(
+            {
+                "task_id": self.id,
+                "run_token": uuid4().hex,
+                "worker_name": worker_name,
+                "phase": "implementing",
+                "plan_model": (
+                    previous_run.plan_model or PLANNING_MODEL
+                    if self.workflow_mode == PLANNED_WORKFLOW
+                    else False
+                ),
+                "execute_model": EXECUTION_MODEL,
+                "lease_expires_at": fields.Datetime.add(now, minutes=lease_minutes),
+                "codex_thread_id": self.codex_thread_id or False,
+            }
+        )
+        self.write({"status": "in_progress", "current_codex_run_id": run.id})
+        return run
+
+    @api.model
+    def _codex_next_execution_task(self):
+        """Return the first valid waitlist item; never let a webhook skip it."""
+        return self.search(
+            [
+                ("priority", "!=", "p2"),
+                *self._codex_administrator_task_domain(),
+                "|",
+                "&", ("workflow_mode", "=", DIRECT_WORKFLOW),
+                    "&", ("risk_level", "in", ["low", "medium"]), ("status", "in", ["planned", "waiting_execution"]),
+                "&", ("workflow_mode", "=", PLANNED_WORKFLOW),
+                    "&", ("status", "in", ["in_progress", "waiting_execution"]), ("implementation_plan", "!=", False),
+            ],
+            order="sequence, id",
+            limit=1,
+        )
 
     @api.model
     def _codex_require_payload(self, payload):
@@ -434,6 +510,7 @@ class SaasImplementationPlanItem(models.Model):
         candidates = self.search(
             [
                 ("status", "in", ACTIVE_QUEUE_STATES),
+                ("workflow_mode", "=", PLANNED_WORKFLOW),
                 ("priority", "!=", "p2"),
                 *self._codex_administrator_task_domain(),
             ],
@@ -486,7 +563,10 @@ class SaasImplementationPlanItem(models.Model):
             raise ValidationError("Unsupported target_repository.")
         if environment not in {"develop", "odoo_staging", "approval"}:
             raise ValidationError("Unsupported target_environment.")
-        approval_required = risk == "approval" or environment == "approval"
+        # The risk gate protects founder approval. The deployment target is
+        # deliberately not a second implicit approval gate: low-risk work may
+        # be verified locally/staging without being sent to production.
+        approval_required = risk in {"high", "approval"}
         previous_status = task.status
         task.write(
             {
@@ -550,28 +630,25 @@ class SaasImplementationPlanItem(models.Model):
             raise ValidationError("lease_minutes must be between 15 and 240.")
         self._codex_lock_queue()
         task.invalidate_recordset()
-        if task.status != "in_progress" or not (task.implementation_plan or "").strip():
-            raise ValidationError("Only a planned, non-approved implementation task can be claimed for execution.")
-        current_run = task.current_codex_run_id
-        if current_run and current_run.phase not in {"ready", "blocked"}:
-            raise AccessError("The planning task has not released this implementation item yet.")
-        now = fields.Datetime.now()
-        token = uuid4().hex
-        run = self.env["saas.implementation.plan.run"].create(
-            {
-                "task_id": task.id,
-                "run_token": token,
-                "worker_name": worker_name,
-                "phase": "implementing",
-                # Older saved plans may not have recorded their model.  They are
-                # all produced by this Sol-only planning bridge; preserve that
-                # invariant when handing an approved plan to Terra.
-                "plan_model": (current_run.plan_model or PLANNING_MODEL) if current_run else PLANNING_MODEL,
-                "lease_expires_at": fields.Datetime.add(now, minutes=lease_minutes),
-            }
-        )
-        task.write({"current_codex_run_id": run.id})
-        return {"task": self._codex_payload(task), "run_token": token, "run_id": run.id}
+        first_waiting_task = self._codex_next_execution_task()
+        if first_waiting_task and first_waiting_task != task:
+            return {"task": False, "reason": "waiting_for_earlier_execution"}
+        is_direct = task.workflow_mode == DIRECT_WORKFLOW
+        if is_direct:
+            if task.risk_level in {"high", "approval"}:
+                return {"task": False, "reason": "direct_workflow_requires_low_or_medium_risk"}
+            if task.status not in {"planned", "waiting_execution"}:
+                return {"task": False, "reason": "execution_not_ready"}
+        else:
+            if task.status not in {"in_progress", "waiting_execution"} or not (task.implementation_plan or "").strip():
+                return {"task": False, "reason": "execution_not_ready"}
+            current_run = task.current_codex_run_id
+            if current_run and current_run.phase not in {"ready", "blocked"}:
+                raise AccessError("The planning task has not released this implementation item yet.")
+        run = task._codex_start_execution_run(worker_name, lease_minutes)
+        if not run:
+            return {"task": False, "reason": "execution_busy"}
+        return {"task": self._codex_payload(task), "run_token": run.run_token, "run_id": run.id}
 
     @api.model
     def codex_claim_next_execution(self, payload):
@@ -583,20 +660,11 @@ class SaasImplementationPlanItem(models.Model):
         if not isinstance(lease_minutes, int) or lease_minutes < 15 or lease_minutes > 240:
             raise ValidationError("lease_minutes must be between 15 and 240.")
         self._codex_lock_queue()
-        task = self.search(
-            [
-                ("status", "=", "in_progress"),
-                ("priority", "!=", "p2"),
-                ("implementation_plan", "!=", False),
-                ("codex_thread_id", "!=", False),
-                ("current_codex_run_id.phase", "in", ["ready", "blocked"]),
-                *self._codex_administrator_task_domain(),
-            ],
-            order="sequence, id",
-            limit=1,
-        )
+        task = self._codex_next_execution_task()
         if not task:
             return {"task": False, "reason": "queue_empty"}
+        if self._codex_execution_is_busy():
+            return {"task": False, "reason": "execution_busy"}
         return self.codex_claim_execution(
             {"task_id": task.id, "worker_name": worker_name, "lease_minutes": lease_minutes}
         )
@@ -784,6 +852,10 @@ class SaasImplementationPlanItem(models.Model):
                 "Otvor úlohu, over body nižšie a potom ju schváľ alebo vlož internú poznámku s opravou.",
                 review_note,
             )
+        # Wake the local dispatcher after this Terra slot is released. It will
+        # claim only the next waiting execution; the poller remains a recovery
+        # path and does not consume an AI turn when the queue is empty.
+        task._schedule_codex_webhook("execution")
         return {"task_id": task.id, "status": task.status}
 
     @api.model
@@ -887,7 +959,7 @@ class SaasImplementationPlanItem(models.Model):
             self._ensure_codex_administrator_task(task)
             if not task.codex_thread_id or not (task.implementation_plan or "").strip():
                 raise ValidationError("The approved plan is missing its Codex conversation or saved plan.")
-            task.write({"status": "in_progress"})
+            task.write({"status": "waiting_execution"})
             task.activity_feedback(
                 ["mail.mail_activity_data_todo"], feedback="Codex plan approved; Terra execution requested."
             )
@@ -903,6 +975,36 @@ class SaasImplementationPlanItem(models.Model):
             },
         }
 
+    def action_start_direct_implementation(self):
+        """Put a low/medium-risk direct task into the single Terra waitlist."""
+        if not self.env.user.has_group(ADMIN_GROUP):
+            raise AccessError("Only an Arcigy SaaS Administrator may start a direct implementation.")
+        for task in self:
+            if task.workflow_mode != DIRECT_WORKFLOW:
+                raise ValidationError("This task is configured for the reviewed planning workflow.")
+            if task.risk_level in {"high", "approval"}:
+                raise ValidationError("High-risk tasks require Sol planning and administrator approval.")
+            if task.status != "planned":
+                raise ValidationError("Only a new direct task can be put into the implementation queue.")
+            self._ensure_codex_administrator_task(task)
+            task.write({"status": "waiting_execution"})
+            task._schedule_codex_webhook("execution")
+            task._notify_owner(
+                "Priama implementácia zaradená",
+                "Terra ju vykoná automaticky, keď sa uvoľní jediný implementačný slot.",
+                "Táto low/medium-risk úloha nevyžaduje samostatný plán od Sol.",
+            )
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Priama implementácia zaradená",
+                "message": "Terra začne hneď, keď sa uvoľní implementačný slot.",
+                "type": "success",
+                "sticky": False,
+            },
+        }
+
     def action_request_changes(self):
         for task in self:
             task.write({"status": "changes_requested"})
@@ -913,10 +1015,13 @@ class SaasImplementationPlanItem(models.Model):
         for task in self:
             if task.status != "blocked":
                 raise ValidationError("Only blocked implementation tasks can be retried.")
-            if task.codex_thread_id and (task.implementation_plan or "").strip():
+            if task.workflow_mode == DIRECT_WORKFLOW:
+                task.write({"status": "waiting_execution", "blocker": False})
+                task._schedule_codex_webhook("execution")
+            elif task.codex_thread_id and (task.implementation_plan or "").strip():
                 # The plan was already approved.  Retrying must resume Terra in
                 # the same Codex chat, never start a duplicate planning chat.
-                task.write({"status": "in_progress", "blocker": False})
+                task.write({"status": "waiting_execution", "blocker": False})
                 task._schedule_codex_webhook("execution")
             else:
                 task.write({"status": "planned", "blocker": False})
