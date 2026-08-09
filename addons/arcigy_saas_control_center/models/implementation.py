@@ -301,7 +301,7 @@ class SaasImplementationPlanItem(models.Model):
     def _schedule_codex_webhook(self, action):
         """Schedule one local callback after the Odoo write commits successfully."""
         self.ensure_one()
-        if action not in {"execution", "review"}:
+        if action not in {"planning", "execution", "review"}:
             raise ValidationError("Unsupported Codex callback action.")
         parameters = self.env["ir.config_parameter"].sudo()
         webhook_url = (parameters.get_param(WEBHOOK_URL_PARAMETER) or "").strip()
@@ -1007,6 +1007,33 @@ class SaasImplementationPlanItem(models.Model):
             "params": {
                 "title": "Plán schválený",
                 "message": "Terra pokračuje v existujúcom Codex chate.",
+                "type": "success",
+                "sticky": False,
+            },
+        }
+
+    def action_start_planning(self):
+        """Immediately wake Sol for a new task that uses the reviewed workflow."""
+        if not self.env.user.has_group(ADMIN_GROUP):
+            raise AccessError("Only an Arcigy SaaS Administrator may start Codex planning.")
+        for task in self:
+            if task.workflow_mode != PLANNED_WORKFLOW:
+                raise ValidationError("This task is configured for direct Terra implementation.")
+            if task.status != "planned":
+                raise ValidationError("Only a new task can start a new Codex planning run.")
+            self._ensure_codex_administrator_task(task)
+            task._schedule_codex_webhook("planning")
+            task._notify_owner(
+                "Plánovanie spustené",
+                "Sol teraz pripravuje plán v novom Codex chate.",
+                "Po dokončení sa úloha prepne na čakanie na schválenie alebo na implementáciu podľa rizika.",
+            )
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Plánovanie spustené",
+                "message": "Sol okamžite otvoril Codex chat pre túto úlohu.",
                 "type": "success",
                 "sticky": False,
             },

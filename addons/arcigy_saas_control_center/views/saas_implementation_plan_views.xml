@@ -28,6 +28,7 @@
                     <button name="action_mark_done" type="object" string="Schvalit" class="btn-primary" invisible="status != 'ready_for_review'"/>
                     <button name="action_request_changes" type="object" string="Vratit na opravu" invisible="status != 'ready_for_review'"/>
                     <button name="action_retry_automation" type="object" string="Skusit znovu" class="btn-primary" invisible="status != 'blocked'"/>
+                    <button name="action_start_planning" type="object" string="Spustiť plánovanie (Sol)" class="btn-primary" invisible="not (status == 'planned' and workflow_mode == 'planned')" groups="arcigy_saas_control_center.group_saas_administrator"/>
                     <button name="action_start_direct_implementation" type="object" string="Spustiť priamu implementáciu" class="btn-primary" invisible="not (status == 'planned' and workflow_mode == 'direct')" groups="arcigy_saas_control_center.group_saas_administrator"/>
                     <button name="action_permanently_delete" type="object" string="Trvalo vymazať úlohu" confirm="Táto úloha, jej Codex behy, poznámky a Odoo história sa natrvalo odstránia. Túto akciu nemožno vrátiť späť. Ostatné úlohy sa automaticky správne prečíslujú." groups="arcigy_saas_control_center.group_saas_administrator"/>
                     <field name="status" widget="statusbar" statusbar_visible="planned,planning,awaiting_approval,waiting_execution,in_progress,testing,deploying,ready_for_review,changes_requested,split,blocked,done"/>
@@ -41,6 +42,10 @@
                     <div class="o_arcigy_implementation_action" invisible="status != 'awaiting_approval'">
                         <button name="action_approve_plan" type="object" string="Implementovať plán (Terra)" class="btn-primary oe_highlight"/>
                         <p>Plán je pripravený. Po stlačení Terra okamžite pokračuje v existujúcom Codex chate.</p>
+                    </div>
+                    <div class="o_arcigy_implementation_action" invisible="not (status == 'planned' and workflow_mode == 'planned')">
+                        <button name="action_start_planning" type="object" string="Spustiť plánovanie (Sol)" class="btn-primary oe_highlight"/>
+                        <p>Sol hneď otvorí viditeľný Codex chat a začne pripravovať plán.</p>
                     </div>
                     <div class="o_arcigy_implementation_action" invisible="not (status == 'planned' and workflow_mode == 'direct')">
                         <button name="action_start_direct_implementation" type="object" string="Spustiť priamu implementáciu (Terra)" class="btn-primary oe_highlight"/>
