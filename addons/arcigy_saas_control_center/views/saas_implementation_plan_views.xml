@@ -28,10 +28,10 @@
                     <button name="action_mark_done" type="object" string="Schvalit" class="btn-primary" invisible="status != 'ready_for_review'"/>
                     <button name="action_request_changes" type="object" string="Vratit na opravu" invisible="status != 'ready_for_review'"/>
                     <button name="action_retry_automation" type="object" string="Skusit znovu" class="btn-primary" invisible="status != 'blocked'"/>
-                    <button name="action_start_planning" type="object" string="Spustiť plánovanie (Sol)" class="btn-primary" invisible="not (status == 'planned' and workflow_mode == 'planned')" groups="arcigy_saas_control_center.group_saas_administrator"/>
+                    <button name="action_start_planning" type="object" string="Spustiť plánovanie (Sol)" class="btn-primary" invisible="not (workflow_mode == 'planned' and (status == 'planned' or (status == 'planning' and not codex_thread_id)))" groups="arcigy_saas_control_center.group_saas_administrator"/>
                     <button name="action_start_direct_implementation" type="object" string="Spustiť priamu implementáciu" class="btn-primary" invisible="not (status == 'planned' and workflow_mode == 'direct')" groups="arcigy_saas_control_center.group_saas_administrator"/>
                     <button name="action_permanently_delete" type="object" string="Trvalo vymazať úlohu" confirm="Táto úloha, jej Codex behy, poznámky a Odoo história sa natrvalo odstránia. Túto akciu nemožno vrátiť späť. Ostatné úlohy sa automaticky správne prečíslujú." groups="arcigy_saas_control_center.group_saas_administrator"/>
-                    <field name="status" widget="statusbar" statusbar_visible="planned,planning,awaiting_approval,waiting_execution,in_progress,testing,deploying,ready_for_review,changes_requested,split,blocked,done"/>
+                    <field name="status" widget="statusbar" statusbar_visible="planned,pending_planning,planning,awaiting_approval,waiting_execution,in_progress,testing,deploying,ready_for_review,changes_requested,split,blocked,done"/>
                 </header>
                 <sheet>
                     <div class="oe_title"><h1><field name="name"/></h1></div>

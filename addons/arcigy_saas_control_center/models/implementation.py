@@ -25,7 +25,11 @@ from odoo.tools import html2plaintext
 
 CODEX_GROUP = "arcigy_saas_control_center.group_saas_codex_worker"
 ADMIN_GROUP = "arcigy_saas_control_center.group_saas_administrator"
-ACTIVE_QUEUE_STATES = ("planned", "changes_requested")
+# A manual start must be visible before the local bridge has had time to claim
+# the task and create its Codex thread.  This state remains claimable, but is
+# distinct from an actually leased planning run.
+PENDING_PLANNING_STATE = "pending_planning"
+ACTIVE_QUEUE_STATES = ("planned", "changes_requested", PENDING_PLANNING_STATE)
 WORKER_STATES = {"planning", "implementing", "testing", "deploying"}
 RUN_PHASES = [
     ("planning", "Prebieha plánovanie"),
@@ -104,6 +108,7 @@ class SaasImplementationPlanItem(models.Model):
 
     status = fields.Selection(
         selection_add=[
+            (PENDING_PLANNING_STATE, "Spúšťa sa plánovanie"),
             ("planning", "Prebieha plánovanie"),
             ("testing", "Prebieha testovanie"),
             ("deploying", "Prebieha nasadenie"),
@@ -113,6 +118,7 @@ class SaasImplementationPlanItem(models.Model):
             ("split", "Rozdelené na samostatné úlohy"),
         ],
         ondelete={
+            PENDING_PLANNING_STATE: "set default",
             "planning": "set default",
             "testing": "set default",
             "deploying": "set default",
@@ -1019,9 +1025,24 @@ class SaasImplementationPlanItem(models.Model):
         for task in self:
             if task.workflow_mode != PLANNED_WORKFLOW:
                 raise ValidationError("This task is configured for direct Terra implementation.")
-            if task.status != "planned":
+            if task.status == "planning" and not task.codex_thread_id:
+                run = task.current_codex_run_id
+                stale_before = fields.Datetime.subtract(fields.Datetime.now(), minutes=2)
+                if not run or run.heartbeat_at > stale_before:
+                    raise ValidationError("Codex is already starting this planning chat. Please wait a moment.")
+                run.write(
+                    {
+                        "phase": "blocked",
+                        "finished_at": fields.Datetime.now(),
+                        "heartbeat_at": fields.Datetime.now(),
+                        "safe_error": "Superseded by an explicit administrator restart before a Codex chat was recorded.",
+                    }
+                )
+                task.write({"current_codex_run_id": False})
+            elif task.status != "planned":
                 raise ValidationError("Only a new task can start a new Codex planning run.")
             self._ensure_codex_administrator_task(task)
+            task.write({"status": PENDING_PLANNING_STATE})
             task._schedule_codex_webhook("planning")
             task._notify_owner(
                 "Plánovanie spustené",
