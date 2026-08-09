@@ -55,9 +55,18 @@ class TestSaasImplementationPlan(TransactionCase):
         )
         with patch.object(type(item), "_schedule_codex_webhook", autospec=True, return_value=True) as callback:
             result = item.action_start_planning()
-        self.assertEqual(item.status, "planned")
+        self.assertEqual(item.status, "pending_planning")
         callback.assert_called_once_with(item, "planning")
         self.assertEqual(result["tag"], "display_notification")
+        group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {"name": "Immediate start worker", "login": "immediate-start@example.invalid", "group_ids": [(6, 0, [group.id])]}
+        )
+        claim = self.env["saas.implementation.plan.item"].with_user(worker).codex_claim_next(
+            {"task_id": item.id, "worker_name": "immediate-start"}
+        )
+        self.assertEqual(claim["task"]["id"], item.id)
+        self.assertEqual(item.status, "planning")
 
     def test_ready_for_review_requires_a_precise_checklist(self):
         plan = self.env["saas.implementation.plan.item"]
@@ -69,6 +78,25 @@ class TestSaasImplementationPlan(TransactionCase):
             "review_checklist": "Open the feature and verify the saved result after reload.",
         })
         self.assertEqual(item.status, "ready_for_review")
+
+    def test_administrator_can_restart_a_stale_planning_run_without_a_codex_chat(self):
+        item = self._administrator_plan().create(
+            {"name": "Restart stale planning", "priority": "p1", "scope": "odoo"}
+        )
+        worker_group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {"name": "Stale planning worker", "login": "stale-planning@example.invalid", "group_ids": [(6, 0, [worker_group.id])]}
+        )
+        claim = self.env["saas.implementation.plan.item"].with_user(worker).codex_claim_next(
+            {"task_id": item.id, "worker_name": "stale-planning"}
+        )
+        item.current_codex_run_id.write({"heartbeat_at": fields.Datetime.subtract(fields.Datetime.now(), minutes=3)})
+        with patch.object(type(item), "_schedule_codex_webhook", autospec=True, return_value=True) as callback:
+            item.action_start_planning()
+        self.assertEqual(item.status, "pending_planning")
+        self.assertFalse(item.current_codex_run_id)
+        self.assertEqual(self.env["saas.implementation.plan.run"].browse(claim["run_id"]).phase, "blocked")
+        callback.assert_called_once_with(item, "planning")
 
     def test_administrator_can_retry_a_transiently_blocked_item(self):
         plan = self.env["saas.implementation.plan.item"]
