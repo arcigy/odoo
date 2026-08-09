@@ -101,8 +101,11 @@ jobs:
         env:
           CAPROVER_URL: ${{ secrets.CAPROVER_URL }}
           CAPROVER_PASSWORD: ${{ secrets.CAPROVER_PASSWORD }}
-          CAPROVER_APP_NAME: ${{ secrets.CAPROVER_APP_NAME }}
-          CAPROVER_APP_URL: ${{ secrets.CAPROVER_APP_URL }}
+          # The public Odoo instance is the Arcigy service.  The legacy
+          # geotherm-odoo service is deliberately scaled to zero and must
+          # never receive a production Control Center deployment.
+          CAPROVER_APP_NAME: arcigy-odoo
+          CAPROVER_APP_URL: https://arcigy-odoo.178.104.175.242.sslip.io
         run: |
           set -euo pipefail
           : "${CAPROVER_APP_URL:?CAPROVER_APP_URL secret is required}"
