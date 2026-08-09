@@ -32,22 +32,60 @@ class TestSaasImplementationPlan(TransactionCase):
         self.assertEqual(created.status, "planned")
         self.assertEqual(created.owner_id, self.env.user)
 
-    def test_form_always_exposes_workflow_mode_for_new_tasks(self):
+    def test_native_chat_bridge_is_one_way_and_does_not_create_a_run_or_lease(self):
+        plan = self.env["saas.implementation.plan.item"]
+        group = self.env.ref("arcigy_saas_control_center.group_saas_codex_worker")
+        worker = self.env["res.users"].create(
+            {
+                "name": "Native chat bridge worker",
+                "login": "native-chat-bridge@example.invalid",
+                "group_ids": [(6, 0, [group.id])],
+            }
+        )
+        eligible = self._administrator_plan().create(
+            {"name": "Create one native chat", "sequence": 1, "priority": "p1", "scope": "arcigy", "full_prompt": "Plan this fully."}
+        )
+        future = self._administrator_plan().create(
+            {"name": "Future task", "priority": "p2", "scope": "arcigy"}
+        )
+        already_linked = self._administrator_plan().create(
+            {"name": "Already linked", "priority": "p1", "scope": "arcigy", "codex_thread_id": "thread-existing"}
+        )
+        bridge = plan.with_user(worker)
+
+        before_runs = self.env["saas.implementation.plan.run"].search_count([])
+        listed = bridge.codex_list_new_chat_tasks({"limit": 20})
+        listed_ids = {task["id"] for task in listed["tasks"]}
+        self.assertIn(eligible.id, listed_ids)
+        self.assertNotIn(future.id, listed_ids)
+        self.assertNotIn(already_linked.id, listed_ids)
+        self.assertEqual(eligible.status, "planned")
+        self.assertFalse(eligible.current_codex_run_id)
+        self.assertEqual(self.env["saas.implementation.plan.run"].search_count([]), before_runs)
+
+        attached = bridge.codex_attach_native_chat(
+            {"task_id": eligible.id, "codex_thread_id": "thread-native-38"}
+        )
+        self.assertEqual(attached["codex_thread_id"], "thread-native-38")
+        self.assertEqual(eligible.status, "planned")
+        self.assertNotIn(
+            eligible.id,
+            {task["id"] for task in bridge.codex_list_new_chat_tasks({"limit": 20})["tasks"]},
+        )
+        bridge.codex_attach_native_chat({"task_id": eligible.id, "codex_thread_id": "thread-native-38"})
+        with self.assertRaises(AccessError):
+            bridge.codex_attach_native_chat({"task_id": eligible.id, "codex_thread_id": "thread-duplicate"})
+
+    def test_form_exposes_only_the_one_way_native_chat_bridge(self):
         form_view = self.env.ref(
             "arcigy_saas_control_center.view_saas_implementation_plan_item_form"
         )
-        self.assertIn('name="workflow_mode"', form_view.arch_db)
-        self.assertIn('string="Spôsob spracovania"', form_view.arch_db)
-        self.assertIn('name="action_start_planning"', form_view.arch_db)
-        self.assertIn('string="Spustiť plánovanie (Sol)"', form_view.arch_db)
-        self.assertLess(
-            form_view.arch_db.index('name="scope"'),
-            form_view.arch_db.index('name="workflow_mode"'),
-        )
-        self.assertLess(
-            form_view.arch_db.index('name="workflow_mode"'),
-            form_view.arch_db.index('name="target_repository"'),
-        )
+        self.assertIn('name="codex_thread_id"', form_view.arch_db)
+        self.assertIn('name="full_prompt"', form_view.arch_db)
+        self.assertNotIn('name="workflow_mode"', form_view.arch_db)
+        self.assertNotIn('name="action_approve_plan"', form_view.arch_db)
+        self.assertNotIn('name="action_start_direct_implementation"', form_view.arch_db)
+        self.assertNotIn('name="action_retry_automation"', form_view.arch_db)
 
     def test_administrator_can_start_planning_immediately(self):
         item = self._administrator_plan().create(
@@ -453,19 +491,11 @@ class TestSaasImplementationPlan(TransactionCase):
         form_view = self.env.ref(
             "arcigy_saas_control_center.view_saas_implementation_plan_item_form"
         )
-        self.assertIn('string="Implementovať plán (Terra)"', form_view.arch_db)
-        self.assertIn(
-            'class="o_arcigy_implementation_action" invisible="status != \'awaiting_approval\'"',
-            form_view.arch_db,
-        )
-        self.assertNotIn(
-            'class="o_arcigy_implementation_action" invisible="status != \'awaiting_approval\'" groups=',
-            form_view.arch_db,
-        )
-        self.assertIn('name="workflow_mode"', form_view.arch_db)
-        self.assertIn('name="action_start_direct_implementation"', form_view.arch_db)
+        self.assertNotIn('string="Implementovať plán (Terra)"', form_view.arch_db)
+        self.assertNotIn('name="workflow_mode"', form_view.arch_db)
+        self.assertNotIn('name="action_start_direct_implementation"', form_view.arch_db)
         board_view = self.env.ref("arcigy_saas_control_center.view_saas_implementation_plan_item_kanban")
-        self.assertIn('default_group_by="status"', board_view.arch_db)
+        self.assertNotIn('default_group_by="status"', board_view.arch_db)
         item = self._administrator_plan().create(
             {
                 "name": "Approve and continue on Terra",
