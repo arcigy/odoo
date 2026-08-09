@@ -38,6 +38,18 @@ class TestSaasImplementationPlan(TransactionCase):
         )
         self.assertIn('name="workflow_mode"', form_view.arch_db)
         self.assertIn('string="Spôsob spracovania"', form_view.arch_db)
+        self.assertIn('name="action_start_planning"', form_view.arch_db)
+        self.assertIn('string="Spustiť plánovanie (Sol)"', form_view.arch_db)
+
+    def test_administrator_can_start_planning_immediately(self):
+        item = self._administrator_plan().create(
+            {"name": "Start Sol immediately", "priority": "p1", "scope": "odoo"}
+        )
+        with patch.object(type(item), "_schedule_codex_webhook", autospec=True, return_value=True) as callback:
+            result = item.action_start_planning()
+        self.assertEqual(item.status, "planned")
+        callback.assert_called_once_with(item, "planning")
+        self.assertEqual(result["tag"], "display_notification")
 
     def test_ready_for_review_requires_a_precise_checklist(self):
         plan = self.env["saas.implementation.plan.item"]
