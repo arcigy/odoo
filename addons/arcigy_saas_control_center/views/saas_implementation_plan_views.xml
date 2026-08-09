@@ -55,8 +55,8 @@
                         <group>
                             <field name="sequence"/>
                             <field name="priority"/>
-                            <field name="workflow_mode" string="Spôsob spracovania"/>
                             <field name="scope"/>
+                            <field name="workflow_mode" string="Spôsob spracovania"/>
                             <field name="target_repository"/>
                             <field name="target_environment"/>
                             <field name="risk_level"/>

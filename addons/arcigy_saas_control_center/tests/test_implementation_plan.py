@@ -40,6 +40,14 @@ class TestSaasImplementationPlan(TransactionCase):
         self.assertIn('string="Spôsob spracovania"', form_view.arch_db)
         self.assertIn('name="action_start_planning"', form_view.arch_db)
         self.assertIn('string="Spustiť plánovanie (Sol)"', form_view.arch_db)
+        self.assertLess(
+            form_view.arch_db.index('name="scope"'),
+            form_view.arch_db.index('name="workflow_mode"'),
+        )
+        self.assertLess(
+            form_view.arch_db.index('name="workflow_mode"'),
+            form_view.arch_db.index('name="target_repository"'),
+        )
 
     def test_administrator_can_start_planning_immediately(self):
         item = self._administrator_plan().create(
