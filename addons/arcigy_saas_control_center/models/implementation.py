@@ -421,6 +421,50 @@ class SaasImplementationPlanItem(models.Model):
         }
 
     @api.model
+    def codex_list_new_chat_tasks(self, payload):
+        """Return new founder tasks without creating a run, lease, or workflow state.
+
+        This is the deliberately small one-way bridge from Odoo to the native
+        Codex desktop app.  The desktop side de-duplicates against existing
+        visible chats before it creates anything; ``codex_thread_id`` is the
+        durable acknowledgement after creation.
+        """
+        self._ensure_codex_access()
+        payload = self._codex_require_payload(payload)
+        limit = payload.get("limit", 10)
+        if not isinstance(limit, int) or limit < 1 or limit > 20:
+            raise ValidationError("limit must be between 1 and 20.")
+        tasks = self.search(
+            [
+                ("status", "in", ["planned", PENDING_PLANNING_STATE]),
+                ("priority", "!=", "p2"),
+                ("codex_thread_id", "=", False),
+                *self._codex_administrator_task_domain(),
+            ],
+            order="sequence, id",
+            limit=limit,
+        )
+        return {"tasks": [self._codex_payload(task) for task in tasks]}
+
+    @api.model
+    def codex_attach_native_chat(self, payload):
+        """Persist only the native desktop chat ID; never start Codex work."""
+        self._ensure_codex_access()
+        payload = self._codex_require_payload(payload)
+        task = self._codex_task_from_payload(payload)
+        self._ensure_codex_administrator_task(task)
+        thread_id = str(payload.get("codex_thread_id") or "").strip()
+        if not thread_id or len(thread_id) > 160:
+            raise ValidationError("codex_thread_id must contain between 1 and 160 characters.")
+        if task.codex_thread_id and task.codex_thread_id != thread_id:
+            raise AccessError("This Odoo task is already linked to another Codex chat.")
+        values = {"codex_thread_id": thread_id}
+        if task.status == PENDING_PLANNING_STATE:
+            values["status"] = "planned"
+        task.write(values)
+        return {"task_id": task.id, "codex_thread_id": task.codex_thread_id, "status": task.status}
+
+    @api.model
     def _codex_lock_queue(self):
         self.env.cr.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ["arcigy-codex-implementation-queue"])
 
