@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_arcigy_client_metric_daily_list" model="ir.ui.view">
+        <field name="name">arcigy.client.metric.daily.list</field>
+        <field name="model">arcigy.client.metric.daily</field>
+        <field name="arch" type="xml">
+            <list string="Denné metriky" create="0" edit="0" delete="0">
+                <field name="partner_id"/>
+                <field name="date"/>
+                <field name="users_active_30d"/>
+                <field name="projects_created" sum="Spolu"/>
+                <field name="offers_generated" sum="Spolu"/>
+                <field name="offers_sent" sum="Spolu"/>
+                <field name="pdf_documents_processed" sum="Spolu"/>
+                <field name="pdf_items_corrected" sum="Spolu" optional="hide"/>
+                <field name="ai_cost_usd_total" sum="Spolu"/>
+                <field name="ai_calls_unpriced" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_arcigy_client_metric_daily_graph" model="ir.ui.view">
+        <field name="name">arcigy.client.metric.daily.graph</field>
+        <field name="model">arcigy.client.metric.daily</field>
+        <field name="arch" type="xml">
+            <graph string="Ponuky v čase" type="line">
+                <field name="date" interval="week"/>
+                <field name="offers_sent" type="measure"/>
+                <field name="offers_generated" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_arcigy_client_metric_daily_pivot" model="ir.ui.view">
+        <field name="name">arcigy.client.metric.daily.pivot</field>
+        <field name="model">arcigy.client.metric.daily</field>
+        <field name="arch" type="xml">
+            <pivot string="Metriky klientov">
+                <field name="partner_id" type="row"/>
+                <field name="date" interval="month" type="col"/>
+                <field name="offers_sent" type="measure"/>
+                <field name="ai_cost_usd_total" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_arcigy_client_metric_daily_search" model="ir.ui.view">
+        <field name="name">arcigy.client.metric.daily.search</field>
+        <field name="model">arcigy.client.metric.daily</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner_id"/>
+                <filter name="last_12_weeks" string="Posledných 12 týždňov"
+                        domain="[('date', '&gt;=', (context_today() - relativedelta(weeks=12)).strftime('%Y-%m-%d'))]"/>
+                <group>
+                    <filter name="group_partner" string="Klient" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_week" string="Týždeň" context="{'group_by': 'date:week'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_arcigy_client_metric_daily" model="ir.actions.act_window">
+        <field name="name">Metriky klientov</field>
+        <field name="res_model">arcigy.client.metric.daily</field>
+        <field name="view_mode">graph,pivot,list</field>
+        <field name="context">{'search_default_last_12_weeks': 1}</field>
+    </record>
+
+    <record id="view_arcigy_client_metric_monthly_list" model="ir.ui.view">
+        <field name="name">arcigy.client.metric.monthly.list</field>
+        <field name="model">arcigy.client.metric.monthly</field>
+        <field name="arch" type="xml">
+            <list string="Mesačné náklady a marža" create="0" edit="0" delete="0">
+                <field name="partner_id"/>
+                <field name="month"/>
+                <field name="projects_with_ai"/>
+                <field name="ai_cost_per_project_avg_usd"/>
+                <field name="ai_cost_per_project_p90_usd" decoration-danger="ai_cost_per_project_p90_usd &gt; 0.1"/>
+                <field name="projects_over_target"/>
+                <field name="ai_cost_usd_total" sum="Spolu"/>
+                <field name="pdf_corrected_pct"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="revenue_amount" sum="Spolu"/>
+                <field name="ai_cost_amount" sum="Spolu"/>
+                <field name="contribution_margin" sum="Spolu"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_arcigy_client_metric_monthly" model="ir.actions.act_window">
+        <field name="name">Náklady a marža</field>
+        <field name="res_model">arcigy.client.metric.monthly</field>
+        <field name="view_mode">list,pivot</field>
+    </record>
+
+    <record id="view_arcigy_app_users_list" model="ir.ui.view">
+        <field name="name">res.partner.arcigy.app.users.list</field>
+        <field name="model">res.partner</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <list string="Používatelia aplikácie" create="0">
+                <field name="name"/>
+                <field name="parent_id"/>
+                <field name="function"/>
+                <field name="arcigy_app_role"/>
+                <field name="arcigy_app_user_state" groups="arcigy_client_crm.group_crm_manager"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_arcigy_app_users" model="ir.actions.act_window">
+        <field name="name">Používatelia aplikácie</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('arcigy_user_key', '!=', False)]</field>
+        <field name="view_ids" eval="[
+            Command.clear(),
+            Command.create({'view_mode': 'list', 'view_id': ref('view_arcigy_app_users_list')}),
+            Command.create({'view_mode': 'form', 'view_id': ref('base.view_partner_form')}),
+        ]"/>
+    </record>
+
+    <record id="view_arcigy_client_user_monthly_list" model="ir.ui.view">
+        <field name="name">arcigy.client.user.monthly.list</field>
+        <field name="model">arcigy.client.user.monthly</field>
+        <field name="arch" type="xml">
+            <list string="Výsledky používateľov po mesiacoch" create="0" edit="0" delete="0">
+                <field name="partner_id"/>
+                <field name="contact_id"/>
+                <field name="month"/>
+                <field name="projects_created" sum="Spolu"/>
+                <field name="offers_generated" sum="Spolu"/>
+                <field name="offers_sent" sum="Spolu"/>
+                <field name="pdf_documents_processed" sum="Spolu"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_arcigy_client_user_monthly" model="ir.actions.act_window">
+        <field name="name">Výsledky používateľov</field>
+        <field name="res_model">arcigy.client.user.monthly</field>
+        <field name="view_mode">list,pivot</field>
+    </record>
+
+    <record id="view_arcigy_client_export_batch_list" model="ir.ui.view">
+        <field name="name">arcigy.client.export.batch.list</field>
+        <field name="model">arcigy.client.export.batch</field>
+        <field name="arch" type="xml">
+            <list string="Dávky exportu" create="0" edit="0" delete="0"
+                  decoration-danger="state == 'rejected'" decoration-warning="state == 'applied_with_unmatched'">
+                <field name="name"/>
+                <field name="received_at"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="state"/>
+                <field name="rows_written"/>
+                <field name="unmatched_keys" optional="show"/>
+                <field name="error" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_arcigy_client_export_batch" model="ir.actions.act_window">
+        <field name="name">Dávky exportu z aplikácie</field>
+        <field name="res_model">arcigy.client.export.batch</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <menuitem id="menu_arcigy_client_metrics" name="Metriky klientov" parent="contacts.menu_contacts"
+              action="action_arcigy_client_metric_daily" sequence="4"/>
+    <menuitem id="menu_arcigy_client_monthly" name="Náklady a marža" parent="contacts.menu_contacts"
+              action="action_arcigy_client_metric_monthly" sequence="5"/>
+    <menuitem id="menu_arcigy_client_user_monthly" name="Výsledky používateľov" parent="contacts.menu_contacts"
+              action="action_arcigy_client_user_monthly" sequence="6" groups="arcigy_client_crm.group_crm_manager"/>
+    <menuitem id="menu_arcigy_client_export_batch" name="Dávky exportu" parent="contacts.res_partner_menu_config"
+              action="action_arcigy_client_export_batch" sequence="50" groups="arcigy_client_crm.group_crm_manager"/>
+</odoo>

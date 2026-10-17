@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_arcigy_reports" model="ir.ui.view">
+        <field name="name">res.partner.form.arcigy.reports</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <div name="button_box" position="inside">
+                <button name="action_arcigy_open_reports" type="object" class="oe_stat_button" icon="fa-bug"
+                        invisible="not arcigy_client_key">
+                    <div class="o_stat_info">
+                        <span class="o_stat_value"><field name="arcigy_open_report_count"/> / <field name="arcigy_report_count"/></span>
+                        <span class="o_stat_text">Hlásenia otvorené</span>
+                    </div>
+                </button>
+            </div>
+            <field name="arcigy_pdf_corrected_pct" position="after">
+                <field name="arcigy_open_price_error_count" decoration-danger="arcigy_open_price_error_count &gt; 0"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_arcigy_client_reports_list" model="ir.ui.view">
+        <field name="name">project.task.arcigy.client.reports.list</field>
+        <field name="model">project.task</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <list string="Hlásenia klienta" create="0">
+                <field name="create_date" string="Prijaté"/>
+                <field name="name"/>
+                <field name="arcigy_kind_group"/>
+                <field name="arcigy_status"/>
+                <field name="arcigy_partner_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_arcigy_client_reports_search" model="ir.ui.view">
+        <field name="name">project.task.arcigy.client.reports.search</field>
+        <field name="model">project.task</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="arcigy_partner_id"/>
+                <filter name="open" string="Otvorené" domain="[('arcigy_status', 'in', ('review', 'new', 'working'))]"/>
+                <filter name="price_errors" string="Chyby v cene" domain="[('arcigy_kind_group', '=', 'price_error')]"/>
+                <group>
+                    <filter name="group_kind" string="Typ" context="{'group_by': 'arcigy_kind_group'}"/>
+                    <filter name="group_status" string="Stav" context="{'group_by': 'arcigy_status'}"/>
+                    <filter name="group_partner" string="Klient" context="{'group_by': 'arcigy_partner_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_arcigy_client_reports" model="ir.actions.act_window">
+        <field name="name">Hlásenia klientov</field>
+        <field name="res_model">project.task</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('arcigy_partner_id', '!=', False)]</field>
+        <field name="context">{'search_default_group_kind': 1}</field>
+        <field name="search_view_id" ref="view_arcigy_client_reports_search"/>
+        <field name="view_ids" eval="[
+            Command.clear(),
+            Command.create({'view_mode': 'list', 'view_id': ref('view_arcigy_client_reports_list')}),
+        ]"/>
+    </record>
+
+    <menuitem id="menu_arcigy_client_reports" name="Hlásenia klientov" parent="contacts.menu_contacts"
+              action="action_arcigy_client_reports" sequence="7"/>
+</odoo>

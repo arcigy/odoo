@@ -9,7 +9,8 @@ Re-verify with the commands at the end before relying on this after a deploy.
 |---|---|---|
 | Odoo base | `odoo:19.0-20260630@sha256:f54272f3…` | `Dockerfile` `FROM` (pinned) |
 | Extra Python packages | `config/python-constraints.txt` | `Dockerfile` `pip3 install --constraint` |
-| `geotherm_chatbot`, `geotherm_drive`, `arcigy_saas_control_center`, `arcigy_client_crm` | this repo, `addons/` | baked into the image (`arcigy_client_crm` is installed once with `l10n_sk`, see `ops/arcigy-invoicing/README.md`) |
+| `geotherm_chatbot`, `geotherm_drive`, `arcigy_saas_control_center`, `arcigy_client_crm` | this repo, `addons/` | baked into the image (`arcigy_client_crm` is installed once with `l10n_sk`, see `ops/arcigy-invoicing/README.md` and `ops/arcigy-crm/README.md`) |
+| `arcigy_client_crm_feedback` | this repo, `addons/` | baked into the image; auto-installs next to `arcigy_client_crm` and the host-mounted `arcigy_feedback`. CI cannot install it (no `arcigy_feedback` source here); test it with the addon mounted, see `ops/arcigy-crm/README.md` |
 | `odoo.conf`, `start-odoo.sh` | this repo | baked into the image |
 | `arcigy_feedback` | `arcigy/kitchen_app`, `odoo-addons/arcigy_feedback` at commit `44a541b8` (branch `feature/arc-003-feedback-webhook`) | read-only bind mount from host `/opt/arcigy-feedback/releases/44a541b8/odoo-addons/arcigy_feedback` |
 | Feedback webhook signer keys | host `/etc/arcigy-feedback-webhook/signer` | read-only bind mount to `/etc/arcigy-feedback-webhook` |

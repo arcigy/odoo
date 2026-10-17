@@ -1,0 +1,10 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_metric_daily_user,metric daily user,model_arcigy_client_metric_daily,base.group_user,1,0,0,0
+access_metric_daily_system,metric daily system,model_arcigy_client_metric_daily,base.group_system,1,1,1,1
+access_metric_monthly_user,metric monthly user,model_arcigy_client_metric_monthly,base.group_user,1,0,0,0
+access_metric_monthly_system,metric monthly system,model_arcigy_client_metric_monthly,base.group_system,1,1,1,1
+access_user_monthly_manager,user monthly manager,model_arcigy_client_user_monthly,group_crm_manager,1,0,0,0
+access_user_monthly_system,user monthly system,model_arcigy_client_user_monthly,base.group_system,1,1,1,1
+access_export_batch_manager,export batch manager,model_arcigy_client_export_batch,group_crm_manager,1,0,0,0
+access_export_batch_ingest,export batch ingest,model_arcigy_client_export_batch,group_crm_ingest,1,0,0,0
+access_export_batch_system,export batch system,model_arcigy_client_export_batch,base.group_system,1,1,1,1
