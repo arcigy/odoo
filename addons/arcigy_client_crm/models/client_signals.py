@@ -67,9 +67,14 @@ class ResPartner(models.Model):
         if self.arcigy_data_as_of and self.arcigy_data_as_of < fields.Date.subtract(today, days=int(param("stale_days"))):
             findings.append(("Staré dáta z aplikácie", f"Posledné metriky sú k {self.arcigy_data_as_of}. Skontrolujte denný export, kým podľa nich rozhodnete."))
 
-        first = Daily.search([("partner_id", "=", self.id)], order="date asc", limit=1)
-        history_days = (self.arcigy_data_as_of - first.date).days + 1 if first and self.arcigy_data_as_of else 0
-        if active_client and history_days >= param("activity_min_days"):
+        def days_since(domain):
+            first = Daily.search([("partner_id", "=", self.id)] + domain, order="date asc", limit=1)
+            return (self.arcigy_data_as_of - first.date).days + 1 if first and self.arcigy_data_as_of else 0
+
+        # Offer rules count only from the first recorded offer: backfilled days from before offer
+        # tracking existed would otherwise look like a client that stopped sending offers.
+        offer_days = days_since(["|", "|", ("offers_generated", ">", 0), ("offers_sheet_generated", ">", 0), ("offers_sent", "!=", 0)])
+        if active_client and offer_days >= param("activity_min_days"):
             prev_total = self.arcigy_offers_sent_prev_4w_avg * 2
             if prev_total >= param("offers_drop_min_prev_8w") and self.arcigy_offers_sent_4w <= self.arcigy_offers_sent_prev_4w_avg * (1 - param("offers_drop_pct") / 100):
                 findings.append(("Pokles odoslaných ponúk", (
@@ -79,6 +84,7 @@ class ResPartner(models.Model):
             recent = Daily.search([("partner_id", "=", self.id), ("date", ">", fields.Date.subtract(self.arcigy_data_as_of, days=window))])
             if not sum(recent.mapped("offers_sent")):
                 findings.append((f"{window} dní bez odoslanej ponuky", "Klient neoznačil žiadnu ponuku ako odoslanú. Overte, či aplikáciu používa a či tlačidlo pozná."))
+        if active_client and days_since([]) >= param("activity_min_days"):
             if self.arcigy_users_active_30d == 0:
                 findings.append(("Nikto z klienta aplikáciu nepoužíva", "Za 30 dní žiadny projekt, ponuka ani rozhodnutie v PDF. Ozvite sa kľúčovému človeku."))
 

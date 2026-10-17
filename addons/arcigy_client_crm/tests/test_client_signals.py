@@ -47,6 +47,14 @@ class TestClientSignals(TransactionCase):
         self.add_days(20, lambda offset: 0, active_users=0)
         self.assertEqual(self.titles(), [])
 
+    def test_backfilled_days_before_offer_tracking_do_not_look_like_churn(self):
+        # 70 days of history from before offer tracking existed, nobody active recently.
+        self.add_days(70, lambda offset: 0, active_users=0)
+        titles = self.titles()
+        self.assertNotIn("Pokles odoslaných ponúk", titles)
+        self.assertNotIn("14 dní bez odoslanej ponuky", titles)
+        self.assertIn("Nikto z klienta aplikáciu nepoužíva", titles)
+
     def test_stale_data(self):
         self.add_days(3, lambda offset: 1, last_day=self.today - timedelta(days=5))
         self.assertIn("Staré dáta z aplikácie", self.titles())
