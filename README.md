@@ -343,6 +343,8 @@ populations. The included input is synthetic and is not production evidence.
 
 Canonical repo teraz obsahuje aj zachovaný `geotherm_drive`, CapRover `captain-definition`, produkčné Python dependencies a riadené `ODOO_INIT_MODULES`/`ODOO_UPDATE_MODULES`. Presný backup, smoke a rollback postup je v `docs/SAAS_CONTROL_CENTER_DEPLOY_RUNBOOK.md`.
 
+Push do `main` sa automaticky nasadí na `arcigy-odoo`. Čo presne v ňom beží (zafixovaný Odoo image, `arcigy_feedback` pripojený zo servera, webhook mounty) a ako pridať nový addon, je v `docs/ARCIGY_ODOO_DEPLOYMENT.md`.
+
 ## Automatizovaný Odoo off-host backup
 
 `ops/backup/create-odoo-backup.sh` vytvorí mode-0600 PostgreSQL, filestore a service-definition archív priamo na CapRover hoste a overí `pg_restore -l`, tar štruktúru a SHA-256. `ops/backup/odoo-backup-runner.ps1` ho cez strict-host-key SSH prenesie na samostatný Windows host, zašifruje cez CMS/AES-256-CBC certifikát s neexportovateľným privátnym kľúčom, overí dešifrovací checksum roundtrip a odstráni dočasný plaintext na oboch hostoch.
