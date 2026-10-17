@@ -37,6 +37,8 @@ irrelevant while the mount exists. Images built from this repository do not cont
 - **Module install or upgrade:** set `ODOO_UPDATE_MODULES` (upgrade) or `ODOO_INIT=1` with
   `ODOO_INIT_MODULES` (install) on the CapRover app, restart once, then remove or reset the variable.
   Take and verify a backup first (`docs/SAAS_CONTROL_CENTER_DEPLOY_RUNBOOK.md`).
+- **Required environment:** `start-odoo.sh` refuses to start when `ODOO_MASTER_PASSWORD` is unset
+  or empty, so never remove it from the CapRover app, including while cleaning up other variables.
 
 ## Adding a new Arcigy addon
 
