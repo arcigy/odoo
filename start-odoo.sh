@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Fail closed: without this variable Odoo would run with a default master password
+# that is visible in this repository.
+if [[ -z "${ODOO_MASTER_PASSWORD:-}" ]]; then
+  echo "ODOO_MASTER_PASSWORD is not set; refusing to start Odoo with a default master password." >&2
+  exit 1
+fi
+
 runtime_config="/tmp/geotherm-odoo.conf"
 cp /etc/odoo/odoo.conf "$runtime_config"
-printf '\nadmin_passwd = %s\n' "${ODOO_MASTER_PASSWORD:-local-master-password}" >> "$runtime_config"
+printf '\nadmin_passwd = %s\n' "$ODOO_MASTER_PASSWORD" >> "$runtime_config"
 
 if [[ "${1:-}" == "odoo" ]]; then
   shift
