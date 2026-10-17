@@ -34,6 +34,15 @@ jobs:
       - name: Build isolated Odoo test image
         shell: bash
         run: docker build -t "geotherm-odoo-ci:$GITHUB_SHA" .
+      - name: Refuse to start without a master password
+        shell: bash
+        run: |
+          set +e
+          output=$(docker run --rm --network none "geotherm-odoo-ci:$GITHUB_SHA" odoo --stop-after-init 2>&1)
+          status=$?
+          set -e
+          [[ "$status" != "0" ]] || { echo 'Odoo started without ODOO_MASTER_PASSWORD.' >&2; exit 1; }
+          grep -Fq 'ODOO_MASTER_PASSWORD is not set' <<< "$output"
       - name: Start isolated PostgreSQL test database
         shell: bash
         run: |
