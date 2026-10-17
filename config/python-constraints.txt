@@ -1,0 +1,18 @@
+# Exact versions installed on top of the pinned Odoo base image, captured from the
+# running arcigy-odoo container on 2026-10-17. Keeps rebuilds byte-for-byte on the
+# same Python dependencies instead of resolving newer transitive releases.
+google-api-core==2.31.0
+google-api-python-client==2.175.0
+google-auth==2.56.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.2
+googleapis-common-protos==1.75.0
+httplib2==0.32.0
+oauthlib==3.3.1
+openpyxl==3.1.5
+proto-plus==1.28.1
+protobuf==7.35.1
+pyparsing==3.3.2
+requests==2.34.2
+requests-oauthlib==2.0.0
+uritemplate==4.2.0
