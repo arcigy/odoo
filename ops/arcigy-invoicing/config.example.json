@@ -1,0 +1,47 @@
+{
+  "commit": false,
+  "owner_login": "admin",
+  "company": {
+    "name": "Arcigy s.r.o.",
+    "street": "Ulica 1",
+    "zip": "811 01",
+    "city": "Bratislava",
+    "country": "SK",
+    "company_registry": "12345678",
+    "income_tax_id": "2120000003",
+    "vat": "SK2120000003",
+    "trade_registry": "Obchodný register Mestského súdu Bratislava III, oddiel Sro, vložka č. 000000/B",
+    "email": "fakturacia@example.sk",
+    "phone": null,
+    "website": null,
+    "iban": "SK00 0000 0000 0000 0000 0000"
+  },
+  "sales_journal_code": "FA",
+  "eu_reverse_charge_note": "Prenesenie daňovej povinnosti. Miesto dodania služby podľa § 15 ods. 1 zákona č. 222/2004 Z. z. (čl. 196 smernice 2006/112/ES).",
+  "product": {
+    "default_code": "ARC-LICENCIA",
+    "name": "Arcigy – mesačný poplatok za aplikáciu",
+    "list_price": 0.0,
+    "tax_xmlid": "vy_tuz_0_s"
+  },
+  "clients": [
+    {
+      "client_key": "client_delfi",
+      "name": "DELFI s.r.o.",
+      "street": "Ulice 1",
+      "zip": "000 00",
+      "city": "Mesto",
+      "country": "CZ",
+      "vat": "CZ10000003",
+      "company_registry": "10000003",
+      "email": null,
+      "lang": "sk_SK",
+      "stage": "mvp",
+      "mvp_start_date": "2026-08-01",
+      "billing_start_date": "2026-11-01",
+      "mrr": 0.0,
+      "mrr_currency": "EUR",
+      "payment_term_days": 14
+    }
+  ]
+}

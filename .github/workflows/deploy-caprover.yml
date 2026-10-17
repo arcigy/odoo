@@ -67,10 +67,10 @@ jobs:
             -e ODOO_MASTER_PASSWORD=odoo-ci-master-password \
             "geotherm-odoo-ci:$GITHUB_SHA" \
             odoo \
-            --init=geotherm_chatbot,geotherm_drive,arcigy_saas_control_center \
+            --init=geotherm_chatbot,geotherm_drive,arcigy_saas_control_center,arcigy_client_crm \
             --without-demo \
             --test-enable \
-            --test-tags=/arcigy_saas_control_center \
+            --test-tags=/arcigy_saas_control_center,/arcigy_client_crm \
             --stop-after-init 2>&1 | tee odoo-test.log
           grep -Eq '0 failed, 0 error\(s\) of [1-9][0-9]* tests' odoo-test.log
       - name: Remove isolated test resources
