@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_arcigy_client" model="ir.ui.view">
+        <field name="name">res.partner.form.arcigy.client</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <div name="button_box" position="inside">
+                <button name="action_arcigy_open_metrics" type="object" class="oe_stat_button" icon="fa-line-chart"
+                        invisible="not arcigy_client_key">
+                    <div class="o_stat_info">
+                        <span class="o_stat_value"><field name="arcigy_offers_sent_4w"/></span>
+                        <span class="o_stat_text">Ponuky (4 týž.)</span>
+                    </div>
+                </button>
+                <button name="action_arcigy_open_app_users" type="object" class="oe_stat_button" icon="fa-users"
+                        invisible="not arcigy_client_key">
+                    <field name="arcigy_app_user_count" widget="statinfo" string="Používatelia"/>
+                </button>
+            </div>
+            <field name="function" position="after">
+                <field name="arcigy_user_key" invisible="1"/>
+                <field name="arcigy_app_role" invisible="not arcigy_user_key"/>
+                <field name="arcigy_app_user_state" invisible="not arcigy_user_key" groups="arcigy_client_crm.group_crm_manager"/>
+            </field>
+            <page name="internal_notes" position="before">
+                <page name="arcigy_client" string="Arcigy klient" invisible="not is_company">
+                    <group>
+                        <group string="Zmluva">
+                            <field name="arcigy_client_key" placeholder="client_delfi"/>
+                            <field name="arcigy_client_stage"/>
+                            <field name="arcigy_mvp_start_date"/>
+                            <field name="arcigy_billing_start_date"/>
+                            <field name="arcigy_mrr_currency_id" invisible="1"/>
+                            <field name="arcigy_mrr"/>
+                        </group>
+                        <group string="Platby" groups="account.group_account_invoice,account.group_account_readonly">
+                            <field name="currency_id" invisible="1"/>
+                            <field name="arcigy_amount_due"/>
+                            <field name="arcigy_amount_overdue"/>
+                            <field name="arcigy_oldest_overdue_days" invisible="not arcigy_oldest_overdue_days"/>
+                            <field name="arcigy_next_due_date"/>
+                            <field name="arcigy_last_payment_date"/>
+                        </group>
+                    </group>
+                    <group invisible="not arcigy_data_as_of">
+                        <group string="Využitie">
+                            <field name="arcigy_data_as_of"/>
+                            <field name="arcigy_users_active_30d"/>
+                            <field name="arcigy_users_total"/>
+                            <field name="arcigy_offers_generated_4w"/>
+                            <field name="arcigy_offers_sent_4w"/>
+                            <field name="arcigy_offers_sent_prev_4w_avg"/>
+                            <field name="arcigy_offers_trend_pct"/>
+                        </group>
+                        <group string="Náklady a kvalita">
+                            <field name="arcigy_ai_cost_per_project_usd"/>
+                            <field name="arcigy_ai_cost_p90_usd"/>
+                            <field name="arcigy_pdf_corrected_pct"/>
+                            <field name="arcigy_margin_last_month"/>
+                        </group>
+                    </group>
+                </page>
+            </page>
+        </field>
+    </record>
+
+    <record id="view_partner_list_arcigy_client" model="ir.ui.view">
+        <field name="name">res.partner.list.arcigy.client</field>
+        <field name="model">res.partner</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <list string="Arcigy klienti">
+                <field name="name"/>
+                <field name="arcigy_client_key" optional="hide"/>
+                <field name="arcigy_client_stage"/>
+                <field name="user_id" widget="many2one_avatar_user" optional="show"/>
+                <field name="arcigy_billing_start_date"/>
+                <field name="arcigy_mrr_currency_id" column_invisible="1"/>
+                <field name="arcigy_mrr" sum="MRR spolu"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="arcigy_amount_overdue" groups="account.group_account_invoice,account.group_account_readonly"/>
+                <field name="arcigy_oldest_overdue_days" groups="account.group_account_invoice,account.group_account_readonly"/>
+                <field name="arcigy_next_due_date" groups="account.group_account_invoice,account.group_account_readonly"/>
+                <field name="arcigy_last_payment_date" optional="hide" groups="account.group_account_invoice,account.group_account_readonly"/>
+                <field name="arcigy_users_active_30d" optional="show"/>
+                <field name="arcigy_offers_sent_4w" optional="show"/>
+                <field name="arcigy_offers_trend_pct" optional="show" decoration-danger="arcigy_offers_trend_pct &lt;= -40" decoration-success="arcigy_offers_trend_pct &gt; 0"/>
+                <field name="arcigy_ai_cost_per_project_usd" optional="show" decoration-danger="arcigy_ai_cost_per_project_usd &gt; 0.1"/>
+                <field name="arcigy_pdf_corrected_pct" optional="hide"/>
+                <field name="arcigy_margin_last_month" optional="show"/>
+                <field name="arcigy_data_as_of" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_partner_search_arcigy_client" model="ir.ui.view">
+        <field name="name">res.partner.search.arcigy.client</field>
+        <field name="model">res.partner</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <search string="Arcigy klienti">
+                <field name="name"/>
+                <field name="arcigy_client_key"/>
+                <filter name="stage_active" string="Aktívni" domain="[('arcigy_client_stage', 'in', ('pilot', 'mvp', 'paying'))]"/>
+                <filter name="stage_paying" string="Platiaci" domain="[('arcigy_client_stage', '=', 'paying')]"/>
+                <filter name="stage_inactive" string="Pozastavení a odídení" domain="[('arcigy_client_stage', 'in', ('paused', 'churned'))]"/>
+                <group>
+                    <filter name="group_stage" string="Štádium" context="{'group_by': 'arcigy_client_stage'}"/>
+                    <filter name="group_owner" string="Vlastník" context="{'group_by': 'user_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_arcigy_clients" model="ir.actions.act_window">
+        <field name="name">Arcigy klienti</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('arcigy_client_key', '!=', False)]</field>
+        <field name="context">{'default_is_company': True, 'search_default_stage_active': 1}</field>
+        <field name="search_view_id" ref="view_partner_search_arcigy_client"/>
+        <field name="view_ids" eval="[
+            Command.clear(),
+            Command.create({'view_mode': 'list', 'view_id': ref('view_partner_list_arcigy_client')}),
+            Command.create({'view_mode': 'form', 'view_id': ref('base.view_partner_form')}),
+        ]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Zatiaľ tu nie je žiadny klient</p>
+            <p>Klient je firma s vyplneným kľúčom klienta z aplikácie Arcigy (karta „Arcigy klient“).</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_arcigy_clients"
+        name="Arcigy klienti"
+        parent="contacts.menu_contacts"
+        action="action_arcigy_clients"
+        sequence="3"/>
+</odoo>

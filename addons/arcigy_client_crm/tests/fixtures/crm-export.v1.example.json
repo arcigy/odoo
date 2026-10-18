@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "environment": "prod",
+  "timezone": "Europe/Bratislava",
+  "date_from": "2026-10-11",
+  "date_to": "2026-10-12",
+  "clients": [
+    {
+      "client_key": "client_delfi",
+      "name": "DELFI",
+      "users": [
+        {
+          "user_key": "client_delfi:u1",
+          "name": "Aleš",
+          "position": "Konštruktér",
+          "app_role": "administrator",
+          "state": "active_30d"
+        },
+        {
+          "user_key": "client_delfi:u2",
+          "name": "Bea",
+          "position": "Obchod",
+          "app_role": "team_member",
+          "state": "active_30d"
+        },
+        {
+          "user_key": "client_delfi:u3",
+          "name": "Cyril",
+          "position": "Archív",
+          "app_role": "observer",
+          "state": "deactivated"
+        }
+      ],
+      "daily": [
+        {
+          "date": "2026-10-11",
+          "users_total": 2,
+          "users_active_30d": 2,
+          "projects_created": 1,
+          "projects_deleted": 0,
+          "offers_generated": 1,
+          "offers_sheet_generated": 1,
+          "offers_sent": 0,
+          "pdf_documents_processed": 0,
+          "pdf_items_proposed": 0,
+          "pdf_items_corrected": 0,
+          "pdf_items_rejected": 0,
+          "pdf_items_added_by_user": 0,
+          "ai_cost_usd_pdf": 0,
+          "ai_cost_usd_assistant": 0.02,
+          "ai_cost_usd_other": 0,
+          "ai_calls": 1,
+          "ai_calls_unpriced": 0
+        },
+        {
+          "date": "2026-10-12",
+          "users_total": 2,
+          "users_active_30d": 2,
+          "projects_created": 1,
+          "projects_deleted": 1,
+          "offers_generated": 0,
+          "offers_sheet_generated": 0,
+          "offers_sent": 1,
+          "pdf_documents_processed": 1,
+          "pdf_items_proposed": 3,
+          "pdf_items_corrected": 1,
+          "pdf_items_rejected": 1,
+          "pdf_items_added_by_user": 1,
+          "ai_cost_usd_pdf": 0.09,
+          "ai_cost_usd_assistant": 0.015,
+          "ai_cost_usd_other": 0,
+          "ai_calls": 4,
+          "ai_calls_unpriced": 1
+        }
+      ],
+      "monthly": [
+        {
+          "month": "2026-10-01",
+          "projects_with_ai": 2,
+          "ai_cost_per_project_avg_usd": 0.06,
+          "ai_cost_per_project_p90_usd": 0.11,
+          "ai_cost_per_project_max_usd": 0.11,
+          "projects_over_target": 1,
+          "ai_cost_usd_without_project": 0.005
+        }
+      ],
+      "user_monthly": [
+        {
+          "user_key": "client_delfi:u1",
+          "month": "2026-10-01",
+          "projects_created": 1,
+          "offers_generated": 1,
+          "offers_sent": 1,
+          "pdf_documents_processed": 1,
+          "pdf_items_proposed": 3,
+          "pdf_items_corrected": 1
+        },
+        {
+          "user_key": "client_delfi:u2",
+          "month": "2026-10-01",
+          "projects_created": 1,
+          "offers_generated": 0,
+          "offers_sent": 0,
+          "pdf_documents_processed": 0,
+          "pdf_items_proposed": 0,
+          "pdf_items_corrected": 0
+        },
+        {
+          "user_key": "client_delfi:u3",
+          "month": "2026-10-01",
+          "projects_created": 0,
+          "offers_generated": 0,
+          "offers_sent": 0,
+          "pdf_documents_processed": 0,
+          "pdf_items_proposed": 0,
+          "pdf_items_corrected": 0
+        }
+      ]
+    }
+  ],
+  "control_totals": {
+    "projects_created": 2,
+    "offers_sent": 1,
+    "ai_cost_usd": 0.125,
+    "ai_calls": 5
+  },
+  "batch_id": "prod:2026-10-11..2026-10-12:46f1108a21868b46",
+  "generated_at": "2026-10-13T00:30:00.000Z"
+}
