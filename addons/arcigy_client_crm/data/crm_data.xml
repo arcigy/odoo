@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- The environment whose batches this Odoo accepts: prod in production, dev on a test copy. -->
+        <record id="param_accepted_environment" model="ir.config_parameter">
+            <field name="key">arcigy_client_crm.accepted_environment</field>
+            <field name="value">prod</field>
+        </record>
+
+        <record id="cron_arcigy_client_signals" model="ir.cron">
+            <field name="name">Arcigy klienti: signály</field>
+            <field name="model_id" ref="base.model_res_partner"/>
+            <field name="state">code</field>
+            <field name="code">model._arcigy_run_signals()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="True"/>
+        </record>
+    </data>
+</odoo>

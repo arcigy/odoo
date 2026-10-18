@@ -13,6 +13,9 @@ CLIENT_STAGES = [
 ]
 # organization_id of a tenant in the Arcigy app, e.g. "client_delfi".
 CLIENT_KEY = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
+APP_ROLES = [("administrator", "Administrátor"), ("team_member", "Člen tímu"), ("observer", "Pozorovateľ")]
+APP_USER_STATES = [("active_30d", "Aktívny (30 dní)"), ("inactive", "Neaktívny"), ("deactivated", "Deaktivovaný")]
+MANAGER_GROUP = "arcigy_client_crm.group_crm_manager"
 ACCOUNTING_GROUPS = "account.group_account_invoice,account.group_account_readonly"
 
 
@@ -76,6 +79,30 @@ class ResPartner(models.Model):
         compute="_compute_arcigy_receivables",
         groups=ACCOUNTING_GROUPS,
     )
+
+    # App users of a client, kept as contacts of the client company (filled by the daily export).
+    arcigy_user_key = fields.Char(string="Kľúč používateľa v aplikácii", index=True, copy=False, readonly=True)
+    arcigy_app_role = fields.Selection(APP_ROLES, string="Rola v aplikácii", readonly=True, copy=False)
+    arcigy_app_user_state = fields.Selection(APP_USER_STATES, string="Stav v aplikácii", readonly=True, groups=MANAGER_GROUP, copy=False)
+    arcigy_user_monthly_ids = fields.One2many("arcigy.client.user.monthly", "contact_id", string="Výsledky po mesiacoch", groups=MANAGER_GROUP, copy=False)
+
+    # Client summary, refreshed after every ingested batch.
+    arcigy_metric_daily_ids = fields.One2many("arcigy.client.metric.daily", "partner_id", string="Denné metriky", copy=False)
+    arcigy_metric_monthly_ids = fields.One2many("arcigy.client.metric.monthly", "partner_id", string="Mesačné metriky", copy=False)
+    arcigy_data_as_of = fields.Date(string="Dáta k", readonly=True, copy=False)
+    arcigy_users_total = fields.Integer(string="Používatelia", readonly=True, copy=False)
+    arcigy_users_active_30d = fields.Integer(string="Aktívni (30 dní)", readonly=True, copy=False)
+    arcigy_offers_generated_4w = fields.Integer(string="Vygenerované ponuky (4 týždne)", readonly=True, copy=False)
+    arcigy_offers_sent_4w = fields.Integer(string="Odoslané ponuky (4 týždne)", readonly=True, copy=False)
+    arcigy_offers_sent_prev_4w_avg = fields.Float(string="Odoslané ponuky, predchádzajúcich 8 týž. / 2", digits=(10, 1), readonly=True, copy=False)
+    arcigy_offers_trend_pct = fields.Float(string="Trend odoslaných ponúk (%)", digits=(10, 1), readonly=True, copy=False)
+    arcigy_ai_cost_per_project_usd = fields.Float(string="AI na projekt (USD, mesiac)", digits=(12, 4), readonly=True, copy=False)
+    arcigy_ai_cost_p90_usd = fields.Float(string="AI na projekt p90 (USD, mesiac)", digits=(12, 4), readonly=True, copy=False)
+    arcigy_pdf_corrected_pct = fields.Float(string="% opravených návrhov PDF (mesiac)", digits=(5, 1), readonly=True, copy=False)
+    arcigy_margin_last_month = fields.Monetary(string="Príspevková marža (posledný mesiac)", currency_field="currency_id", readonly=True, copy=False)
+    arcigy_app_user_count = fields.Integer(string="Používatelia aplikácie", compute="_compute_arcigy_app_user_count")
+
+    _arcigy_user_key_unique = models.Constraint("UNIQUE(arcigy_user_key)", "Kľúč používateľa musí byť jedinečný.")
 
     _arcigy_client_key_unique = models.Constraint(
         "UNIQUE(arcigy_client_key)", "Kľúč klienta musí byť jedinečný."
@@ -148,3 +175,59 @@ class ResPartner(models.Model):
             partner.arcigy_oldest_overdue_days = oldest_overdue[key]
             partner.arcigy_next_due_date = next_due.get(key)
             partner.arcigy_last_payment_date = last_payment.get(key)
+
+    def _compute_arcigy_app_user_count(self):
+        counts = dict(self.env["res.partner"]._read_group(
+            [("parent_id", "in", self.ids), ("arcigy_user_key", "!=", False)], ["parent_id"], ["__count"]))
+        for partner in self:
+            partner.arcigy_app_user_count = counts.get(partner, 0)
+
+    def _arcigy_refresh_metric_summary(self):
+        """Headline numbers for the client list and the signals, from the stored daily/monthly rows."""
+        Daily = self.env["arcigy.client.metric.daily"]
+        Monthly = self.env["arcigy.client.metric.monthly"]
+        for partner in self:
+            latest = Daily.search([("partner_id", "=", partner.id)], order="date desc", limit=1)
+            if not latest:
+                continue
+            as_of = latest.date
+
+            def total(name, days_back_from, days_back_to):
+                rows = Daily.search([
+                    ("partner_id", "=", partner.id),
+                    ("date", ">", fields.Date.subtract(as_of, days=days_back_from)),
+                    ("date", "<=", fields.Date.subtract(as_of, days=days_back_to)),
+                ])
+                return sum(rows.mapped(name))
+
+            sent_4w = total("offers_sent", 28, 0)
+            prev_avg = total("offers_sent", 84, 28) / 2.0
+            month = Monthly.search([("partner_id", "=", partner.id), ("month", "<=", as_of)], order="month desc", limit=1)
+            last_full = Monthly.search(
+                [("partner_id", "=", partner.id), ("month", "<", fields.Date.start_of(as_of, "month"))], order="month desc", limit=1)
+            partner.write({
+                "arcigy_data_as_of": as_of,
+                "arcigy_users_total": latest.users_total,
+                "arcigy_users_active_30d": latest.users_active_30d,
+                "arcigy_offers_generated_4w": total("offers_generated", 28, 0),
+                "arcigy_offers_sent_4w": sent_4w,
+                "arcigy_offers_sent_prev_4w_avg": prev_avg,
+                "arcigy_offers_trend_pct": round(100.0 * (sent_4w - prev_avg) / prev_avg, 1) if prev_avg else 0.0,
+                "arcigy_ai_cost_per_project_usd": month.ai_cost_per_project_avg_usd,
+                "arcigy_ai_cost_p90_usd": month.ai_cost_per_project_p90_usd,
+                "arcigy_pdf_corrected_pct": month.pdf_corrected_pct,
+                "arcigy_margin_last_month": last_full.contribution_margin if last_full else month.contribution_margin,
+            })
+
+    def action_arcigy_open_metrics(self):
+        self.ensure_one()
+        action = self.env["ir.actions.act_window"]._for_xml_id("arcigy_client_crm.action_arcigy_client_metric_daily")
+        action["domain"] = [("partner_id", "=", self.id)]
+        action["context"] = {"default_partner_id": self.id}
+        return action
+
+    def action_arcigy_open_app_users(self):
+        self.ensure_one()
+        action = self.env["ir.actions.act_window"]._for_xml_id("arcigy_client_crm.action_arcigy_app_users")
+        action["domain"] = [("parent_id", "=", self.id), ("arcigy_user_key", "!=", False)]
+        return action

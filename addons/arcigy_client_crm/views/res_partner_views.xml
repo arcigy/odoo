@@ -5,6 +5,24 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
+            <div name="button_box" position="inside">
+                <button name="action_arcigy_open_metrics" type="object" class="oe_stat_button" icon="fa-line-chart"
+                        invisible="not arcigy_client_key">
+                    <div class="o_stat_info">
+                        <span class="o_stat_value"><field name="arcigy_offers_sent_4w"/></span>
+                        <span class="o_stat_text">Ponuky (4 týž.)</span>
+                    </div>
+                </button>
+                <button name="action_arcigy_open_app_users" type="object" class="oe_stat_button" icon="fa-users"
+                        invisible="not arcigy_client_key">
+                    <field name="arcigy_app_user_count" widget="statinfo" string="Používatelia"/>
+                </button>
+            </div>
+            <field name="function" position="after">
+                <field name="arcigy_user_key" invisible="1"/>
+                <field name="arcigy_app_role" invisible="not arcigy_user_key"/>
+                <field name="arcigy_app_user_state" invisible="not arcigy_user_key" groups="arcigy_client_crm.group_crm_manager"/>
+            </field>
             <page name="internal_notes" position="before">
                 <page name="arcigy_client" string="Arcigy klient" invisible="not is_company">
                     <group>
@@ -23,6 +41,23 @@
                             <field name="arcigy_oldest_overdue_days" invisible="not arcigy_oldest_overdue_days"/>
                             <field name="arcigy_next_due_date"/>
                             <field name="arcigy_last_payment_date"/>
+                        </group>
+                    </group>
+                    <group invisible="not arcigy_data_as_of">
+                        <group string="Využitie">
+                            <field name="arcigy_data_as_of"/>
+                            <field name="arcigy_users_active_30d"/>
+                            <field name="arcigy_users_total"/>
+                            <field name="arcigy_offers_generated_4w"/>
+                            <field name="arcigy_offers_sent_4w"/>
+                            <field name="arcigy_offers_sent_prev_4w_avg"/>
+                            <field name="arcigy_offers_trend_pct"/>
+                        </group>
+                        <group string="Náklady a kvalita">
+                            <field name="arcigy_ai_cost_per_project_usd"/>
+                            <field name="arcigy_ai_cost_p90_usd"/>
+                            <field name="arcigy_pdf_corrected_pct"/>
+                            <field name="arcigy_margin_last_month"/>
                         </group>
                     </group>
                 </page>
@@ -48,6 +83,13 @@
                 <field name="arcigy_oldest_overdue_days" groups="account.group_account_invoice,account.group_account_readonly"/>
                 <field name="arcigy_next_due_date" groups="account.group_account_invoice,account.group_account_readonly"/>
                 <field name="arcigy_last_payment_date" optional="hide" groups="account.group_account_invoice,account.group_account_readonly"/>
+                <field name="arcigy_users_active_30d" optional="show"/>
+                <field name="arcigy_offers_sent_4w" optional="show"/>
+                <field name="arcigy_offers_trend_pct" optional="show" decoration-danger="arcigy_offers_trend_pct &lt;= -40" decoration-success="arcigy_offers_trend_pct &gt; 0"/>
+                <field name="arcigy_ai_cost_per_project_usd" optional="show" decoration-danger="arcigy_ai_cost_per_project_usd &gt; 0.1"/>
+                <field name="arcigy_pdf_corrected_pct" optional="hide"/>
+                <field name="arcigy_margin_last_month" optional="show"/>
+                <field name="arcigy_data_as_of" optional="hide"/>
             </list>
         </field>
     </record>
