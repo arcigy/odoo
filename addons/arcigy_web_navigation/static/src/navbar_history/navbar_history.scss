@@ -1,0 +1,16 @@
+// The arrows use the navbar entry color; Bootstrap's .btn states would otherwise make them dark.
+.o_main_navbar .o_arcigy_history {
+    .o_nav_entry {
+        border-radius: 0;
+
+        &:hover:not(:disabled) {
+            background: var(--NavBar-entry-backgroundColor--hover, #{$o-navbar-entry-bg--hover});
+        }
+
+        &:disabled {
+            color: var(--NavBar-entry-color, #{$o-navbar-entry-color});
+            border-color: transparent;
+            opacity: 0.4;
+        }
+    }
+}

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<t t-inherit="web.NavBar" t-inherit-mode="extension">
+    <xpath expr="//t[@t-call='web.NavBar.AppsMenu']" position="after">
+        <div class="o_arcigy_history d-flex flex-shrink-0" role="group" aria-label="Navigácia">
+            <button type="button" class="o_arcigy_history_back o_nav_entry btn" title="Späť" aria-label="Späť"
+                    t-att-disabled="!arcigyHistory.canGoBack" t-on-click="arcigyGoBack">
+                <i class="oi oi-arrow-left" role="img"/>
+            </button>
+            <button type="button" class="o_arcigy_history_forward o_nav_entry btn" title="Dopredu" aria-label="Dopredu"
+                    t-att-disabled="!arcigyHistory.canGoForward" t-on-click="arcigyGoForward">
+                <i class="oi oi-arrow-right" role="img"/>
+            </button>
+        </div>
+    </xpath>
+</t>
+
+</templates>
