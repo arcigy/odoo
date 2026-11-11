@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Technical API users of the owner's Mac daemon. No privilege: hidden in the user form. -->
+    <record id="group_claude_agent" model="res.groups">
+        <field name="name">Claude chaty – agent</field>
+    </record>
+</odoo>

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_claude_ask_list" model="ir.ui.view">
+        <field name="name">arcigy.claude.ask.list</field>
+        <field name="model">arcigy.claude.ask</field>
+        <field name="arch" type="xml">
+            <list create="0" decoration-info="state == 'open'" decoration-muted="state == 'closed'">
+                <field name="create_date" string="Čas"/>
+                <field name="chat_name" string="Chat"/>
+                <field name="name" string="Otázka"/>
+                <field name="kind" string="Druh"/>
+                <field name="state" string="Stav" widget="badge"
+                       decoration-info="state == 'open'" decoration-success="state == 'answered'"/>
+                <field name="answered_at" string="Odpovedané" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_claude_ask_form" model="ir.ui.view">
+        <field name="name">arcigy.claude.ask.form</field>
+        <field name="model">arcigy.claude.ask</field>
+        <field name="arch" type="xml">
+            <form create="0">
+                <header>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="chat_name" string="Chat" readonly="1"/>
+                            <field name="session_id" string="Session" readonly="1"/>
+                            <field name="kind" string="Druh" readonly="1"/>
+                            <field name="url" string="Stránka" widget="url" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="create_date" string="Čas"/>
+                            <field name="answered_at" string="Odpovedané" readonly="1"/>
+                            <field name="answered_by" string="Odpovedal" readonly="1"/>
+                            <field name="close_reason" string="Dôvod uzavretia" readonly="1"/>
+                            <field name="access_token" string="Token" groups="base.group_system" readonly="1"/>
+                        </group>
+                    </group>
+                    <field name="context_text" string="Kontext" readonly="1" invisible="not context_text"/>
+                    <field name="question_ids" readonly="1">
+                        <list>
+                            <field name="header" string="Nadpis"/>
+                            <field name="question" string="Otázka"/>
+                            <field name="multi_select" string="Viac odpovedí"/>
+                            <field name="answer_labels" string="Vybrané"/>
+                            <field name="answer_other" string="Vlastná odpoveď"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_claude_ask" model="ir.actions.act_window">
+        <field name="name">Otázky z chatov</field>
+        <field name="res_model">arcigy.claude.ask</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_claude_ask"
+              name="Otázky z chatov"
+              parent="mail.menu_root_discuss"
+              action="action_claude_ask"
+              groups="base.group_system"
+              sequence="90"/>
+</odoo>

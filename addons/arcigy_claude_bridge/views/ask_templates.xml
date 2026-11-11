@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Standalone mobile page, no asset bundle: inline CSS and a little JS that only enhances. -->
+    <template id="ask_layout" name="Claude otázky – rozloženie">&lt;!DOCTYPE html&gt;
+        <html lang="sk">
+            <head>
+                <meta charset="utf-8"/>
+                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <meta name="robots" content="noindex"/>
+                <meta name="color-scheme" content="dark light"/>
+                <link rel="icon" href="data:,"/>
+                <title t-out="page_title or 'Otázka z chatu'"/>
+                <style>
+:root{--bg:#262624;--surface:#30302e;--border:#3e3e38;--text:#f5f4ef;--muted:#a6a39a;--accent:#d97757;--accent-text:#1f1e1d;--tint:rgba(217,119,87,.14);--tint-strong:rgba(217,119,87,.22);--error:#f0a39a}
+@media (prefers-color-scheme: light){:root{--bg:#faf9f5;--surface:#ffffff;--border:#e8e6dc;--text:#141413;--muted:#73716b;--accent:#c96442;--accent-text:#ffffff;--tint:rgba(201,100,66,.08);--tint-strong:rgba(201,100,66,.14);--error:#b3261e}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:20px 16px 120px}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin-bottom:16px}
+.badge{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:1px 8px;font-size:12px;color:var(--muted)}
+details.ctx{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:20px;color:var(--muted);font-size:14px}
+details.ctx summary{cursor:pointer;padding:10px 14px;font-weight:600;list-style-position:inside}
+details.ctx div{padding:0 14px 12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.images{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.image-link{display:block;border-radius:12px}
+.images img{display:block;max-width:100%;height:auto;margin:0 auto;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.error{border:1px solid var(--error);color:var(--error);border-radius:12px;padding:10px 14px;margin-bottom:16px;font-size:14px}
+fieldset.q{border:0;margin:0 0 28px;padding:0;min-width:0}
+.chip{display:inline-block;background:var(--tint-strong);color:var(--accent);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;margin-bottom:8px}
+legend.qt{display:block;width:100%;padding:0;margin:0 0 12px;font-size:18px;font-weight:600;line-height:1.35;text-align:left}
+legend.qt .chip{display:table}
+.qtext{display:block;white-space:pre-wrap;overflow-wrap:anywhere}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{display:flex;align-items:flex-start;gap:12px;min-height:56px;padding:13px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.opt:hover{border-color:var(--muted)}
+.opt input{position:absolute;opacity:0;width:1px;height:1px;margin:0}
+.mark{flex:none;width:20px;height:20px;margin-top:2px;border:2px solid var(--muted);border-radius:50%;display:flex;align-items:center;justify-content:center}
+.multi .mark{border-radius:5px}
+.opt-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.label{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.desc{font-size:14px;color:var(--muted);overflow-wrap:anywhere;white-space:pre-wrap}
+.opt:has(input:checked),.opt.sel{border:2px solid var(--accent);padding:12px 13px;background:var(--tint)}
+.opt:has(input:checked) .mark,.opt.sel .mark{border-color:var(--accent);background:var(--accent)}
+.opt:has(input:checked) .mark::after,.opt.sel .mark::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent-text)}
+.multi .opt:has(input:checked) .mark::after,.multi .opt.sel .mark::after{width:10px;height:6px;border-radius:0;background:none;border:solid var(--accent-text);border-width:0 0 2px 2px;transform:translateY(-1px) rotate(-45deg)}
+.opt:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+pre.preview{margin:6px 0 0;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-x:auto;max-height:320px;color:var(--text)}
+.js pre.preview{display:none}
+.js .opt-wrap.on pre.preview{display:block}
+textarea{display:block;width:100%;margin-top:8px;padding:10px 12px;font:inherit;font-size:16px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:12px;resize:vertical}
+textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 1px var(--accent)}
+.js .other-box{display:none}
+.js .other-box.on{display:block}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(to top,var(--bg) 70%,transparent)}
+.bar-in{max-width:608px;margin:0 auto}
+.js .bar.hidden{display:none}
+button.send{width:100%;height:48px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-text);font:inherit;font-weight:600;font-size:16px;cursor:pointer}
+button.send:disabled{opacity:.4;cursor:default}
+.done{text-align:center;padding:32px 0 8px}
+.check{width:72px;height:72px;margin:0 auto 12px;border-radius:50%;background:var(--tint-strong);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:700}
+.done h1{font-size:24px;margin:0 0 6px}
+.answers{list-style:none;margin:16px 0;padding:0;display:flex;flex-direction:column;gap:8px;text-align:left}
+.answers li{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.answers .q-small{display:block;font-size:13px;color:var(--muted);margin-bottom:2px}
+.answers .a{font-weight:600;white-space:pre-wrap;overflow-wrap:anywhere}
+.muted{color:var(--muted)}
+.back{display:inline-block;margin-top:12px;font-weight:600}
+h1.list-h{font-size:20px;margin:0 0 12px}
+h2.list-h{font-size:15px;color:var(--muted);margin:28px 0 10px;font-weight:600}
+a.row{display:block;text-decoration:none;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+a.row .label{display:block}
+a.row .small{display:block;font-size:13px;color:var(--muted)}
+                </style>
+            </head>
+            <body>
+                <main class="wrap">
+                    <t t-out="0"/>
+                </main>
+            </body>
+        </html>
+    </template>
+
+    <template id="ask_answers" name="Claude otázky – odpovede">
+        <ul class="answers">
+            <li t-foreach="questions" t-as="q">
+                <span class="q-small" t-out="q['record'].header or q['record'].question"/>
+                <span class="a" t-out="', '.join(q['answers']) or '–'"/>
+            </li>
+        </ul>
+    </template>
+
+    <template id="ask_page" name="Claude otázka">
+        <t t-call="arcigy_claude_bridge.ask_layout">
+            <t t-set="page_title" t-value="ask.chat_name or 'Otázka z chatu'"/>
+            <div class="meta">
+                <span t-out="'%s · %s' % (ask.chat_name or ask.session_id, time_text)"/>
+                <span class="badge" t-out="kind_text"/>
+            </div>
+
+            <t t-if="ask.state == 'answered'">
+                <div class="done">
+                    <div class="check" aria-hidden="true">✓</div>
+                    <h1 t-out="'Odoslané' if just_sent else 'Zodpovedané'"/>
+                    <p class="muted" t-if="not just_sent and ask.answered_at"
+                       t-out="'Odpovedal si %s.' % time_answered if time_answered else ''"/>
+                </div>
+                <t t-call="arcigy_claude_bridge.ask_answers"/>
+                <p class="muted" t-if="just_sent">Chat pokračuje.</p>
+                <a class="back" href="/odoo/discuss">Späť do Odoo</a>
+            </t>
+            <t t-elif="ask.state == 'closed'">
+                <div class="done">
+                    <div class="check" aria-hidden="true">–</div>
+                    <h1>Uzavreté</h1>
+                    <p class="muted" t-out="'Táto otázka je uzavretá: %s' % (ask.close_reason or 'bez dôvodu')"/>
+                </div>
+                <a class="back" href="/odoo/discuss">Späť do Odoo</a>
+            </t>
+            <t t-else="">
+                <details class="ctx" t-if="ask.context_text">
+                    <summary>Kontext</summary>
+                    <div t-out="ask.context_text"/>
+                </details>
+                <div class="images" t-if="ask.image_ids">
+                    <a t-foreach="ask.image_ids" t-as="image" class="image-link" target="_blank" rel="noopener"
+                       t-att-href="'/web/content/%s' % image.id" t-att-title="image.name">
+                        <img t-att-src="'/web/image/%s' % image.id" t-att-alt="image.name" loading="lazy"/>
+                    </a>
+                </div>
+                <div class="error" role="alert" t-if="error" t-out="error"/>
+                <form id="ask-form" method="post" t-att-action="form_action"
+                      t-att-data-auto="'1' if auto_submit else '0'">
+                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                    <t t-foreach="questions" t-as="q">
+                        <t t-set="question" t-value="q['record']"/>
+                        <t t-set="qname" t-value="'q%s' % q['index']"/>
+                        <t t-set="itype" t-value="'checkbox' if question.multi_select else 'radio'"/>
+                        <fieldset t-att-class="'q multi' if question.multi_select else 'q'" t-att-data-q="q['index']">
+                            <legend class="qt"><span class="chip" t-if="question.header" t-out="question.header"/><span class="qtext" t-out="question.question"/></legend>
+                            <div class="opts">
+                                <div class="opt-wrap" t-foreach="question.option_ids" t-as="option">
+                                    <label class="opt">
+                                        <input t-att-type="itype" t-att-name="qname" t-att-value="str(option_index)"
+                                               t-att-checked="str(option_index) in q['selected']"/>
+                                        <span class="mark" aria-hidden="true"/>
+                                        <span class="opt-text">
+                                            <span class="label" t-out="option.label"/>
+                                            <span class="desc" t-if="option.description" t-out="option.description"/>
+                                        </span>
+                                    </label>
+                                    <pre class="preview" t-if="option.preview" t-out="option.preview"/>
+                                </div>
+                                <div class="opt-wrap other-wrap">
+                                    <label class="opt">
+                                        <input t-att-type="itype" t-att-name="qname" value="__other__"
+                                               t-att-checked="'__other__' in q['selected']"/>
+                                        <span class="mark" aria-hidden="true"/>
+                                        <span class="opt-text">
+                                            <span class="label">Iné…</span>
+                                            <span class="desc">Napíš vlastnú odpoveď</span>
+                                        </span>
+                                    </label>
+                                    <div class="other-box">
+                                        <textarea t-att-name="qname + '_other'" rows="3"
+                                                  placeholder="Napíš vlastnú odpoveď…"
+                                                  aria-label="Vlastná odpoveď" t-out="q['other']"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
+                    </t>
+                    <div class="bar">
+                        <div class="bar-in">
+                            <button type="submit" class="send">Odoslať</button>
+                        </div>
+                    </div>
+                </form>
+                <script>
+(function () {
+  var root = document.documentElement;
+  root.classList.add("js");
+  var form = document.getElementById("ask-form");
+  if (!form) return;
+  var auto = form.getAttribute("data-auto") === "1";
+  var bar = form.querySelector(".bar");
+  var button = form.querySelector("button.send");
+  var sending = false;
+  var sets = Array.prototype.slice.call(form.querySelectorAll("fieldset.q"));
+  function refresh() {
+    var allAnswered = true;
+    var otherOn = false;
+    sets.forEach(function (set) {
+      var inputs = Array.prototype.slice.call(set.querySelectorAll("input[type=radio],input[type=checkbox]"));
+      var picked = false;
+      var otherPicked = false;
+      inputs.forEach(function (input) {
+        var wrap = input.closest(".opt-wrap");
+        wrap.classList.toggle("on", input.checked);
+        input.closest(".opt").classList.toggle("sel", input.checked);
+        if (!input.checked) return;
+        if (input.value === "__other__") otherPicked = true; else picked = true;
+      });
+      var box = set.querySelector(".other-box");
+      box.classList.toggle("on", otherPicked);
+      var text = set.querySelector("textarea").value.trim();
+      var ready = picked;
+      if (otherPicked) { if (text) ready = true; }
+      if (!ready) allAnswered = false;
+      if (otherPicked) otherOn = true;
+    });
+    button.disabled = !allAnswered || sending;
+    if (bar) bar.classList.toggle("hidden", auto ? !otherOn : false);
+  }
+  form.addEventListener("change", function (event) {
+    var input = event.target;
+    refresh();
+    if (!input.checked) return;
+    if (input.value === "__other__") {
+      var area = input.closest(".opt-wrap").querySelector("textarea");
+      if (area) area.focus();
+      return;
+    }
+    if (!auto || input.type !== "radio" || sending) return;
+    sending = true;
+    button.disabled = true;
+    form.submit();
+  });
+  form.addEventListener("input", refresh);
+  form.addEventListener("submit", function (event) {
+    if (sending) { event.preventDefault(); return; }
+    sending = true;
+    setTimeout(function () { button.disabled = true; }, 0);
+  });
+  refresh();
+})();
+                </script>
+            </t>
+        </t>
+    </template>
+
+    <template id="ask_list_page" name="Claude otázky – zoznam">
+        <t t-call="arcigy_claude_bridge.ask_layout">
+            <t t-set="page_title" t-value="'Otázky z chatov'"/>
+            <h1 class="list-h">Otázky z chatov</h1>
+            <p class="muted" t-if="not open_rows">Žiadna otázka nečaká.</p>
+            <a class="row" t-foreach="open_rows" t-as="row" t-att-href="row['url']">
+                <span class="label" t-out="row['ask'].name"/>
+                <span class="small" t-out="'%s · %s' % (row['ask'].chat_name or row['ask'].session_id, row['time_text'])"/>
+            </a>
+            <t t-if="done_rows">
+                <h2 class="list-h">Posledné vybavené</h2>
+                <a class="row" t-foreach="done_rows" t-as="row" t-att-href="row['url']">
+                    <span class="label" t-out="row['ask'].name"/>
+                    <span class="small" t-out="'%s · %s · %s' % (row['ask'].chat_name or row['ask'].session_id, dict(row['ask']._fields['state'].selection)[row['ask'].state], row['time_text'])"/>
+                </a>
+            </t>
+            <a class="back" href="/odoo/discuss">Späť do Odoo</a>
+        </t>
+    </template>
+</odoo>

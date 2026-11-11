@@ -21,6 +21,7 @@ grep -Fxq 'addons/geotherm_drive/__manifest__.py' "$file_list"
 grep -Fxq 'addons/arcigy_saas_control_center/__manifest__.py' "$file_list"
 grep -Fxq 'addons/arcigy_client_crm/__manifest__.py' "$file_list"
 grep -Fxq 'addons/arcigy_web_navigation/__manifest__.py' "$file_list"
+grep -Fxq 'addons/arcigy_claude_bridge/__manifest__.py' "$file_list"
 
 if grep -Eq '(^|/)(\.env|[^/]*\.env)$' "$file_list"; then
   echo 'Deployment archive contains an environment file.' >&2

@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_claude_ask_agent,claude ask agent,model_arcigy_claude_ask,group_claude_agent,1,1,1,0
+access_claude_ask_question_agent,claude ask question agent,model_arcigy_claude_ask_question,group_claude_agent,1,1,1,0
+access_claude_ask_option_agent,claude ask option agent,model_arcigy_claude_ask_option,group_claude_agent,1,1,1,0
+access_claude_ask_system,claude ask system,model_arcigy_claude_ask,base.group_system,1,1,1,1
+access_claude_ask_question_system,claude ask question system,model_arcigy_claude_ask_question,base.group_system,1,1,1,1
+access_claude_ask_option_system,claude ask option system,model_arcigy_claude_ask_option,base.group_system,1,1,1,1
