@@ -169,6 +169,8 @@ class ArcigyClaudeAsk(models.Model):
     def _post_to_channel(self):
         for ask in self.sudo():
             channel = self._get_channel()
+            # Agent users created after install are not members yet.
+            channel._add_members(partners=self.env.user.partner_id, post_joined_message=False)
             message = channel.message_post(
                 body=ask._question_body(),
                 author_id=self.env.user.partner_id.id,
@@ -248,11 +250,11 @@ class ArcigyClaudeAsk(models.Model):
         ask._post_to_channel()
         return {"id": ask.id, "url": ask.url}
 
-    @api.model
-    def arcigy_get_asks(self, ids):
+    def arcigy_get_asks(self):
+        """Record method: JSON-2 browses ``self`` from the ``ids`` key."""
         self._check_rpc_access()
         result = []
-        for ask in self.sudo().browse(self._clean_ids(ids)).exists():
+        for ask in self.sudo().exists():
             result.append({
                 "id": ask.id,
                 "state": ask.state,
@@ -270,12 +272,12 @@ class ArcigyClaudeAsk(models.Model):
             })
         return result
 
-    @api.model
-    def arcigy_close_asks(self, ids, reason=""):
+    def arcigy_close_asks(self, reason=""):
+        """Record method: closes the asks in ``self`` that are still open, returns their ids."""
         self._check_rpc_access()
         if reason and not isinstance(reason, str):
             raise UserError("Dôvod musí byť text.")
-        asks = self.sudo().browse(self._clean_ids(ids)).exists().filtered(lambda a: a.state == "open")
+        asks = self.sudo().exists().filtered(lambda a: a.state == "open")
         asks.write({"state": "closed", "close_reason": (reason or "")[:500]})
         asks._update_channel_message()
         return asks.ids

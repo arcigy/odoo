@@ -1,6 +1,9 @@
+import json
+from datetime import datetime, timedelta
+
 from odoo import http
 from odoo.exceptions import AccessError
-from odoo.tests import HttpCase, TransactionCase, new_test_user, tagged
+from odoo.tests import HttpCase, TransactionCase, get_db_name, new_test_user, tagged
 
 AGENT_GROUPS = "base.group_user,arcigy_claude_bridge.group_claude_agent"
 
@@ -48,7 +51,10 @@ class TestClaudeAskRpc(ClaudeAskCommon, TransactionCase):
     def test_agent_creates_ask_and_owner_is_notified(self):
         # Inbox notifications need "handle in Odoo" and an e-mail on the partner (as in production).
         self.owner.write({"notification_type": "inbox", "email": "owner@arcigy.test"})
+        channel = self.Ask._get_channel()
+        channel.channel_member_ids.filtered(lambda m: m.partner_id == self.agent.partner_id).unlink()
         result, ask = self._create()
+        self.assertIn(self.agent.partner_id, channel.channel_member_ids.partner_id)
         self.assertTrue(result["url"].endswith(ask.sudo()._relative_url()))
         message = ask.sudo().channel_message_id
         self.assertEqual(message.model, "discuss.channel")
@@ -65,8 +71,8 @@ class TestClaudeAskRpc(ClaudeAskCommon, TransactionCase):
         Ask = self.Ask.with_user(self.plain)
         calls = [
             lambda: Ask.arcigy_create_ask(_payload()),
-            lambda: Ask.arcigy_get_asks([ask.id]),
-            lambda: Ask.arcigy_close_asks([ask.id], "x"),
+            lambda: Ask.browse(ask.id).arcigy_get_asks(),
+            lambda: Ask.browse(ask.id).arcigy_close_asks("x"),
             lambda: Ask.arcigy_react([ask.sudo().channel_message_id.id], "✅"),
         ]
         for call in calls:
@@ -78,9 +84,9 @@ class TestClaudeAskRpc(ClaudeAskCommon, TransactionCase):
         _r2, answered_ask = self._create()
         answered_ask.with_user(self.owner)._save_answer([(["Verzia A"], "")])
         body_before = open_ask.sudo().channel_message_id.body
-        closed = self.Ask.with_user(self.agent).arcigy_close_asks([open_ask.id, answered_ask.id], "Chat skončil")
+        closed = self.Ask.with_user(self.agent).browse([open_ask.id, answered_ask.id]).arcigy_close_asks("Chat skončil")
         self.assertEqual(closed, [open_ask.id])
-        states = {a["id"]: a["state"] for a in self.Ask.with_user(self.agent).arcigy_get_asks([open_ask.id, answered_ask.id])}
+        states = {a["id"]: a["state"] for a in self.Ask.with_user(self.agent).browse([open_ask.id, answered_ask.id]).arcigy_get_asks()}
         self.assertEqual(states, {open_ask.id: "closed", answered_ask.id: "answered"})
         # The original channel message is edited in place, no new message is posted.
         message = open_ask.sudo().channel_message_id
@@ -110,7 +116,33 @@ class TestClaudeAskPage(ClaudeAskCommon, HttpCase):
         return self.url_open(ask.sudo()._relative_url(), data=data, allow_redirects=False)
 
     def _answers(self, ask):
-        return self.Ask.with_user(self.agent).arcigy_get_asks([ask.id])[0]
+        return self.Ask.with_user(self.agent).browse(ask.id).arcigy_get_asks()[0]
+
+    def test_daemon_flow_over_json2(self):
+        key = self.agent.with_user(self.agent).env["res.users.apikeys"]._generate(
+            scope="rpc", name="daemon", expiration_date=datetime.now() + timedelta(days=1)
+        )
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {key}",
+            "X-Odoo-Database": get_db_name(),
+        }
+
+        def call(method, **params):
+            response = self.url_open(
+                f"/json/2/arcigy.claude.ask/{method}", data=json.dumps(params), headers=headers
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            return response.json()
+
+        created = call("arcigy_create_ask", payload=_payload())
+        self.assertIn(f"/claude/otazka/{created['id']}?t=", created["url"])
+        [item] = call("arcigy_get_asks", ids=[created["id"]])
+        self.assertEqual(item["state"], "open")
+        self.assertEqual(item["questions"][0]["labels"], [])
+        self.assertEqual(call("arcigy_close_asks", ids=[created["id"]], reason="Chat skončil"), [created["id"]])
+        [item] = call("arcigy_get_asks", ids=[created["id"]])
+        self.assertEqual((item["state"], item["close_reason"]), ("closed", "Chat skončil"))
 
     def test_plain_user_gets_403(self):
         _result, ask = self._create()
