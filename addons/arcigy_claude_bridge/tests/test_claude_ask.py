@@ -1,10 +1,16 @@
+import base64
 import json
 from datetime import datetime, timedelta
 
 from odoo import http
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.tests import HttpCase, TransactionCase, get_db_name, new_test_user, tagged
 
+# 1x1 transparent PNG
+PNG_1PX = base64.b64encode(bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+    "0000000b49444154789c6360000200000500017a5eab3f0000000049454e44ae426082"
+)).decode()
 AGENT_GROUPS = "base.group_user,arcigy_claude_bridge.group_claude_agent"
 
 
@@ -93,6 +99,15 @@ class TestClaudeAskRpc(ClaudeAskCommon, TransactionCase):
         self.assertNotEqual(message.body, body_before)
         self.assertIn("Chat skončil", message.body)
 
+    def test_non_image_is_refused(self):
+        bad = {"name": "skript.html", "mimetype": "text/html", "data": base64.b64encode(b"<b>x</b>").decode()}
+        with self.assertRaises(UserError):
+            self.Ask.with_user(self.agent).arcigy_create_ask(_payload(images=[bad]))
+        # A wrong claim about the bytes is refused too.
+        fake = {"name": "foto.png", "mimetype": "image/png", "data": base64.b64encode(b"<svg/>").decode()}
+        with self.assertRaises(UserError):
+            self.Ask.with_user(self.agent).arcigy_create_ask(_payload(images=[fake]))
+
     def test_react_only_in_channels_where_caller_is_member(self):
         _result, ask = self._create()
         own_message = ask.sudo().channel_message_id
@@ -143,6 +158,21 @@ class TestClaudeAskPage(ClaudeAskCommon, HttpCase):
         self.assertEqual(call("arcigy_close_asks", ids=[created["id"]], reason="Chat skončil"), [created["id"]])
         [item] = call("arcigy_get_asks", ids=[created["id"]])
         self.assertEqual((item["state"], item["close_reason"]), ("closed", "Chat skončil"))
+
+    def test_image_is_stored_posted_and_shown(self):
+        _result, ask = self._create(images=[{"name": "../screen shot.png", "mimetype": "image/png", "data": PNG_1PX}])
+        image = ask.sudo().image_ids
+        self.assertEqual(len(image), 1)
+        self.assertEqual((image.res_model, image.res_id, image.mimetype), (ask._name, ask.id, "image/png"))
+        self.assertNotIn("/", image.name)
+        message = ask.sudo().channel_message_id
+        self.assertEqual(len(message.attachment_ids), 1)
+        self.assertEqual(message.attachment_ids.raw, image.raw)
+        self.assertEqual(message.attachment_ids.res_model, "discuss.channel")
+        self.authenticate("admin", "admin")
+        page = self.url_open(ask.sudo()._relative_url())
+        self.assertIn(f'src="/web/image/{image.id}"', page.text)
+        self.assertEqual(self.url_open(f"/web/image/{image.id}").status_code, 200)
 
     def test_plain_user_gets_403(self):
         _result, ask = self._create()

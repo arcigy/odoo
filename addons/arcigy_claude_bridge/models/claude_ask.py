@@ -1,10 +1,15 @@
+import base64
+import binascii
 import json
+import os
+import re
 import secrets
 
 from markupsafe import Markup, escape
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
+from odoo.tools.mimetypes import guess_mimetype
 
 CHANNEL_NAME = "otázky-z-chatov"
 CHANNEL_DESCRIPTION = "Otázky z Claude chatov – odpovedz klepnutím na Odpovedať"
@@ -12,6 +17,10 @@ CHANNEL_PARAM = "arcigy_claude_bridge.channel_id"
 AGENT_LOGINS_PARAM = "arcigy_claude_bridge.agent_logins"
 DEFAULT_AGENT_LOGINS = "agent-claude-chaty@arcigy.local,agent-git-a-vetvy@arcigy.local"
 REACTION_EMOJIS = ("✅", "👀", "⚠️")
+
+IMAGE_MIMETYPES = ("image/png", "image/jpeg", "image/gif", "image/webp")
+MAX_IMAGES = 6
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
 LIMITS = {
     "context": 4000,
@@ -42,6 +51,44 @@ def _check_text(value, field, required=False, path=""):
     return value
 
 
+def _clean_image_name(name, index):
+    """Plain file name: no path, no control or reserved characters, at most 200 chars."""
+    name = os.path.basename(str(name).replace("\\", "/"))
+    name = re.sub(r'[\x00-\x1f\x7f<>:"/\\|?*]+', "_", name).strip(" .")
+    return name[:200] or f"obrazok-{index + 1}"
+
+
+def _parse_images(images):
+    """Validate the optional ``images`` payload; return a list of (name, mimetype, raw bytes)."""
+    if images in (None, False):
+        return []
+    if not isinstance(images, list) or len(images) > MAX_IMAGES:
+        raise UserError(f"Pole „images“ musí byť zoznam najviac {MAX_IMAGES} obrázkov.")
+    parsed = []
+    for index, image in enumerate(images):
+        where = f"images[{index}]"
+        if not isinstance(image, dict):
+            raise UserError(f"Obrázok {index + 1} musí byť objekt.")
+        name, mimetype, data = image.get("name"), image.get("mimetype"), image.get("data")
+        if not isinstance(name, str) or not name.strip() or len(name) > 200:
+            raise UserError(f"Pole „{where}.name“ musí byť text do 200 znakov.")
+        if mimetype not in IMAGE_MIMETYPES:
+            raise UserError(f"Obrázok „{name}“ má nepovolený typ. Povolené: {', '.join(IMAGE_MIMETYPES)}.")
+        if not isinstance(data, str) or not data or len(data) > (MAX_IMAGE_BYTES * 4) // 3 + 8:
+            raise UserError(f"Obrázok „{name}“ chýba alebo je väčší ako 8 MB.")
+        try:
+            raw = base64.b64decode(data, validate=True)
+        except (binascii.Error, ValueError):
+            raise UserError(f"Obrázok „{name}“ nie je platný base64.") from None
+        if not raw or len(raw) > MAX_IMAGE_BYTES:
+            raise UserError(f"Obrázok „{name}“ chýba alebo je väčší ako 8 MB.")
+        # The bytes must really be one of the allowed image types, whatever the caller claims.
+        if guess_mimetype(raw) not in IMAGE_MIMETYPES:
+            raise UserError(f"Obrázok „{name}“ nie je PNG, JPEG, GIF ani WebP.")
+        parsed.append((_clean_image_name(name, index), guess_mimetype(raw), raw))
+    return parsed
+
+
 class ArcigyClaudeAsk(models.Model):
     _name = "arcigy.claude.ask"
     _description = "Otázka z Claude chatu"
@@ -67,6 +114,9 @@ class ArcigyClaudeAsk(models.Model):
     answered_at = fields.Datetime()
     answered_by = fields.Many2one("res.users")
     question_ids = fields.One2many("arcigy.claude.ask.question", "ask_id")
+    image_ids = fields.Many2many(
+        "ir.attachment", "arcigy_claude_ask_image_rel", "ask_id", "attachment_id", copy=False
+    )
     channel_message_id = fields.Many2one("mail.message", ondelete="set null")
     url = fields.Char(compute="_compute_url", compute_sudo=True)
 
@@ -177,6 +227,8 @@ class ArcigyClaudeAsk(models.Model):
                 message_type="comment",
                 subtype_xmlid="mail.mt_comment",
                 partner_ids=[self._owner().partner_id.id],
+                # Copies owned by the channel, so every channel member can open them in Discuss.
+                attachments=[(image.name, image.raw) for image in ask.image_ids],
             )
             ask.channel_message_id = message
 
@@ -238,6 +290,7 @@ class ArcigyClaudeAsk(models.Model):
                 "multi_select": multi,
                 "option_ids": option_commands,
             }))
+        images = _parse_images(payload.get("images"))
         first = questions[0]
         ask = self.sudo().create({
             "name": (first.get("header") or first.get("question"))[:120],
@@ -247,6 +300,12 @@ class ArcigyClaudeAsk(models.Model):
             "context_text": context,
             "question_ids": question_commands,
         })
+        if images:
+            attachments = self.env["ir.attachment"].sudo().create([
+                {"name": name, "mimetype": mimetype, "raw": raw, "res_model": self._name, "res_id": ask.id}
+                for name, mimetype, raw in images
+            ])
+            ask.image_ids = attachments
         ask._post_to_channel()
         return {"id": ask.id, "url": ask.url}
 

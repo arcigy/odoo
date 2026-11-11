@@ -24,6 +24,9 @@ a{color:var(--accent)}
 details.ctx{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:20px;color:var(--muted);font-size:14px}
 details.ctx summary{cursor:pointer;padding:10px 14px;font-weight:600;list-style-position:inside}
 details.ctx div{padding:0 14px 12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.images{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.image-link{display:block;border-radius:12px}
+.images img{display:block;max-width:100%;height:auto;margin:0 auto;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
 .error{border:1px solid var(--error);color:var(--error);border-radius:12px;padding:10px 14px;margin-bottom:16px;font-size:14px}
 fieldset.q{border:0;margin:0 0 28px;padding:0;min-width:0}
 .chip{display:inline-block;background:var(--tint-strong);color:var(--accent);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;margin-bottom:8px}
@@ -121,6 +124,12 @@ a.row .small{display:block;font-size:13px;color:var(--muted)}
                     <summary>Kontext</summary>
                     <div t-out="ask.context_text"/>
                 </details>
+                <div class="images" t-if="ask.image_ids">
+                    <a t-foreach="ask.image_ids" t-as="image" class="image-link" target="_blank" rel="noopener"
+                       t-att-href="'/web/content/%s' % image.id" t-att-title="image.name">
+                        <img t-att-src="'/web/image/%s' % image.id" t-att-alt="image.name" loading="lazy"/>
+                    </a>
+                </div>
                 <div class="error" role="alert" t-if="error" t-out="error"/>
                 <form id="ask-form" method="post" t-att-action="form_action"
                       t-att-data-auto="'1' if auto_submit else '0'">
